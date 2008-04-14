@@ -1,0 +1,7 @@
+Akara
+=====
+
+http://wiki.xml3k.org/Akara
+
+Akara 2.0 is a set of components for providing the capabilities of Amara to those developing services over a network protocol, particularly the Web. In effect it's a set of WSGI middleware and utilities libraries for XML/RDF processing.
+
