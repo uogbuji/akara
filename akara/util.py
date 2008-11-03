@@ -69,3 +69,23 @@ def geturl(environ, relative=''):
     if relative: url = Uri.Absolutize(relative, url)
     return url
 
+
+# Requires python-magic <http://pypi.python.org/pypi/python-magic/0.1>
+# >>> import magic
+# >>> m = magic.Magic()
+# >>> m.from_file("testdata/test.pdf")
+# 'PDF document, version 1.2'
+# >>> m.from_buffer(open("testdata/test.pdf").read(1024))
+# 'PDF document, version 1.2'
+# For MIME types
+# >>> mime = magic.Magic(mime=True)
+# >>> mime.from_file("testdata/test.pdf")
+# 'application/pdf
+try:
+    import magic
+    def guess_mediatype(content):
+        m = magic.Magic()
+        pass
+except ImportError:
+    pass
+

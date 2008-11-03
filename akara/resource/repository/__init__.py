@@ -28,7 +28,7 @@ class driver(object):
         """
         c = self._conn.cursor()
         #http://www.sqlite.org/faq.html#q1
-        c.execute('INSERT into resources values(NULL, ?)', (content.read(),))
+        c.execute('INSERT into resources values(NULL, ?)', (content,))
         new_id = c.lastrowid
         #c.execute('SELECT max(id) FROM resources')
         #rowid = c.next()[0]
@@ -63,13 +63,17 @@ class driver(object):
         """
         c = self._conn.cursor()
         c.execute('select content from resources where id=?', (id,))
-        data = c.next()[0]
+        try:
+            data = c.next()[0]
+        except StopIteration:
+            c.close()
+            return None, None
         c.execute('select key, value from metadata where id=?', (id,))
         metadata = dict(c)
         #for row in c:
         c.close()
-        stream = StringIO(data)
-        return stream, metadata
+        #stream = StringIO(data)
+        return data, metadata
 
     def update_resource(self, id, content=None, metadata=None):
         """

@@ -36,9 +36,8 @@ class Test_parse_functions_1(unittest.TestCase):
         driver.init_db(sqlite3.connect(fname))
         drv = driver(sqlite3.connect(fname))
         content = MONTY_XML
-        id = drv.create_resource(StringIO(content), metadata=dict(myindex(content)))
+        id = drv.create_resource(content, metadata=dict(myindex(content)))
         content1, metadata = drv.get_resource(id)
-        content1 = content1.read()
         doc = amara.parse(content)
         self.assertEqual(content, content1)
         self.assertEqual(metadata[u'root-element-name'], doc.xml_select(u'name(*)'))

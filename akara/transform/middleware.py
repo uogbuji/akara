@@ -287,7 +287,7 @@ class xslt_transform_manager(object):
                         params.update(setup_xslt_params(ns, self.stock_xslt_params[ns]))
                     start = time.time()
 
-
+                    '''
                         processor = self.processorPool.get_processor(
                             stylesheet, self.ext_functions, self.ext_elements)
                         cherrypy.response.body = processor.run(
@@ -300,6 +300,7 @@ class xslt_transform_manager(object):
                             cherrypy.response.headers['Content-Type'] = picket.content_type
                     finally:
                         self.processorPool.release_processor(stylesheet)
+                        '''
 
 
                     if xslt in self.processor_cache:
