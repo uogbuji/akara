@@ -63,11 +63,11 @@ class driver(object):
         """
         c = self._conn.cursor()
         c.execute('select content from resources where id=?', (id,))
-        try:
-            data = c.next()[0]
-        except StopIteration:
+        data = c.fetchone()
+        if not data:
             c.close()
             return None, None
+        data = data[0]
         c.execute('select key, value from metadata where id=?', (id,))
         metadata = dict(c)
         #for row in c:
