@@ -1,7 +1,7 @@
 #Useful: http://docs.python.org/library/wsgiref.html
 #
 
-import sqlite3
+import os, sqlite3
 from wsgiref.util import shift_path_info, request_uri
 from string import Template
 from cStringIO import StringIO
@@ -11,6 +11,9 @@ from akara.resource.repository import driver
 from akara.resource import web as resourceweb
 #from akara.services import web as servicesweb
 
+#LOCAL_DIR = os.path.join(os.getcwd(), os.path.dirname(__file__))
+print os.path.dirname(__file__)
+LOCAL_DIR = os.getcwd()
 
 # Templates
 wrapper = Template("""
@@ -26,8 +29,9 @@ four_oh_four = Template("""
 </body></html>""")
 
 def root(environ, start_response):
-    environ['akara.DBFILE'] = DBFILE
-    
+    environ['akara.DBFILE'] = root.dbfile
+    drv.update_resource(self, id, None, metadata=None)
+    drv.update_resource(self, id, None, metadata=None)
     key = shift_path_info(environ) or 'index'
     if not key in APPS:
         #404 error
@@ -81,7 +85,13 @@ APPS = {
     'transform': transform,
     }
 
-DBFILE = None
+try:
+    from repoze.who.config import make_middleware_with_config
+    wrapped_root = make_middleware_with_config(root, {'here': LOCAL_DIR}, 'sample_repoze_who.ini')
+except ImportError:
+    #No auth support
+    pass
+
 
 '''
 MONTY_XML = """<monty>
@@ -95,24 +105,75 @@ print >> sys.stderr, 'Created document', id
 echo '<a><b>Spam</b></a>' | curl -X POST -H 'Content-type: text/xml' -d @- http://localhost:8880/store/
 '''
 
-if __name__ == '__main__':
-    import sys
-    import sqlite3
-    DBFILE = sys.argv[1]
+#
+# Command line support
+#
+
+import sys, getopt
+import sqlite3
+import pdb
+import SocketServer
+
+def launch(dbfile):
+    root.dbfile = dbfile
     try:
-        driver.init_db(sqlite3.connect(DBFILE))
+        driver.init_db(sqlite3.connect(dbfile))
     except sqlite3.OperationalError:
         pass
-    drv = driver(sqlite3.connect(DBFILE))
+    drv = driver(sqlite3.connect(dbfile))
 
     from wsgiref import simple_server
-    import SocketServer
     class server(simple_server.WSGIServer, SocketServer.ForkingMixIn): pass
 
     print >> sys.stderr, "Starting server on port 8880..."
     print >> sys.stderr, "Try out: 'curl http://localhost:8880/store/2'"
     try:
-        simple_server.make_server('', 8880, root, server).serve_forever()
+        simple_server.make_server('', 8880, wrapped_root, server).serve_forever()
     except KeyboardInterrupt:
         print >> sys.stderr, "Ctrl-C caught, Server exiting..."
+
+    return
+
+
+class Usage(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    try:
+        try:
+            opts, args = getopt.getopt(argv[1:], "hDv", ["help", "pdb"])
+        except getopt.error, msg:
+            raise Usage(msg)
+
+        # option processing
+        use_pdb = False
+        kwargs = {}
+        for option, value in opts:
+            if option == "-v":
+                verbose = True
+            if option in ("-h", "--help"):
+                raise Usage(help_message)
+            if option in ("-D", "--pdb"):
+                use_pdb = True
+    
+    except Usage, err:
+        print >> sys.stderr, sys.argv[0].split("/")[-1] + ": " + str(err.msg)
+        print >> sys.stderr, "\t for help use --help"
+        return 2
+
+    if use_pdb:
+        import akara.resource.web
+        def _launch():
+            launch(*args, **kwargs)
+        pdb.runcall(_launch)
+    else:
+        launch(*args, **kwargs)
+    return
+
+if __name__ == "__main__":
+    sys.exit(main())
 

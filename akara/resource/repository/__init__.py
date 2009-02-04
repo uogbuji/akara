@@ -78,13 +78,14 @@ class driver(object):
     def update_resource(self, id, content=None, metadata=None):
         """
         id - ID of the resource to update
-        content - text or stream with new resource content
+        content - text or stream with new resource content, or None to leave content untouched
         metadata - dict of metadata to be added/updated
         
         return a stream and an iterator over the metadata dict
         """
         c = self._conn.cursor()
-        c.execute('update resources set content=? where id=?', (content, id))
+        if content is not None:
+            c.execute('update resources set content=? where id=?', (content, id))
         #Use executemany?
         for key, value in metadata.iteritems():
             c.execute('update metadata set key=?, set value=? where id=?', (key, value, id,))
@@ -96,10 +97,72 @@ class driver(object):
         id = ID of the resource to delete
         """
         c = self._conn.cursor()
-        c.execute('delete from resources where id=?', (id,))
-        c.execute('delete from metadata where id=?', (id,))
+        c.execute('DELETE from resources where id=?', (id,))
+        c.execute('DELETE from metadata where id=?', (id,))
         self._conn.commit()
         return
+
+    def get_metadata(self, id):
+        """
+        id = ID of the resource to get
+        
+        return a stream and an iterator over the metadata dict
+        """
+        c = self._conn.cursor()
+        #c.execute('select content from resources where id=?', (id,))
+        #data = c.next()[0]
+        c.execute('select key, value from metadata where id=?', (path,))
+        metadata = dict(c)
+        #for row in c:
+        c.close()
+        return metadata
+
+    def lookup(self, key, value):
+        """
+        key - metadata key
+        value - metadata value to match
+        """
+        c = self._conn.cursor()
+        #c.execute('select content from resources where id=?', (id,))
+        #data = c.next()[0]
+        c.execute('select id from metadata where key=? and value=?', (key, value))
+        result = [ r[0] for r in c ]
+        #metadata = dict(c)
+        #for row in c:
+        c.close()
+        return result
+
+    def orderby(self, key, count=None, reverse=False):
+        """
+        id = ID of the resource to get
+        
+        return a stream and an iterator over the metadata dict
+        """
+        direction = 'DESC' if reverse else 'ASC'
+        c = self._conn.cursor()
+        #c.execute('select content from resources where id=?', (id,))
+        #data = c.next()[0]
+        if count:
+            c.execute('select id, value from metadata where key=? order by value %s limit ?'%(direction), (key, count))
+        else:
+            c.execute('select id, value from metadata where key=? order by value %s'%(direction), (key,))
+        result = [ r[0] for r in c ]
+        #metadata = dict(c)
+        #for row in c:
+        c.close()
+        return result
+
+    #def create_alias(self, alias, id):
+    #    """
+    #    alias - the alias for the resource
+    #    id - the resource's ID
+    #    """
+    #    c = self._conn.cursor()
+    #    c.execute('INSERT into alias values(?, ?)', (alias, id))
+    #    self._conn.commit()
+    #    #def lookup_alias(self, alias):
+    #    #c.execute('SELECT * from alias values(?, ?)', (alias, id))
+    #    return new_id
 
     @staticmethod
     def init_db(conn):
@@ -110,6 +173,8 @@ class driver(object):
         (id INTEGER PRIMARY KEY, content TEXT)''')
         c.execute('''create table metadata
         (id INTEGER, key TEXT, value TEXT)''')
+        #c.execute('''create table aliases
+        #(alias TEXT, id INTEGER)''')
         
         c.close()
         pass
