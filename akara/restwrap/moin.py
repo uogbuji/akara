@@ -14,7 +14,7 @@ Project home, documentation, distributions: http://wiki.xml3k.org/Akara
 @copyright: 2009 by Uche ogbuji <uche@ogbuji.net>
 
 Can be launched from the command line, e.g.:
-    python akara/restwrap/moin.py http://localhost:8080/
+    python akara/restwrap/moin.py http://mywiki.example.com/
 """
 #Detailed license and copyright information: http://4suite.org/COPYRIGHT
 
@@ -34,6 +34,7 @@ from amara.bindery.html import parse as htmlparse
 
 WIKITEXT_IMT = 'text/plain'
 DOCBOOK_IMT = 'application/docbook+xml'
+RDF_IMT = 'application/rdf+xml'
 
 # Templates
 four_oh_four = Template("""
@@ -98,8 +99,13 @@ class wikiwrapper(wsgibase):
 
     def head_page(self):
         url = self.wikibase + self.page
+        transform = None
         if DOCBOOK_IMT in self.environ['HTTP_ACCEPT']:
             request = urllib2.Request(url + "?mimetype=text/docbook")
+        elif RDF_IMT in self.environ['HTTP_ACCEPT']:
+            #FIXME: Make unique flag optional
+            url = self.wikibase + '/RecentChanges?action=rss_rc&unique=1&ddiffs=1'
+            request = urllib2.Request(url)
         else:
             request = urllib2.Request(url + "?action=raw")
         try:
@@ -243,6 +249,7 @@ def moinrestwrapper(wikibase):
     print >> sys.stderr, "Try out:"
     print >> sys.stderr, "\tcurl http://localhost:8880/FrontPage"
     print >> sys.stderr, "\tcurl -H \"Accept: application/docbook+xml\" http://localhost:8880/FrontPage"
+    print >> sys.stderr, "\tcurl -H \"Accept: application/rdf+xml\" http://localhost:8880/FrontPage"
     print >> sys.stderr, '\tcurl --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: %s" "http://localhost:8880/FooTest"'%WIKITEXT_IMT
     print >> sys.stderr, '\tcurl -u me:passwd -p --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: %s" "http://localhost:8880/FooTest"'%WIKITEXT_IMT
     try:
@@ -256,15 +263,10 @@ def moinrestwrapper(wikibase):
 #Ideas borrowed from
 # http://www.artima.com/forums/flat.jsp?forum=106&thread=4829
 
-#FIXME: A lot of this is copied boilerplate that neds to be cleaned up
-
 def command_line_prep():
     from optparse import OptionParser
     usage = "%prog [options] source cmd"
     parser = OptionParser(usage=usage)
-    #parser.add_option("-n", "--normalize",
-    #                  action="store_false", dest="normalize", default=False,
-    #                  help="send a normalized version of the Atom to the console")
     return parser
 
 
@@ -278,13 +280,11 @@ def main(argv=None):
         options, args = optparser.parse_args(argv[1:])
         # Process mandatory arguments with IndexError try...except blocks
         try:
+            #FIXME: Things seem to break with a trailing slash
             wikibase = args[0]
         except IndexError:
             optparser.error("Missing Wiki base URL")
-        #try:
-        #    xpattern = args[1]
-        #except IndexError:
-        #    optparser.error("Missing main xpattern")
+        rewrite = args[1] if len(args) > 1 else None
     except SystemExit, status:
         return status
 
@@ -293,24 +293,7 @@ def main(argv=None):
     # code of 1 should be returned. Note, this would be the default code
     # for a SystemExit exception with a string message.
 
-    #try:
-    #    xpath = args[2].decode('utf-8')
-    #except IndexError:
-    #    xpath = None
-    #xpattern = xpattern.decode('utf-8')
-    #sentinel = options.sentinel and options.sentinel.decode('utf-8')
-    #display = options.display and options.display.decode('utf-8')
-    #prefixes = options.ns
-    #limit = options.limit
-    #if source == '-':
-    #    source = sys.stdin
-    print options.normalize
-    #run(source, xpattern, xpath, limit, sentinel, display, prefixes)
-    #if options.test:
-    #    test()
-    #else:
-    if True:
-        moinrestwrapper(wikibase)#, options.normalize)
+    moinrestwrapper(wikibase)
     return
 
 
