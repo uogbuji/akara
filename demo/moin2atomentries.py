@@ -60,15 +60,22 @@ class author(object):
         self.uri = para.ulink.url
         return
 
-def handle_page(uri, page, outputdir):
+UNSUPPORTED_IN_FILENAME = re.compile('\W')
+LINK_PATTERN = u'http://zepheira.com/news/#%s'
+
+def pathsegment(relative):
+    return UNSUPPORTED_IN_FILENAME.sub('_', relative)
+
+def handle_page(uri, page, outputdir, relative):
     #tags = [u"xml", u"python", u"atom"]
+    print >> sys.stderr, 'Processing ', uri
     title = unicode(page.article.section[0].title)
     sections = dict([ (unicode(s.title), s) for s in page.article.section ])
     #print sections
     summary = sections["entry:summary"]
     content = sections["entry:content"]
     tags = [ g for g in page.article.section.glosslist.glossentry if unicode(g.glossterm) == u'entry:tags' ]
-    if tags: tags = [ unicode(gd.para) for gd in tags[0].glossdef ]
+    if tags: tags = [ unicode(gd.para).strip() for gd in tags[0].glossdef ]
     authors = [ a
         for a in page.article.section.glosslist.glossentry
         if unicode(a.glossterm) == u'entry:authors'
@@ -76,14 +83,18 @@ def handle_page(uri, page, outputdir):
     if authors: authors = [ author(gd.para) for gd in authors[0].glossdef ]
     #title = article.xml_select(u'section[@title = ]')
 
-    w = structwriter(indent=u"yes")
+    output = os.path.join(outputdir, OUTPUTPATTERN%pathsegment(relative))
+    print >> sys.stderr, 'Writing to ', output
+    output = open(output, 'w')
+    w = structwriter(indent=u"yes", stream=output)
     w.feed(
     ROOT(
         E((ATOM_NAMESPACE, u'entry'), {(XML_NAMESPACE, u'xml:lang'): u'en'},
             #E(u'link', {u'href': u'/blog'}),
             E(u'link', {u'href': unicode(uri), u'rel': u'edit'}),
+            E(u'link', {u'href': LINK_PATTERN%unicode(uri), u'rel': u'alternate', title: u"Permalink"}),
             E(u'id', unicode(uri)),
-            E(u'title', u''),
+            E(u'title', title),
             #FIXME: Use updated time from feed
             #E(u'updated', unicode(page.updated)),
             #E(u'updated', page.updated),
@@ -106,6 +117,7 @@ def handle_page(uri, page, outputdir):
             ),
         ),
     ))
+    output.close()
     return
 
 
@@ -154,24 +166,25 @@ class content_handlers(dispatcher):
     #def etc(self, node):
 
 CONTENT = content_handlers()
+OUTPUTPATTERN = 'MOIN.%s.atom'
 
 def moin2atomentries(wikibase, outputdir, rewrite, pattern):
     wikibase_len = len(wikibase)
     if pattern: pattern = re.compile(pattern)
-    print (wikibase, outputdir, rewrite)
+    #print (wikibase, outputdir, rewrite)
     req = urllib2.Request(wikibase, headers={'Accept': RDF_IMT})
     feed = bindery.parse(urllib2.urlopen(req))
     for item in feed.RDF.channel.items.Seq.li:
         uri = split_fragment(item.resource)[0]
-        print >> sys.stderr, uri, uri[wikibase_len:]
-        if pattern and not pattern.match(uri[wikibase_len:]):
+        relative = uri[wikibase_len:]
+        print >> sys.stderr, uri, relative
+        if pattern and not pattern.match(relative):
             continue
         if rewrite:
             uri = uri.replace(rewrite, wikibase)
-        print >> sys.stderr, uri, uri[wikibase_len:]
         req = urllib2.Request(uri, headers={'Accept': DOCBOOK_IMT})
         page = bindery.parse(urllib2.urlopen(req))
-        handle_page(uri, page, outputdir)
+        handle_page(uri, page, outputdir, relative)
     return
 
 #Ideas borrowed from
