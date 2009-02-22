@@ -32,7 +32,7 @@ def alias(environ, start_response):
     '''
     key = environ['PATH_INFO']
     print 'key', key
-    if not key in :
+    if not key in APPS:
         #404 error
         start_response('404 Not Found', [('content-type', 'text/html')])
         response = four_oh_four.substitute(url=request_uri(environ))

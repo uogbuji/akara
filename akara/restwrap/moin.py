@@ -26,11 +26,14 @@ import urllib, urllib2, cookielib
 from wsgiref.util import shift_path_info, request_uri
 from string import Template
 from cStringIO import StringIO
+import tempfile
 
 import amara
 from amara import bindery
 from amara.writers.struct import *
 from amara.bindery.html import parse as htmlparse
+
+from akara.util import multipart_post_handler
 
 WIKITEXT_IMT = 'text/plain'
 DOCBOOK_IMT = 'application/docbook+xml'
@@ -87,7 +90,9 @@ class wikiwrapper(wsgibase):
         #wikibase = environ['moinrestwrapper.wikibase']
         self.wikibase = wikibase
         self.cookiejar = cookielib.CookieJar()
-        self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cookiejar))
+        self.opener = urllib2.build_opener(
+            urllib2.HTTPCookieProcessor(self.cookiejar),
+            multipart_post_handler.MultipartPostHandler)
         return
 
     def __call__(self, environ, start_response):
@@ -111,6 +116,7 @@ class wikiwrapper(wsgibase):
         try:
             response = self.opener.open(request)
         except:
+            response.close()
             raise
             #404 error
             self.start_response(status_response(httplib.NOT_FOUND), [('content-type', 'text/html')])
@@ -121,6 +127,7 @@ class wikiwrapper(wsgibase):
         
         self.start_response(status_response(httplib.OK), [('content-type', WIKITEXT_IMT)])
         self.response = response.read()
+        response.close()
         return ''
 
     def get_page(self):
@@ -138,6 +145,21 @@ class wikiwrapper(wsgibase):
         form_vars["rev"] = unicode(form.xml_select(u'string(*/*[@name="rev"]/@value)'))
         form_vars["ticket"] = unicode(form.xml_select(u'string(*/*[@name="ticket"]/@value)'))
         form_vars["editor"] = unicode(form.xml_select(u'string(*/*[@name="editor"]/@value)'))
+        #pprint.pprint(form_vars)
+        return form_vars
+
+    def fill_attachment_form(self, page, attachment):
+        url = self.wikibase + page + '?action=AttachFile'
+        doc = htmlparse(self.opener.open(urllib2.Request(url)))
+        form = doc.html.body.xml_select(u'.//*[@id="content"]/form')[0]
+        form_vars = {}
+        #form / dl / ... dd
+        form_vars["rename"] = unicode(attachment)
+        #FIXME: parameterize
+        form_vars["overwrite"] = u'1'
+        form_vars["action"] = unicode(form.xml_select(u'string(*/*[@name="action"]/@value)'))
+        form_vars["do"] = unicode(form.xml_select(u'string(*/*[@name="do"]/@value)'))
+        form_vars["submit"] = unicode(form.xml_select(u'string(*/*[@type="submit"]/@value)'))
         #pprint.pprint(form_vars)
         return form_vars
 
@@ -160,6 +182,7 @@ class wikiwrapper(wsgibase):
         url = self.wikibase + '?action=login&name=%s&password=%s&login=login'%(username, password)
         request = urllib2.Request(url)
         response = self.opener.open(request)
+        response.close()
         self.environ['REMOTE_USER'] = username
         #print "="*60
         #doc = htmlparse(response)
@@ -189,12 +212,14 @@ class wikiwrapper(wsgibase):
         try:
             response = self.opener.open(request)
         except:
+            response.close()
             raise
             #404 error
             self.start_response(status_response(httplib.NOT_FOUND), [('content-type', 'text/html')])
             response = four_oh_four.substitute(fronturl=request_uri(self.environ), backurl=url)
             return response
         doc = htmlparse(response)
+        response.close()
         #print "="*60
         #amara.xml_print(doc)
 
@@ -203,28 +228,51 @@ class wikiwrapper(wsgibase):
         headers.append(('Content-Location', url))
 
         headers.append(('Content-Length', str(len(msg))))
-        self.start_response(status_response(httplib.OK), headers)
+        self.start_response(status_response(httplib.CREATED), headers)
         
         return msg
 
     def post_page(self):
-        ctype = self.environ.get('CONTENT_TYPE', 'application/unknown')
+        #http://groups.google.com/group/comp.lang.python/browse_thread/thread/4662d41aca276d99
+        #ctype = self.environ.get('CONTENT_TYPE', 'application/unknown')
+        page, attachment = self.page.split(';attachment=')
+        url = self.wikibase + page
+        #print page, attachment
         clen = int(self.environ.get('CONTENT_LENGTH', None))
         if not clen:
             self.start_response(status_response(httplib.LENGTH_REQUIRED), [('Content-Type','text/plain')])
             return ["Content length Required"]
-        key = shift_path_info(environ)
-        now = datetime.now().isoformat()
-        content = environ['wsgi.input'].read(clen)
-        id = drv.create_resource(content, metadata=md)
-        msg = 'Adding %i' % id
-        new_uri = str(id)
+        #now = datetime.now().isoformat()
+        #Unfortunately because urllib2's data dicts don't give an option for limiting read length, must read into memory and wrap
+        #content = StringIO(self.environ['wsgi.input'].read(clen))
 
+        temp = tempfile.mkstemp(suffix=".dat")
+        os.write(temp[0], self.environ['wsgi.input'].read(clen))
+
+        form_vars = self.fill_attachment_form(page, attachment)
+        form_vars["file"] = open(temp[1], "rb")
+
+        #data = urllib.urlencode(form_vars)
+        request = urllib2.Request(url, form_vars)
+        try:
+            response = self.opener.open(request)
+        except:
+            response.close()
+            raise
+            #404 error
+            self.start_response(status_response(httplib.NOT_FOUND), [('content-type', 'text/html')])
+            response = four_oh_four.substitute(fronturl=request_uri(self.environ), backurl=url)
+            return response
+        os.remove(temp[1])
+        doc = htmlparse(response)
+        response.close()
+        #print "="*60
+        #amara.xml_print(doc)
+
+        msg = 'Attachment updated OK: %s\n'%(self.wikibase + self.page)
         headers = [('Content-Type', 'text/plain')]
-        headers.append(('Location', new_uri))
-        headers.append(('Content-Location', new_uri))
+        headers.append(('Content-Location', url))
 
-        #environ['akara.etag'] = compute_etag(content)
         headers.append(('Content-Length', str(len(msg))))
         self.start_response(status_response(httplib.CREATED), headers)
         
@@ -251,6 +299,7 @@ def moinrestwrapper(wikibase):
     print >> sys.stderr, "\tcurl -H \"Accept: application/docbook+xml\" http://localhost:8880/FrontPage"
     print >> sys.stderr, "\tcurl -H \"Accept: application/rdf+xml\" http://localhost:8880/FrontPage"
     print >> sys.stderr, '\tcurl --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: %s" "http://localhost:8880/FooTest"'%WIKITEXT_IMT
+    print >> sys.stderr, '\tcurl --request POST --data-binary "@wikicontent.txt" --header "Content-Type: %s" "http://localhost:8880/FooTest;attachment=wikicontent.txt"'%WIKITEXT_IMT
     print >> sys.stderr, '\tcurl -u me:passwd -p --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: %s" "http://localhost:8880/FooTest"'%WIKITEXT_IMT
     try:
         simple_server.make_server('', 8880, wikiwrapper(wikibase), server).serve_forever(

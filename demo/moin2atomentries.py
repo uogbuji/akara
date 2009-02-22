@@ -33,6 +33,9 @@ from cStringIO import StringIO
 from functools import partial
 from itertools import *
 
+from dateutil.parser import parse as dateparse
+import pytz
+
 import amara
 from amara import bindery
 from amara.namespaces import *
@@ -44,6 +47,7 @@ from amara.bindery.util import dispatcher, node_handler, property_sequence_gette
 WIKITEXT_IMT = 'text/plain'
 DOCBOOK_IMT = 'application/docbook+xml'
 RDF_IMT = 'application/rdf+xml'
+DEFAULT_TZ = pytz.timezone('UTC')
 
 import sys
 import SocketServer
@@ -66,7 +70,7 @@ LINK_PATTERN = u'http://zepheira.com/news/#%s'
 def pathsegment(relative):
     return UNSUPPORTED_IN_FILENAME.sub('_', relative)
 
-def handle_page(uri, page, outputdir, relative):
+def handle_page(uri, page, outputdir, relative, output):
     #tags = [u"xml", u"python", u"atom"]
     print >> sys.stderr, 'Processing ', uri
     title = unicode(page.article.section[0].title)
@@ -83,22 +87,22 @@ def handle_page(uri, page, outputdir, relative):
     if authors: authors = [ author(gd.para) for gd in authors[0].glossdef ]
     #title = article.xml_select(u'section[@title = ]')
 
-    output = os.path.join(outputdir, OUTPUTPATTERN%pathsegment(relative))
-    print >> sys.stderr, 'Writing to ', output
-    output = open(output, 'w')
+    revdate = dateparse(unicode(page.article.articleinfo.revhistory.revision.date))
+    if revdate.tzinfo == None: revdate = revdate.replace(tzinfo=DEFAULT_TZ)
+
     w = structwriter(indent=u"yes", stream=output)
     w.feed(
     ROOT(
         E((ATOM_NAMESPACE, u'entry'), {(XML_NAMESPACE, u'xml:lang'): u'en'},
             #E(u'link', {u'href': u'/blog'}),
             E(u'link', {u'href': unicode(uri), u'rel': u'edit'}),
-            E(u'link', {u'href': LINK_PATTERN%unicode(uri), u'rel': u'alternate', title: u"Permalink"}),
+            E(u'link', {u'href': LINK_PATTERN%unicode(uri), u'rel': u'alternate', u'title': u"Permalink"}),
             E(u'id', unicode(uri)),
             E(u'title', title),
             #FIXME: Use updated time from feed
-            #E(u'updated', unicode(page.updated)),
+            E(u'updated', unicode(revdate)),
+            #E(u'updated', datetime.datetime.now().isoformat()),
             #E(u'updated', page.updated),
-            E(u'updated', datetime.datetime.now().isoformat()),
             ( E(u'category', {u'term': t}) for t in tags ),
             ( E(u'author',
                 E(u'name', a.name),
@@ -117,7 +121,6 @@ def handle_page(uri, page, outputdir, relative):
             ),
         ),
     ))
-    output.close()
     return
 
 
@@ -169,7 +172,7 @@ CONTENT = content_handlers()
 OUTPUTPATTERN = 'MOIN.%s.atom'
 
 def moin2atomentries(wikibase, outputdir, rewrite, pattern):
-    wikibase_len = len(wikibase)
+    wikibase_len = len(rewrite)
     if pattern: pattern = re.compile(pattern)
     #print (wikibase, outputdir, rewrite)
     req = urllib2.Request(wikibase, headers={'Accept': RDF_IMT})
@@ -184,7 +187,19 @@ def moin2atomentries(wikibase, outputdir, rewrite, pattern):
             uri = uri.replace(rewrite, wikibase)
         req = urllib2.Request(uri, headers={'Accept': DOCBOOK_IMT})
         page = bindery.parse(urllib2.urlopen(req))
-        handle_page(uri, page, outputdir, relative)
+        entrydate = dateparse(unicode(page.article.articleinfo.revhistory.revision.date))
+        if entrydate.tzinfo == None: entrydate = entrydate.replace(tzinfo=DEFAULT_TZ)
+        output = os.path.join(outputdir, OUTPUTPATTERN%pathsegment(relative))
+        if os.access(output, os.R_OK):
+            lastrev = dateparse(unicode(bindery.parse(output).entry.updated))
+            if lastrev.tzinfo == None: lastrev = lastrev.replace(tzinfo=DEFAULT_TZ)
+            if (entrydate == lastrev):
+                print >> sys.stderr, 'Not updated.  Skipped...'
+                continue
+        print >> sys.stderr, 'Writing to ', output
+        output = open(output, 'w')
+        handle_page(uri, page, outputdir, relative, output)
+        output.close()
     return
 
 #Ideas borrowed from
