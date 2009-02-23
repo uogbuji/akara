@@ -33,7 +33,7 @@ from amara import bindery
 from amara.writers.struct import *
 from amara.bindery.html import parse as htmlparse
 
-from akara.util import multipart_post_handler
+from akara.util import multipart_post_handler, wsgibase, http_method_handler
 
 WIKITEXT_IMT = 'text/plain'
 DOCBOOK_IMT = 'application/docbook+xml'
@@ -49,41 +49,6 @@ four_oh_four = Template("""
 def status_response(code):
     return '%i %s'%(code, httplib.responses[code])
 
-class wsgibase(object):
-    def __init__(self):
-        if not hasattr(self, 'dispatch'):
-            self.dispatch = self.dispatch_by_lookup if hasattr(self, '_methods') else self.dispatch_simply
-        return
-
-    def __call__(self, environ, start_response):
-        self.environ = environ
-        self.start_response = start_response
-        return self
-
-    def __iter__(self):
-        method = self.dispatch()
-        if method is None:
-            response_headers = [('Content-type','text/plain')]
-            self.start_response(response(httplib.METHOD_NOT_ALLOWED), response_headers)
-            yield 'Method Not Allowed'
-        else:
-            yield method(self)
-
-    def dispatch_simply(self):
-        method = 'do_%s' % self.environ['REQUEST_METHOD']
-        if not hasattr(self, method):
-            return None
-        else:
-            return method
-
-    def dispatch_by_lookup(self):
-        return self._methods.get(self.environ['REQUEST_METHOD'])
-
-    def parse_fields(self):
-        s = self.environ['wsgi.input'].read(int(self.environ['CONTENT_LENGTH']))
-        return cgi.parse_qs(s)
-
-        
 class wikiwrapper(wsgibase):
     def __init__(self, wikibase):
         wsgibase.__init__(self)
@@ -102,6 +67,7 @@ class wikiwrapper(wsgibase):
         self.check_auth()
         return self
 
+    @http_method_handler('HEAD')
     def head_page(self):
         url = self.wikibase + self.page
         transform = None
@@ -115,8 +81,7 @@ class wikiwrapper(wsgibase):
             request = urllib2.Request(url + "?action=raw")
         try:
             response = self.opener.open(request)
-        except:
-            response.close()
+        except urllib2.URLError:
             raise
             #404 error
             self.start_response(status_response(httplib.NOT_FOUND), [('content-type', 'text/html')])
@@ -130,6 +95,7 @@ class wikiwrapper(wsgibase):
         response.close()
         return ''
 
+    @http_method_handler('GET')
     def get_page(self):
         self.head_page()
         return self.response
@@ -137,7 +103,9 @@ class wikiwrapper(wsgibase):
     def fill_page_edit_form(self, page=None):
         page = page or self.page
         url = self.wikibase + page + '?action=edit&editor=text'
-        doc = htmlparse(self.opener.open(urllib2.Request(url)))
+        response = self.opener.open(urllib2.Request(url))
+        doc = htmlparse(response)
+        response.close()
         form = doc.html.body.xml_select(u'.//*[@id="editor"]')[0]
         form_vars = {}
         #form / fieldset / input
@@ -150,7 +118,9 @@ class wikiwrapper(wsgibase):
 
     def fill_attachment_form(self, page, attachment):
         url = self.wikibase + page + '?action=AttachFile'
-        doc = htmlparse(self.opener.open(urllib2.Request(url)))
+        response = self.opener.open(urllib2.Request(url))
+        doc = htmlparse(response)
+        response.close()
         form = doc.html.body.xml_select(u'.//*[@id="content"]/form')[0]
         form_vars = {}
         #form / dl / ... dd
@@ -193,6 +163,7 @@ class wikiwrapper(wsgibase):
         #    print c
         return
 
+    @http_method_handler('PUT')
     def put_page(self):
         '''
         '''
@@ -211,8 +182,7 @@ class wikiwrapper(wsgibase):
         request = urllib2.Request(url, data)
         try:
             response = self.opener.open(request)
-        except:
-            response.close()
+        except urllib2.URLError:
             raise
             #404 error
             self.start_response(status_response(httplib.NOT_FOUND), [('content-type', 'text/html')])
@@ -232,6 +202,7 @@ class wikiwrapper(wsgibase):
         
         return msg
 
+    @http_method_handler('POST')
     def post_page(self):
         #http://groups.google.com/group/comp.lang.python/browse_thread/thread/4662d41aca276d99
         #ctype = self.environ.get('CONTENT_TYPE', 'application/unknown')
@@ -256,13 +227,14 @@ class wikiwrapper(wsgibase):
         request = urllib2.Request(url, form_vars)
         try:
             response = self.opener.open(request)
-        except:
-            response.close()
+        except urllib2.URLError:
             raise
             #404 error
             self.start_response(status_response(httplib.NOT_FOUND), [('content-type', 'text/html')])
             response = four_oh_four.substitute(fronturl=request_uri(self.environ), backurl=url)
             return response
+        form_vars["file"].close()
+        os.close(temp[0])
         os.remove(temp[1])
         doc = htmlparse(response)
         response.close()
@@ -277,13 +249,6 @@ class wikiwrapper(wsgibase):
         self.start_response(status_response(httplib.CREATED), headers)
         
         return msg
-
-    _methods = {
-        'GET': get_page,
-        'HEAD': head_page,
-        'POST': post_page,
-        'PUT': put_page,
-    }
 
 
 import sys

@@ -1,4 +1,5 @@
 from urllib import quote
+from functools import wraps
 
 class iterwrapper:
     """
@@ -89,3 +90,59 @@ try:
 except ImportError:
     pass
 
+
+def http_method_handler(method):
+    '''
+    A decorator maker to flag a function as suitable for a given HTTP method
+    '''
+    def wrap(f):
+        #@wraps(f)
+        #def wrapper(*args, **kwargs):
+        #    return f()
+        f.method = method
+        return f
+    return wrap
+
+
+class wsgibase(object):
+    def __init__(self):
+        self._method_handlers = {}
+        if not hasattr(self, 'dispatch'):
+            self.dispatch = self.dispatch_by_lookup
+        #if not hasattr(self, 'dispatch'):
+        #    self.dispatch = self.dispatch_by_lookup if hasattr(self, '_methods') else self.dispatch_simply
+        for obj in ( getattr(self, name) for name in dir(self) ):
+            method = getattr(obj, 'method', None)
+            if method:
+                self._method_handlers[method] = obj
+        return
+
+    def __call__(self, environ, start_response):
+        self.environ = environ
+        self.start_response = start_response
+        return self
+
+    def __iter__(self):
+        func = self.dispatch()
+        if func is None:
+            response_headers = [('Content-type','text/plain')]
+            self.start_response(response(httplib.METHOD_NOT_ALLOWED), response_headers)
+            yield 'HTTP method Not Allowed'
+        else:
+            yield func()
+
+    def dispatch_simply(self):
+        func = 'do_%s' % self.environ['REQUEST_METHOD']
+        if not hasattr(self, func):
+            return None
+        else:
+            return func
+
+    def dispatch_by_lookup(self):
+        return self._method_handlers.get(self.environ['REQUEST_METHOD'])
+
+    def parse_fields(self):
+        s = self.environ['wsgi.input'].read(int(self.environ['CONTENT_LENGTH']))
+        return cgi.parse_qs(s)
+
+        
