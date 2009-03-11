@@ -146,9 +146,7 @@ class content_handlers(dispatcher):
     @node_handler(u'emphasis')
     def emphasis(self, node):
         #print dict(node.xml_attributes)
-        #print; print type(node.xml_attributes.get(None, u'role'))
-        #ename = u'strong' if node.xml_attributes.get(None, u'role') == u'strong' else u'em'
-        ename = u'strong' if node.xml_attributes.get(None, u'role') == u'strong' else u'em'
+        ename = u'strong' if node.xml_attributes.get((None, u'role')) == u'strong' else u'em'
         yield E((XHTML_NAMESPACE, ename),
             chain(*imap(self.dispatch, node.xml_children))
         )
@@ -186,7 +184,9 @@ def moin2atomentries(wikibase, outputdir, rewrite, pattern):
         if rewrite:
             uri = uri.replace(rewrite, wikibase)
         req = urllib2.Request(uri, headers={'Accept': DOCBOOK_IMT})
-        page = bindery.parse(urllib2.urlopen(req))
+        response = urllib2.urlopen(req)
+        page = bindery.parse(response)
+        response.close()
         entrydate = dateparse(unicode(page.article.articleinfo.revhistory.revision.date))
         if entrydate.tzinfo == None: entrydate = entrydate.replace(tzinfo=DEFAULT_TZ)
         output = os.path.join(outputdir, OUTPUTPATTERN%pathsegment(relative))

@@ -18,6 +18,8 @@ Can be launched from the command line, e.g.:
 """
 #Detailed license and copyright information: http://4suite.org/COPYRIGHT
 
+__all__ = ["WIKITEXT_IMT", "DOCBOOK_IMT", "RDF_IMT", "ATTACHMENTS_IMT"]
+
 import os
 import cgi
 import pprint
@@ -27,6 +29,9 @@ from wsgiref.util import shift_path_info, request_uri
 from string import Template
 from cStringIO import StringIO
 import tempfile
+from functools import *
+from itertools import *
+from operator import *
 
 import amara
 from amara import bindery
@@ -38,6 +43,7 @@ from akara.util import multipart_post_handler, wsgibase, http_method_handler
 WIKITEXT_IMT = 'text/plain'
 DOCBOOK_IMT = 'application/docbook+xml'
 RDF_IMT = 'application/rdf+xml'
+ATTACHMENTS_IMT = 'application/x-moin-attachments+xml'
 
 # Templates
 four_oh_four = Template("""
@@ -69,31 +75,71 @@ class wikiwrapper(wsgibase):
 
     @http_method_handler('HEAD')
     def head_page(self):
-        url = self.wikibase + self.page
-        transform = None
+        print self.page
+        upstream_handler = None
         if DOCBOOK_IMT in self.environ['HTTP_ACCEPT']:
+            url = self.wikibase + self.page
             request = urllib2.Request(url + "?mimetype=text/docbook")
+            self.headers = [('content-type', DOCBOOK_IMT)]
         elif RDF_IMT in self.environ['HTTP_ACCEPT']:
             #FIXME: Make unique flag optional
             url = self.wikibase + '/RecentChanges?action=rss_rc&unique=1&ddiffs=1'
             request = urllib2.Request(url)
+            self.headers = [('content-type', RDF_IMT)]
+        elif ATTACHMENTS_IMT in self.environ['HTTP_ACCEPT']:
+            url = self.wikibase + self.page + '?action=AttachFile'
+            request = urllib2.Request(url)
+            self.headers = [('content-type', ATTACHMENTS_IMT)]
+            def upstream_handler():
+                buf = StringIO()
+                #Sigh.  Sometimes you have to break some Tag soup eggs to make a RESTful omlette
+                response = self.opener.open(request)
+                self.response = response.read()
+                response.close()
+                doc = htmlparse(self.response)
+                attachment_nodes = doc.xml_select(u'//*[contains(@href, "action=AttachFile") and contains(@href, "do=view")]')
+                targets = []
+                for node in attachment_nodes:
+                    target = [ param.split('=', 1)[1] for param in node.href.split(u'&') if param.startswith('target=') ][0]
+                    targets.append(target)
+                structwriter(indent=u"yes", stream=buf).feed(
+                ROOT(
+                    E((u'attachments'),
+                        (E(u'attachment', {u'href': unicode(t)}) for t in targets)
+                    )
+                ))
+                self.response = buf.getvalue()
+                return
+        elif ';attachment=' in self.page:
+            page, attachment = self.page.split(';attachment=')
+            url = self.wikibase + page + '?action=AttachFile&do=get&target=' + attachment
+            request = urllib2.Request(url)
+            def upstream_handler():
+                response = self.opener.open(request)
+                self.response = response.read()
+                response.close()
+                self.headers = [('content-type', dict(response.info())['content-type'])]
+                return
         else:
+            url = self.wikibase + self.page
             request = urllib2.Request(url + "?action=raw")
+            self.headers = [('content-type', WIKITEXT_IMT)]
+
         try:
-            response = self.opener.open(request)
+            if upstream_handler:
+                upstream_handler()
+            else:
+                response = self.opener.open(request)
+                self.response = response.read()
+                response.close()
+            self.start_response(status_response(httplib.OK), self.headers)
+            return ''
         except urllib2.URLError:
             raise
             #404 error
             self.start_response(status_response(httplib.NOT_FOUND), [('content-type', 'text/html')])
             response = four_oh_four.substitute(fronturl=request_uri(self.environ), backurl=url)
             return response
-        #response["Set-Cookie"] = "name=tom"
-        #self.cookiejar.extract_cookies(response, request)
-        
-        self.start_response(status_response(httplib.OK), [('content-type', WIKITEXT_IMT)])
-        self.response = response.read()
-        response.close()
-        return ''
 
     @http_method_handler('GET')
     def get_page(self):
@@ -263,6 +309,7 @@ def moinrestwrapper(wikibase):
     print >> sys.stderr, "\tcurl http://localhost:8880/FrontPage"
     print >> sys.stderr, "\tcurl -H \"Accept: application/docbook+xml\" http://localhost:8880/FrontPage"
     print >> sys.stderr, "\tcurl -H \"Accept: application/rdf+xml\" http://localhost:8880/FrontPage"
+    print >> sys.stderr, "\tcurl -H \"Accept: application/x-moin-attachments+xml\" http://localhost:8880/FrontPage"
     print >> sys.stderr, '\tcurl --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: %s" "http://localhost:8880/FooTest"'%WIKITEXT_IMT
     print >> sys.stderr, '\tcurl --request POST --data-binary "@wikicontent.txt" --header "Content-Type: %s" "http://localhost:8880/FooTest;attachment=wikicontent.txt"'%WIKITEXT_IMT
     print >> sys.stderr, '\tcurl -u me:passwd -p --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: %s" "http://localhost:8880/FooTest"'%WIKITEXT_IMT
@@ -270,6 +317,7 @@ def moinrestwrapper(wikibase):
         simple_server.make_server('', 8880, wikiwrapper(wikibase), server).serve_forever(
 )
     except KeyboardInterrupt:
+        
         print >> sys.stderr, "Ctrl-C caught, Server exiting..."
 
     return
