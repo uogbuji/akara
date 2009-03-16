@@ -5,8 +5,6 @@ moincms.py (Akara demo)
 
 Accesses a Moin wiki (via akara.restwrap.moin) to use as a source for a Web feed
 
-A RESTful wrapper for MoinMoin wikis
-
 Copyright 2009 Uche Ogbuji
 This file is part of the open source Akara project,
 provided under the Apache 2.0 license.
@@ -16,8 +14,9 @@ Project home, documentation, distributions: http://wiki.xml3k.org/Akara
 @copyright: 2009 by Uche ogbuji <uche@ogbuji.net>
 
 Can be launched from the command line, e.g.:
-    python demo/moin2atomentries.py http://restwrap.mywiki.example.com/ /path/to/output/dir
+    python akara/services/moincms.py -p "Site.*" http://restwrap.mywiki.example.com/ /path/to/output/dir http://localhost:8080/
 """
+#python akara/services/moincms.py -p "Site.*" http://localhost:8880/ ~/tmp/ http://localhost:8080/
 #
 #Detailed license and copyright information: http://4suite.org/COPYRIGHT
 
@@ -32,6 +31,8 @@ from string import Template
 from cStringIO import StringIO
 from functools import partial
 from itertools import *
+from operator import *
+from collections import defaultdict
 
 from dateutil.parser import parse as dateparse
 import pytz
@@ -41,8 +42,10 @@ from amara import bindery
 from amara.namespaces import *
 from amara.writers.struct import *
 from amara.bindery.html import parse as htmlparse
-from amara.lib.iri import split_fragment
+from amara.lib.iri import split_fragment, relativize
 from amara.bindery.util import dispatcher, node_handler, property_sequence_getter
+from amara.lib.util import *
+from amara.bindery.model import *
 
 from akara.restwrap.moin import *
 
@@ -55,74 +58,121 @@ DEFAULT_TZ = pytz.timezone('UTC')
 AKARA_NS = u'http://purl.org/dc/org/xml3k/akara'
 CMS_BASE = AKARA_NS + u'/cms'
 
-DOCBOOK_MODEL = '''<?xml version="1.0" encoding="UTF-8"?>
-<article xmlns:eg="http://examplotron.org/0/" xmlns:ak="http://purl.org/dc/org/xml3k/akara" ak:resource="">
-  <articleinfo>
-    <title ak:rel="name()" ak:value=".">FrontPage</title>
-    <revhistory>
-      <revision eg:occurs="*">
-        <revnumber>15</revnumber>
-        <date>2009-02-22 07:45:22</date>
-        <authorinitials>localhost</authorinitials>
-      </revision>
-    </revhistory>
-  </articleinfo>
-  <section eg:occurs="*" ak:resource="">
-    <title ak:rel="name()" ak:value=".">A page</title>
-    <para>
-    Using: <ulink url="http://moinmo.in/DesktopEdition"/> set <code>interface = ''</code>)
-    </para>
-    <itemizedlist>
-      <listitem>
-        <para>
-          <ulink url="http://localhost:8080/Developer#">Developer</ulink> </para>
-      </listitem>
-    </itemizedlist>
-  </section>
-</article>
-'''
-
-DOCBOOK_MODEL = examplotron_model(DOCBOOK_MODEL)
-
 class node(object):
     '''
     Akara CMS node, a Moin wiki page in a lightly specialized format
     from which semi-structured information can be extracted
     '''
-    def __init__(self, rest_uri):
+    NODES = {}
+    #Processing priority
+    PRIORITY = 0
+    def __init__(self, rest_uri, relative, output, cache=None):
+        self.relative = relative
         self.rest_uri = rest_uri
+        self.output = output
+        self.cache = cache#(doc, metadata)
+        return
+
+    @staticmethod
+    def factory(rest_uri, relative, outputdir):
+        req = urllib2.Request(rest_uri, headers={'Accept': DOCBOOK_IMT})
+        resp = urllib2.urlopen(req)
+        doc = bindery.parse(resp, standalone=True, model=MOIN_DOCBOOK_MODEL)
+        original_wiki_base = dict(resp.info())[ORIG_BASE_HEADER]
+        #self.original_wiki_base = dict(resp.info())[ORIG_BASE_HEADER]
+        #amara.xml_print(self.content_cache)
+        output = os.path.join(outputdir, relative)
+        parent_dir = os.path.split(output)[0]
+        try:
+            os.makedirs(parent_dir)
+        except OSError:
+            pass
+        raw_metadata = doc.xml_model.generate_metadata(doc)
+        metadata = {}
+        for eid, row in groupby(sorted(raw_metadata), itemgetter(0)):
+            #It's all crazy lazy, so use list to consume the iterator
+            list( metadata.setdefault(key, []).append(val) for (i, key, val) in row )
+        resp.close()
+        #print metadata
+        akara_type = first_item(metadata[u'ak-type'])
+        cls = node.NODES[akara_type]
+        instance = cls(rest_uri, relative, output, cache=(doc, metadata, original_wiki_base))
+        return instance
+
+    def load(self):
+        return
+
+    def check_up_to_date(self, force_update=False):
+        '''
+        Checks whether there needs to be an update of the CMS output file or folder
+        '''
+        #By default just always update
+        return False
+        if force_update:
+            self.load()
+        doc, metadata, original_wiki_base = self.cache
+        entrydate = dateparse(unicode(doc.article.articleinfo.revhistory.revision.date))
+        if entrydate.tzinfo == None: entrydate = entrydate.replace(tzinfo=DEFAULT_TZ)
+        if not os.access(self.output, os.R_OK):
+            return False
+        try:
+            lastrev = dateparse(unicode(bindery.parse(self.output).entry.updated))
+        except amara.ReaderError:
+            return False
+        if lastrev.tzinfo == None: lastrev = lastrev.replace(tzinfo=DEFAULT_TZ)
+        if (entrydate == lastrev):
+            print >> sys.stderr, 'Not updated.  Skipped...'
+            return False
+        return True
 
 
 class folder(node):
-    akara_type = CMS_BASE + u'/folder'
+    AKARA_TYPE = CMS_BASE + u'/folder'
+    PRIORITY = 1000
     def render(self):
         #Copy attachments to dir
         req = urllib2.Request(self.rest_uri, headers={'Accept': ATTACHMENTS_IMT})
         response = urllib2.urlopen(req)
-        doc = bindery.parse(response)
+        doc = bindery.parse(response, model=ATTACHMENTS_MODEL)
         response.close()
-        for attachment in doc.attachments.attachment:
+        for attachment in (doc.attachments.attachment or ()):
             print attachment
         return
 
+node.NODES[folder.AKARA_TYPE] = folder
+
+
 class page(node):
-    akara_type = CMS_BASE + u'/page'
+    AKARA_TYPE = CMS_BASE + u'/page'
+    def check_up_to_date(self, force_update=False):
+        '''
+        Checks whether there needs to be an update of the CMS output file or folder
+        '''
+        if force_update:
+            self.load()
+        doc, metadata, original_wiki_base = self.cache
+        entrydate = dateparse(unicode(doc.article.articleinfo.revhistory.revision.date))
+        if entrydate.tzinfo == None: entrydate = entrydate.replace(tzinfo=DEFAULT_TZ)
+        if not os.access(self.output, os.R_OK):
+            return False
+        try:
+            published_doc = bindery.parse(self.output)
+            datestr = first_item([ m for m in published_doc.html.head.meta if m.name==u'updated']).content
+            lastrev = dateparse(datestr)
+        except amara.ReaderError:
+            return False
+        if lastrev.tzinfo == None: lastrev = lastrev.replace(tzinfo=DEFAULT_TZ)
+        if (entrydate == lastrev):
+            print >> sys.stderr, 'Not updated.  Skipped...'
+            return False
+        return True
+
     def render(self):
-        #Create ouput file
-        output = open()
-        self.content = content_handlers(CMSBASE)
-        doc = bindery.parse(source, model=DOCBOOK_MODEL)
+        doc, metadata, original_wiki_base = self.cache
+        self.content = content_handlers(original_wiki_base)
         #metadata = doc.article.xml_model.generate_metadata(doc)
-        metadata = doc.xml_model.generate_metadata(doc)
-        books = {}
-        #Use sorted to ensure grouping by resource IDs
-        resources = {}
-        for rid, row in groupby(sorted(metadata), itemgetter(0)):
-            resources[rid] = {}
-            #It's all crazy lazy, so use list() to consume the iterator
-            list( resources[rid].setdefault(key, []).append(val) for (i, key, val) in row )
-        import pprint
-        pprint.pprint(resources)
+        #import pprint
+        #pprint.pprint(resources)
         '''
          akara:type:: [[http://purl.org/dc/org/xml3k/akara/cms/folder|folder]]
          title:: A page
@@ -134,9 +184,10 @@ class page(node):
         
         page_id = doc.article.xml_nodeid
         header = doc.article.glosslist[0]
-        node_type = onenode(header.xml_select(u'glossentry[glossterm = "akara:type"]'))
-        template = onenode(header.xml_select(u'glossentry[glossterm = "template"]'))
-        title = onenode(header.xml_select(u'glossentry[glossterm = "title"]'))
+        #node_type = first_item(header.xml_select(u'glossentry[glossterm = "akara:type"]/glossdef'))
+        template = first_item(header.xml_select(u'glossentry[glossterm = "template"]/glossdef'))
+        print template, self.output, os.path.join
+        title = first_item(header.xml_select(u'glossentry[glossterm = "title"]'))
         #title = resources[articleid]['title']
         #sections = dict([ (unicode(s.title), s) for s in page.article.section ])
         #print sections
@@ -150,30 +201,36 @@ class page(node):
         #revdate = dateparse(unicode(page.article.articleinfo.revhistory.revision.date))
         #if revdate.tzinfo == None: revdate = revdate.replace(tzinfo=DEFAULT_TZ)
         
+        #Create ouput file
+        print >> sys.stderr, 'Writing to ', self.output
+        output = open(self.output, 'w')
         w = structwriter(indent=u"yes", stream=output)
         w.feed(
         ROOT(
             E((XHTML_NAMESPACE, u'html'), {(XML_NAMESPACE, u'xml:lang'): u'en'},
                 E(u'head',
                     E(u'title', title),
+                    E(u'meta', {u'content': unicode(first_item(metadata[u'ak-updated'])), u'name': u'updated'}),
                     #E(u'link', {u'href': unicode(uri), u'rel': u'alternate', u'title': u"Permalink"}),
                 ),
                 E(u'body',
-                    (self.content.dispatch(s) for s in page.article.section)
+                    (self.content.dispatch(s) for s in doc.article.section)
                 ),
             ),
         ))
+        return
 
     def meta(self):
         #Create ouput file
-        doc = bindery.parse(source, model=DOCBOOK_MODEL)
+        doc = bindery.parse(source, model=AK_DOCBOOK_MODEL)
 
-AKARA_TYPES = [page, folder]
+node.NODES[page.AKARA_TYPE] = page
+#AKARA_TYPES = [page, folder]
 
 class content_handlers(dispatcher):
-    def __init__(self, wikibase):
+    def __init__(self, orig_wikibase):
         dispatcher.__init__(self)
-        self.wikibase = wikibase
+        self.orig_wikibase = orig_wikibase
         return
 
     @node_handler(u'article/section', priority=10)
@@ -228,8 +285,8 @@ class content_handlers(dispatcher):
         [[http://moinmo.in/]] -> @url == http://moinmo.in/
         '''
         url = node.url
-        if url.startswith(self.wikibase):
-            url = url[len(self.wikibase):]
+        if url.startswith(self.orig_wikibase):
+            url = url[len(self.orig_wikibase):]
         yield E((XHTML_NAMESPACE, u'a'), {u'href': url},
             chain(*imap(self.dispatch, node.xml_children))
         )
@@ -239,9 +296,9 @@ class content_handlers(dispatcher):
         '''
         {{http://static.moinmo.in/logos/moinmoin.png}} -> img/@src=...
         '''
-        url = node.imageobject.imagedata.fileref.url
-        if url.startswith(self.wikibase):
-            url = url[len(self.wikibase):]
+        url = node.imageobject.imagedata.fileref
+        if url.startswith(self.orig_wikibase):
+            url = url[len(self.orig_wikibase):]
         yield E((XHTML_NAMESPACE, u'img'), {u'src': url},
             chain(*imap(self.dispatch, node.xml_children))
         )
@@ -249,35 +306,26 @@ class content_handlers(dispatcher):
     #@node_handler(u'*', priority=-1)
     #def etc(self, node):
 
-def moincms(wikibase, outputdir, rewrite, pattern):
-    wikibase_len = len(rewrite)
+def moincms(wikibase, outputdir, pattern):
     if pattern: pattern = re.compile(pattern)
     #print (wikibase, outputdir, rewrite)
     req = urllib2.Request(wikibase, headers={'Accept': RDF_IMT})
-    feed = bindery.parse(urllib2.urlopen(req))
+    resp = urllib2.urlopen(req)
+    original_wiki_base = dict(resp.info())[ORIG_BASE_HEADER]
+    feed = bindery.parse(resp)
+    process_list = []
     for item in feed.RDF.channel.items.Seq.li:
         uri = split_fragment(item.resource)[0]
-        relative = uri[wikibase_len:]
+        #Deal with the wrapped URI
+        if original_wiki_base:
+            uri = uri.replace(original_wiki_base, wikibase)
+        relative = relativize(uri, wikibase).lstrip('/')
         print >> sys.stderr, uri, relative
         if pattern and not pattern.match(relative):
             continue
-        if rewrite:
-            uri = uri.replace(rewrite, wikibase)
-        req = urllib2.Request(uri, headers={'Accept': DOCBOOK_IMT})
-        page = bindery.parse(urllib2.urlopen(req))
-        entrydate = dateparse(unicode(page.article.articleinfo.revhistory.revision.date))
-        if entrydate.tzinfo == None: entrydate = entrydate.replace(tzinfo=DEFAULT_TZ)
-        output = os.path.join(outputdir, OUTPUTPATTERN%pathsegment(relative))
-        if os.access(output, os.R_OK):
-            lastrev = dateparse(unicode(bindery.parse(output).entry.updated))
-            if lastrev.tzinfo == None: lastrev = lastrev.replace(tzinfo=DEFAULT_TZ)
-            if (entrydate == lastrev):
-                print >> sys.stderr, 'Not updated.  Skipped...'
-                continue
-        print >> sys.stderr, 'Writing to ', output
-        output = open(output, 'w')
-        handle_page(uri, page, outputdir, relative, output)
-        output.close()
+        n = node.factory(uri, relative, outputdir)
+        if not n.check_up_to_date():
+            n.render()
     return
 
 #Ideas borrowed from
@@ -317,7 +365,6 @@ def main(argv=None):
             optparser.error("Missing Wiki base URL")
     except SystemExit, status:
         return status
-    rewrite = args[2] if len(args) > 1 else None
 
     # Perform additional setup work here before dispatching to run()
     # Detectable errors encountered here should be handled and a status
@@ -325,7 +372,7 @@ def main(argv=None):
     # for a SystemExit exception with a string message.
     pattern = options.pattern and options.pattern.decode('utf-8')
 
-    moincms(wikibase, outputdir, rewrite, pattern)
+    moincms(wikibase, outputdir, pattern)
     return
 
 
