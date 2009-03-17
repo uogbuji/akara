@@ -5,9 +5,10 @@ import os, sqlite3
 from wsgiref.util import shift_path_info, request_uri
 from string import Template
 from cStringIO import StringIO
+
+from akara.server import serve_forever
 from akara.resource import *
 from akara.resource.repository import driver
-
 from akara.resource import web as resourceweb
 #from akara.services import web as servicesweb
 
@@ -109,10 +110,10 @@ echo '<a><b>Spam</b></a>' | curl -X POST -H 'Content-type: text/xml' -d @- http:
 # Command line support
 #
 
-import sys, getopt
+import sys
+import getopt
 import sqlite3
 import pdb
-import SocketServer
 
 def launch(dbfile):
     root.dbfile = dbfile
@@ -122,16 +123,9 @@ def launch(dbfile):
         pass
     drv = driver(sqlite3.connect(dbfile))
 
-    from wsgiref import simple_server
-    class server(simple_server.WSGIServer, SocketServer.ForkingMixIn): pass
-
     print >> sys.stderr, "Starting server on port 8880..."
     print >> sys.stderr, "Try out: 'curl http://localhost:8880/store/2'"
-    try:
-        simple_server.make_server('', 8880, wrapped_root, server).serve_forever()
-    except KeyboardInterrupt:
-        print >> sys.stderr, "Ctrl-C caught, Server exiting..."
-
+    serve_forever('', 8880, wrapped_root)
     return
 
 

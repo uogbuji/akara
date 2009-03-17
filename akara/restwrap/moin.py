@@ -43,6 +43,7 @@ from amara.writers.struct import *
 from amara.bindery.html import parse as htmlparse
 from amara.bindery.model import *
 
+from akara.server import serve_forever
 from akara.util import multipart_post_handler, wsgibase, http_method_handler
 
 WIKITEXT_IMT = 'text/plain'
@@ -346,12 +347,8 @@ class wikiwrapper(wsgibase):
 
 
 import sys
-import SocketServer
-from wsgiref import simple_server
 
 def moinrestwrapper(wikibase):
-    class server(simple_server.WSGIServer, SocketServer.ForkingMixIn): pass
-
     print >> sys.stderr, "Starting server on port 8880..."
     print >> sys.stderr, "Try out:"
     print >> sys.stderr, "\tcurl http://localhost:8880/FrontPage"
@@ -361,13 +358,7 @@ def moinrestwrapper(wikibase):
     print >> sys.stderr, '\tcurl --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: %s" "http://localhost:8880/FooTest"'%WIKITEXT_IMT
     print >> sys.stderr, '\tcurl --request POST --data-binary "@wikicontent.txt" --header "Content-Type: %s" "http://localhost:8880/FooTest;attachment=wikicontent.txt"'%WIKITEXT_IMT
     print >> sys.stderr, '\tcurl -u me:passwd -p --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: %s" "http://localhost:8880/FooTest"'%WIKITEXT_IMT
-    try:
-        simple_server.make_server('', 8880, wikiwrapper(wikibase), server).serve_forever(
-)
-    except KeyboardInterrupt:
-        
-        print >> sys.stderr, "Ctrl-C caught, Server exiting..."
-
+    serve_forever('', 8880, wikiwrapper(wikibase)
     return
 
 #Ideas borrowed from
