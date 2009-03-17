@@ -21,7 +21,7 @@ def make_server(host, port, app):
 
 
 def serve_forever(host, port, app):
-    server = make_server(hot, port, app)
+    server = make_server(host, port, app)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -40,12 +40,14 @@ import pytz
 import amara
 from amara import bindery
 from amara.namespaces import *
+from amara.xslt import transform
 from amara.writers.struct import *
 from amara.bindery.html import parse as htmlparse
 from amara.lib.iri import split_fragment, relativize
 from amara.bindery.util import dispatcher, node_handler, property_sequence_getter
 from amara.lib.util import *
 from amara.bindery.model import *
+
 
 from akara.restwrap.moin import *
 
@@ -66,10 +68,11 @@ class node(object):
     NODES = {}
     #Processing priority
     PRIORITY = 0
-    def __init__(self, rest_uri, relative, output, cache=None):
+    def __init__(self, rest_uri, relative, outputdir, cache=None):
         self.relative = relative
         self.rest_uri = rest_uri
-        self.output = output
+        self.output = os.path.join(outputdir, relative)
+        self.outputdir = outputdir
         self.cache = cache#(doc, metadata)
         return
 
@@ -96,7 +99,7 @@ class node(object):
         #print metadata
         akara_type = first_item(metadata[u'ak-type'])
         cls = node.NODES[akara_type]
-        instance = cls(rest_uri, relative, output, cache=(doc, metadata, original_wiki_base))
+        instance = cls(rest_uri, relative, outputdir, cache=(doc, metadata, original_wiki_base))
         return instance
 
     def load(self):
@@ -185,9 +188,9 @@ class page(node):
         page_id = doc.article.xml_nodeid
         header = doc.article.glosslist[0]
         #node_type = first_item(header.xml_select(u'glossentry[glossterm = "akara:type"]/glossdef'))
-        template = first_item(header.xml_select(u'glossentry[glossterm = "template"]/glossdef'))
-        print template, self.output, os.path.join
-        title = first_item(header.xml_select(u'glossentry[glossterm = "title"]'))
+        template = unicode(first_item(header.xml_select(u'glossentry[glossterm = "template"]/glossdef'))).strip()
+        template = os.path.join(self.outputdir, template)
+        title = first_item(header.xml_select(u'glossentry[glossterm = "title"]/glossdef'))
         #title = resources[articleid]['title']
         #sections = dict([ (unicode(s.title), s) for s in page.article.section ])
         #print sections
@@ -203,8 +206,8 @@ class page(node):
         
         #Create ouput file
         print >> sys.stderr, 'Writing to ', self.output
-        output = open(self.output, 'w')
-        w = structwriter(indent=u"yes", stream=output)
+        buf = StringIO()
+        w = structwriter(indent=u"yes", stream=buf)
         w.feed(
         ROOT(
             E((XHTML_NAMESPACE, u'html'), {(XML_NAMESPACE, u'xml:lang'): u'en'},
@@ -218,6 +221,8 @@ class page(node):
                 ),
             ),
         ))
+        output = open(self.output, 'w')
+        transform(buf.getvalue(), template, output=output)
         return
 
     def meta(self):
@@ -320,12 +325,16 @@ def moincms(wikibase, outputdir, pattern):
         if original_wiki_base:
             uri = uri.replace(original_wiki_base, wikibase)
         relative = relativize(uri, wikibase).lstrip('/')
-        print >> sys.stderr, uri, relative
+        #print >> sys.stderr, uri, relative
         if pattern and not pattern.match(relative):
             continue
         n = node.factory(uri, relative, outputdir)
         if not n.check_up_to_date():
-            n.render()
+            process_list.append(n)
+    #Process nodes needing update according to priority
+    for n in sorted(process_list, key=attrgetter('PRIORITY'), reverse=True):
+        print >> sys.stderr, "processing ", n.rest_uri
+        n.render()
     return
 
 #Ideas borrowed from

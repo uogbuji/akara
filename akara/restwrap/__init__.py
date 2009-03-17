@@ -11,7 +11,7 @@ Project home, documentation, distributions: http://wiki.xml3k.org/Akara
 """
 #Detailed license and copyright information: http://4suite.org/COPYRIGHT
 
-class simple_transform(object):
+class simple_service(object):
     '''
     A REST wrapper that turns the keyword parameters of a function from GET params 
     '''

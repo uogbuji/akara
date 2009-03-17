@@ -8,6 +8,7 @@ Akara stock services (the built-ins)
 __all__ = ['simple_xml_indexing']
 
 import amara
+from amara.services import *
 from amara.lib.util import *
 from akara.restwrap import *
 from amara.namespaces import AKARA_NAMESPACE
@@ -24,8 +25,8 @@ from amara.xslt import transform as transform_
 #)
 #def transform(source, transforms, params=None, output=None):
 
-@simple_transform(AKARA_NAMESPACE + 'services/transform', 'xslt')
-def xslt_transform(source=None, transforms=None, params=None):
+@service(AKARA_NAMESPACE + 'services/transform', 'xslt')
+def xslt(source=None, transforms=None, params=None):
     result = transform_(source, transforms[0], params=None)
     yield result
 

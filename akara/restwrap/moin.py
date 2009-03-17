@@ -358,7 +358,7 @@ def moinrestwrapper(wikibase):
     print >> sys.stderr, '\tcurl --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: %s" "http://localhost:8880/FooTest"'%WIKITEXT_IMT
     print >> sys.stderr, '\tcurl --request POST --data-binary "@wikicontent.txt" --header "Content-Type: %s" "http://localhost:8880/FooTest;attachment=wikicontent.txt"'%WIKITEXT_IMT
     print >> sys.stderr, '\tcurl -u me:passwd -p --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: %s" "http://localhost:8880/FooTest"'%WIKITEXT_IMT
-    serve_forever('', 8880, wikiwrapper(wikibase)
+    serve_forever('', 8880, wikiwrapper(wikibase))
     return
 
 #Ideas borrowed from
