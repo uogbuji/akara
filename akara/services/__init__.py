@@ -48,28 +48,27 @@ class service(object):
         try:
             register = func.func_globals['__AKARA_REGISTER_SERVICE__']
         except KeyError:
-            pass
-        else:
-            tag = self.service_tag
-            if tag is None:
-                tag = func.__name__
-            def wrapper(environ, start_response, service=self):
-                content = func(**service.params)
-                if isinstance(content, response):
-                    content_type = content.content_type
-                    content = content.content
-                else:
-                    content_type = service.content_type
-                    if content_type is None:
-                        raise RuntimeError(
-                            'service %r must provide content-type' % tag)
-                headers = [
-                    ('Content-Type', content_type),
-                    ('Content-Length', str(len(content))),
-                    ]
-                start_response(get_status(httplib.OK), headers)
-                return [content]
-            register(wrapper, self.service_id, tag)
+            return func
+        tag = self.service_tag
+        if tag is None:
+            tag = func.__name__
+        def wrapper(environ, start_response, service=self):
+            content = func(**service.params)
+            if isinstance(content, response):
+                content_type = content.content_type
+                content = content.content
+            else:
+                content_type = service.content_type
+                if content_type is None:
+                    raise RuntimeError(
+                        'service %r must provide content-type' % tag)
+            headers = [
+                ('Content-Type', content_type),
+                ('Content-Length', str(len(content))),
+                ]
+            start_response(get_status(httplib.OK), headers)
+            return [content]
+        register(wrapper, self.service_id, tag)
         return wrapper
 
 
