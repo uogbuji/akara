@@ -65,7 +65,7 @@ class author(object):
         return
 
 UNSUPPORTED_IN_FILENAME = re.compile('\W')
-LINK_PATTERN = u'http://zepheira.com/news/#%s'
+LINK_PATTERN = u'http://zepheira.com/publications/news/#%s'
 
 def pathsegment(relative):
     return UNSUPPORTED_IN_FILENAME.sub('_', relative)
@@ -90,14 +90,15 @@ def handle_page(uri, page, outputdir, relative, output):
     revdate = dateparse(unicode(page.article.articleinfo.revhistory.revision.date))
     if revdate.tzinfo == None: revdate = revdate.replace(tzinfo=DEFAULT_TZ)
 
+    eid = LINK_PATTERN%unicode(uri.rsplit(u'/')[-1])
     w = structwriter(indent=u"yes", stream=output)
     w.feed(
     ROOT(
         E((ATOM_NAMESPACE, u'entry'), {(XML_NAMESPACE, u'xml:lang'): u'en'},
             #E(u'link', {u'href': u'/blog'}),
             E(u'link', {u'href': unicode(uri), u'rel': u'edit'}),
-            E(u'link', {u'href': LINK_PATTERN%unicode(uri), u'rel': u'alternate', u'title': u"Permalink"}),
-            E(u'id', unicode(uri)),
+            E(u'link', {u'href': eid, u'rel': u'alternate', u'title': u"Permalink"}),
+            E(u'id', eid),
             E(u'title', title),
             #FIXME: Use updated time from feed
             E(u'updated', unicode(revdate)),
