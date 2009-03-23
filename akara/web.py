@@ -111,9 +111,10 @@ echo '<a><b>Spam</b></a>' | curl -X POST -H 'Content-type: text/xml' -d @- http:
 #
 
 import sys
-import getopt
+import optparse
 import sqlite3
 import pdb
+
 
 def launch(dbfile):
     root.dbfile = dbfile
@@ -129,44 +130,29 @@ def launch(dbfile):
     return
 
 
-class Usage(Exception):
-    def __init__(self, msg):
-        self.msg = msg
-
-
 def main(argv=None):
     if argv is None:
         argv = sys.argv
+    parser = OptionParser(prog=os.path.basename(argv[0]))
+    parser.add_option('-v', dest='verbose', action='store_true')
+    parser.add_option('-D', '--debug', dest='debug', action='store_true')
+
+    # Parse the command-line
+    options, args = parser.parse_args(argv[1:])
+
+    # Process mandatory arguments
     try:
-        try:
-            opts, args = getopt.getopt(argv[1:], "hDv", ["help", "pdb"])
-        except getopt.error, msg:
-            raise Usage(msg)
+        arg = args[0]
+    except IndexError:
+        parser.error("Missing required argument")
 
-        # option processing
-        use_pdb = False
-        kwargs = {}
-        for option, value in opts:
-            if option == "-v":
-                verbose = True
-            if option in ("-h", "--help"):
-                raise Usage(help_message)
-            if option in ("-D", "--pdb"):
-                use_pdb = True
-    
-    except Usage, err:
-        print >> sys.stderr, sys.argv[0].split("/")[-1] + ": " + str(err.msg)
-        print >> sys.stderr, "\t for help use --help"
-        return 2
-
-    if use_pdb:
+    if options.debug:
         import akara.resource.web
-        def _launch():
-            launch(*args, **kwargs)
-        pdb.runcall(_launch)
+        pdb.runcall(launch, arg)
     else:
-        launch(*args, **kwargs)
-    return
+        launch(arg)
+    return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())
