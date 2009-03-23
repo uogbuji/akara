@@ -30,15 +30,22 @@ class manager(object):
 
 
 class service(object):
-    def __init__(self, service_id, service_tag=None, **kwargs):
+    def __init__(self, service_id, service_tag=None, **kwds):
         self.service_id = service_id
         #test if type(test) in (list, tuple) else [test]
         self.service_tag = service_tag
         self.kwargs = kwargs
 
     def __call__(self, func):
-        callback = func.func_globals()['__REGISTER_AKARA_SERVICE__']
-        func = callback(func, self.service_id, self.service_tag)
+        try:
+            register = func.func_globals['__AKARA_REGISTER_SERVICE__']
+        except KeyError:
+            pass
+        else:
+            tag = self.service_tag
+            if tag is None:
+                tag = func.__name__
+            func = register(func, self.service_id, tag, **kwds)
         return func
         def rest_wrapper(environ, start_response):
             response_body = func(**kwargs)
