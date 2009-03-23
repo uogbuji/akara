@@ -32,13 +32,13 @@ class wsgi_handler(simple_server.WSGIRequestHandler):
 
 class wsgi_application:
 
-    module_diretory = DEFAULT_MODULE_DIRECTORY
+    module_directory = DEFAULT_MODULE_DIRECTORY
     verbosity = 0
     services = frozenset()
 
-    def __init__(self, module_diretory=DEFAULT_MODULE_DIRECTORY,
+    def __init__(self, module_directory=DEFAULT_MODULE_DIRECTORY,
                  verbosity=0):
-        self.module_diretory = module_diretory
+        self.module_directory = module_directory
         self.verbosity = verbosity
         self.services = {}
         self._load_modules()
@@ -49,9 +49,12 @@ class wsgi_application:
         return func
 
     def _load_modules(self):
-        for pathname in os.listdir(self.module_diretory):
+        if not os.path.exists(self.module_directory):
+            # Nothing to do
+            return
+        for pathname in os.listdir(self.module_directory):
             if pathname.endswith('.py'):
-                filename = os.path.join(self.module_diretory, pathname)
+                filename = os.path.join(self.module_directory, pathname)
                 if os.path.isfile(filename): #and not os.path.islink(filename):
                     # Start with a clean slate each time to prevent
                     # namespace corruption.
@@ -81,6 +84,7 @@ class wsgi_application:
 
 
 def serve_forever(host, port, app):
+    print >> sys.stderr, "Starting server on port %d..." % port
     server = wsgi_server((host, port), wsgi_handler)
     server.set_app(app)
     try:
@@ -101,7 +105,8 @@ def main(argv=None):
     parser.add_option('-v', '--verbose', action='store_true', default=False)
     parser.add_option('-H', '--host', type=str, default='')
     parser.add_option('-P', '--port', type=int, default=8880)
-    parser.add_option('-D', '--module-directory', default=MODULE_DIRECTORY)
+    parser.add_option('-D', '--module-directory',
+                      default=DEFAULT_MODULE_DIRECTORY)
 
     # Parse the command-line
     try:
@@ -115,14 +120,14 @@ def main(argv=None):
     #except IndexError:
     #    parser.error("Missing required argument")
 
-    application = wsgi_application(options.module_diretory,
+    application = wsgi_application(options.module_directory,
                                    int(options.verbose))
 
     if options.debug:
         import akara.resource.web
         pdb.runcall(serve_forever, options.host, options.port, application)
     else:
-        launch(options.host, options.port, application)
+        serve_forever(options.host, options.port, application)
     return 0
 
 
