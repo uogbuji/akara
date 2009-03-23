@@ -6,6 +6,8 @@
 #self.policy - instance of L{akara.policy.manager}
 
 import httplib
+from cgi import parse_qs
+import functools
 
 __all__ = ['manager', 'service', 'response']
 
@@ -52,8 +54,12 @@ class service(object):
         tag = self.service_tag
         if tag is None:
             tag = func.__name__
+        @functools.wraps(func)
         def wrapper(environ, start_response, service=self):
-            content = func(**service.params)
+            parameters = parse_qs(environ.get('QUERY_STRING', ''))
+            parameters.update(service.params)
+            #print parameters
+            content = func(**parameters)
             if isinstance(content, response):
                 content_type = content.content_type
                 content = content.content
