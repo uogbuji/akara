@@ -5,7 +5,13 @@
 """
 #self.policy - instance of L{akara.policy.manager}
 
-__all__ = ['manager']
+import httplib
+
+__all__ = ['manager', 'service', 'response']
+
+def get_status(code):
+    response = httplib.responses[code]
+    return '%d %s' % (code, response)
 
 class manager(object):
     '''
@@ -30,11 +36,13 @@ class manager(object):
 
 
 class service(object):
-    def __init__(self, service_id, service_tag=None, **kwds):
+    def __init__(self, service_id, service_tag=None, content_type=None,
+                 **kwds):
         self.service_id = service_id
         #test if type(test) in (list, tuple) else [test]
         self.service_tag = service_tag
-        self.kwargs = kwargs
+        self.content_type = content_type
+        self.params = kwds
 
     def __call__(self, func):
         try:
@@ -45,16 +53,31 @@ class service(object):
             tag = self.service_tag
             if tag is None:
                 tag = func.__name__
-            func = register(func, self.service_id, tag, **kwds)
-        return func
-        def rest_wrapper(environ, start_response):
-            response_body = func(**kwargs)
-            #response = Response()
-            #response.content_type = 'application/json'
-            #response.body = simplejson.dumps({'items': entries}, indent=4)
-            return response(environ, start_response)
-        return func
+            def wrapper(environ, start_response, service=self):
+                content = func(**service.params)
+                if isinstance(content, response):
+                    content_type = content.content_type
+                    content = content.content
+                else:
+                    content_type = service.content_type
+                    if content_type is None:
+                        raise RuntimeError(
+                            'service %r must provide content-type' % tag)
+                headers = [
+                    ('Content-Type', content_type),
+                    ('Content-Length', str(len(content))),
+                    ]
+                start_response(get_status(httplib.OK), headers)
+                return [content]
+            register(wrapper, self.service_id, tag)
+        return wrapper
 
+
+class response(object):
+    __slots__ = ('content', 'content_type')
+    def __init__(self, content, content_type):
+        self.content = content
+        self.content_type = content_type
 
 '''
 A REST wrapper that turns the keyword parameters of a function from GET params 

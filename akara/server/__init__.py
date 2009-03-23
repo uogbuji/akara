@@ -5,9 +5,9 @@ import sys
 import httplib
 import SocketServer
 from wsgiref import simple_server
+from wsgiref.util import shift_path_info
 
-
-DEFAULT_MODULE_DIRECTORY = '~/.local/lib/akara'
+DEFAULT_MODULE_DIRECTORY = os.path.expanduser('~/.local/lib/akara')
 
 # Default error message
 DEFAULT_ERROR_MESSAGE = """\
@@ -44,14 +44,23 @@ class wsgi_application:
         self._load_modules()
         return
 
-    def _register_service(self, func, ident, path, **kwds):
+    def _log(self, level, message, *args):
+        if args:
+            message %= args
+        if level <= self.verbosity:
+            print >> sys.stderr, message
+
+    def _register_service(self, func, ident, path):
+        self._log(1, 'registering %s', func)
         self.services[path] = func
-        return func
+        return
 
     def _load_modules(self):
         if not os.path.exists(self.module_directory):
+            self._log(1, 'skipping module directory %r', self.module_directory)
             # Nothing to do
             return
+        self._log(1, 'loading modules from %r', self.module_directory)
         for pathname in os.listdir(self.module_directory):
             if pathname.endswith('.py'):
                 filename = os.path.join(self.module_directory, pathname)
@@ -62,7 +71,8 @@ class wsgi_application:
                         '__builtins__': __builtins__,
                         '__AKARA_REGISTER_SERVICE__': self._register_service,
                         }
-                    execfile(filename, global_dict, {})
+                    self._log(1, 'loading %r', filename)
+                    execfile(filename, global_dict)
         return
 
     def __call__(self, environ, start_response):
