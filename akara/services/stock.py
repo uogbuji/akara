@@ -8,11 +8,12 @@ Akara stock services (the built-ins)
 __all__ = ['simple_xml_indexing']
 
 import amara
-from amara.services import *
 from amara.lib.util import *
-from akara.restwrap import *
 from amara.namespaces import AKARA_NAMESPACE
 from amara.xslt import transform as transform_
+
+from akara.restwrap import *
+from akara.services import *
 
 #@akara.service_definition(
 #    uri=AKARA_NAMESPACE + 'services/transform',
