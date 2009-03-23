@@ -2,6 +2,7 @@
 
 import os
 import sys
+import signal
 import httplib
 import SocketServer
 from wsgiref import simple_server
@@ -23,7 +24,52 @@ DEFAULT_ERROR_MESSAGE = """\
 """
 
 class wsgi_server(simple_server.WSGIServer, SocketServer.ForkingMixIn):
-    pass
+
+    debug = True
+    restart_pending = False
+    shutdown_pending = False
+
+    def set_signals(self):
+        if self.debug:
+            signal.signal(signal.SIGINT, self.shutdown)
+        signal.signal(signal.SIGTERM, self.shutdown)
+        signal.signal(signal.SIGHUP, self.restart)
+        return
+
+    def shutdown(self, *ignored):
+        self.shutdown_pending = True
+
+    def restart(self, *ignored):
+        self.restart_pending = True
+
+    def run(self):
+        # Setup hooks for controlling within the OS
+        self.set_signals()
+
+        # Force once through the loop
+        self.restart_pending = True
+
+        while self.restart_pending:
+            host, port = self.server_address
+            if not host: host = '*'
+            print >> sys.stderr, "listening on %s:%d" % (host, port)
+
+            self.application.read_config()
+
+            self.restart_pending = self.shutdown_pending = False
+
+            while not self.restart_pending and not self.shutdown_pending:
+                self.handle_request()
+
+            if self.shutdown_pending:
+                print >> sys.stderr, "shutting down"
+                break
+
+            print >> sys.stderr, "graceful restart..."
+            continue
+
+        print >> sys.stderr, "exiting"
+        return 0
 
 
 class wsgi_handler(simple_server.WSGIRequestHandler):
@@ -40,8 +86,6 @@ class wsgi_application:
                  verbosity=0):
         self.module_directory = module_directory
         self.verbosity = verbosity
-        self.services = {}
-        self._load_modules()
         return
 
     def _log(self, level, message, *args):
@@ -51,7 +95,7 @@ class wsgi_application:
             print >> sys.stderr, message
 
     def _register_service(self, func, ident, path):
-        self._log(1, 'registering %s', func)
+        self._log(1, 'registering %s as %s', path, func)
         self.services[path] = func
         return
 
@@ -75,6 +119,12 @@ class wsgi_application:
                     execfile(filename, global_dict)
         return
 
+    def read_config(self):
+        for service in self.services:
+            self._log(1, 'unregistering %s', service)
+        self.services = {}
+        self._load_modules()
+
     def __call__(self, environ, start_response):
         name = shift_path_info(environ)
         try:
@@ -94,13 +144,9 @@ class wsgi_application:
 
 
 def serve_forever(host, port, app):
-    print >> sys.stderr, "Starting server on port %d..." % port
     server = wsgi_server((host, port), wsgi_handler)
     server.set_app(app)
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print >> sys.stderr, "Ctrl-C caught, exiting..."
+    server.run()
     return
 
 
