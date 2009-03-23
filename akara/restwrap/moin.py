@@ -158,6 +158,7 @@ class wikiwrapper(wsgibase):
                 ))
                 self.response = buf.getvalue()
                 return
+        #Notes on use of URI parameters - http://markmail.org/message/gw6xbbvx4st6bksw
         elif ';attachment=' in self.page:
             page, attachment = self.page.split(';attachment=')
             url = self.wikibase + page + '?action=AttachFile&do=get&target=' + attachment

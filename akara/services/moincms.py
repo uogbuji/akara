@@ -21,6 +21,7 @@ Can be launched from the command line, e.g.:
 #Detailed license and copyright information: http://4suite.org/COPYRIGHT
 
 import os
+import stat  # index constants for os.stat()
 import re
 import pprint
 import httplib
@@ -43,7 +44,7 @@ from amara.namespaces import *
 from amara.xslt import transform
 from amara.writers.struct import *
 from amara.bindery.html import parse as htmlparse
-from amara.lib.iri import split_fragment, relativize
+from amara.lib.iri import * #split_fragment, relativize, absolutize
 from amara.bindery.util import dispatcher, node_handler, property_sequence_getter
 from amara.lib.util import *
 from amara.bindery.model import *
@@ -51,7 +52,8 @@ from amara.bindery.model import *
 
 from akara.restwrap.moin import *
 
-DEFAULT_TZ = pytz.timezone('UTC')
+UTC = pytz.timezone('UTC')
+DEFAULT_LOCAL_TZ = pytz.timezone('UTC')
 
 #aname = partial(property_sequence_getter, u"name")
 #aemail = partial(property_sequence_getter, u"email")
@@ -105,7 +107,7 @@ class node(object):
     def load(self):
         return
 
-    def check_up_to_date(self, force_update=False):
+    def up_to_date(self, force_update=False):
         '''
         Checks whether there needs to be an update of the CMS output file or folder
         '''
@@ -115,14 +117,14 @@ class node(object):
             self.load()
         doc, metadata, original_wiki_base = self.cache
         entrydate = dateparse(unicode(doc.article.articleinfo.revhistory.revision.date))
-        if entrydate.tzinfo == None: entrydate = entrydate.replace(tzinfo=DEFAULT_TZ)
+        if entrydate.tzinfo == None: entrydate = entrydate.replace(tzinfo=DEFAULT_LOCAL_TZ)
         if not os.access(self.output, os.R_OK):
             return False
         try:
             lastrev = dateparse(unicode(bindery.parse(self.output).entry.updated))
         except amara.ReaderError:
             return False
-        if lastrev.tzinfo == None: lastrev = lastrev.replace(tzinfo=DEFAULT_TZ)
+        if lastrev.tzinfo == None: lastrev = lastrev.replace(tzinfo=DEFAULT_LOCAL_TZ)
         if (entrydate == lastrev):
             print >> sys.stderr, 'Not updated.  Skipped...'
             return False
@@ -147,30 +149,39 @@ node.NODES[folder.AKARA_TYPE] = folder
 
 class page(node):
     AKARA_TYPE = CMS_BASE + u'/page'
-    def check_up_to_date(self, force_update=False):
+    def up_to_date(self, force_update=False):
         '''
         Checks whether there needs to be an update of the CMS output file or folder
         '''
         if force_update:
             self.load()
         doc, metadata, original_wiki_base = self.cache
-        entrydate = dateparse(unicode(doc.article.articleinfo.revhistory.revision.date))
-        if entrydate.tzinfo == None: entrydate = entrydate.replace(tzinfo=DEFAULT_TZ)
+        pagedate = dateparse(unicode(doc.article.articleinfo.revhistory.revision.date))
+        #Note from the Moin FAQ: http://moinmo.in/MoinMoinQuestions/UsingTheWiki
+        #"Moin internally only uses UTC, but calculates your local time according to your UserPreferences setting on page view. If you set your timezone offset to 0, you get UTC."
+        #Check the behavior if using the Moin REST wrapper with user auth where that user's prefs specify TZ
+        if pagedate.tzinfo == None: pagedate = pagedate.replace(tzinfo=UTC)
         if not os.access(self.output, os.R_OK):
             return False
-        try:
-            published_doc = bindery.parse(self.output)
-            datestr = first_item([ m for m in published_doc.html.head.meta if m.name==u'updated']).content
-            lastrev = dateparse(datestr)
-        except amara.ReaderError:
-            return False
-        if lastrev.tzinfo == None: lastrev = lastrev.replace(tzinfo=DEFAULT_TZ)
-        if (entrydate == lastrev):
-            print >> sys.stderr, 'Not updated.  Skipped...'
-            return False
-        return True
+        lastrev = datetime.datetime.utcfromtimestamp(os.stat(self.output)[stat.ST_MTIME])
+        #try:
+        #    published_doc = bindery.parse(self.output)
+        #    datestr = first_item([ m for m in published_doc.html.head.meta if m.name==u'updated']).content
+        #    lastrev = dateparse(datestr)
+        #except amara.ReaderError:
+        #    return False
+        if lastrev.tzinfo == None: lastrev = lastrev.replace(tzinfo=DEFAULT_LOCAL_TZ)
+        if (lastrev > pagedate):
+            return True
+        return False
 
     def render(self):
+        '''
+        The typical approach is along the lines of "Style-free XSLT Style Sheets"
+        * http://www.xml.com/pub/a/2000/07/26/xslt/xsltstyle.html
+        * http://www.cocooncenter.org/articles/stylefree.html
+        But using div/@id rather than custome elements
+        '''
         doc, metadata, original_wiki_base = self.cache
         self.content = content_handlers(original_wiki_base)
         #metadata = doc.article.xml_model.generate_metadata(doc)
@@ -202,7 +213,7 @@ class page(node):
         #title = article.xml_select(u'section[@title = ]')
 
         #revdate = dateparse(unicode(page.article.articleinfo.revhistory.revision.date))
-        #if revdate.tzinfo == None: revdate = revdate.replace(tzinfo=DEFAULT_TZ)
+        #if revdate.tzinfo == None: revdate = revdate.replace(tzinfo=DEFAULT_LOCAL_TZ)
         
         #Create ouput file
         print >> sys.stderr, 'Writing to ', self.output
@@ -222,6 +233,7 @@ class page(node):
             ),
         ))
         output = open(self.output, 'w')
+        #print buf.getvalue()
         transform(buf.getvalue(), template, output=output)
         return
 
@@ -308,6 +320,21 @@ class content_handlers(dispatcher):
             chain(*imap(self.dispatch, node.xml_children))
         )
 
+    @node_handler(u'itemizedlist')
+    def ul(self, node):
+        '''
+        * foo
+        '''
+        yield E((XHTML_NAMESPACE, u'ul'),
+            chain(*imap(self.dispatch, node.xml_children))
+        )
+
+    @node_handler(u'listitem')
+    def li(self, node):
+        yield E((XHTML_NAMESPACE, u'li'),
+            chain(*imap(self.dispatch, [ grandchild for grandchild in node.para.xml_children ]))
+        )
+
     #@node_handler(u'*', priority=-1)
     #def etc(self, node):
 
@@ -323,14 +350,17 @@ def moincms(wikibase, outputdir, pattern):
         uri = split_fragment(item.resource)[0]
         #Deal with the wrapped URI
         if original_wiki_base:
-            uri = uri.replace(original_wiki_base, wikibase)
-        relative = relativize(uri, wikibase).lstrip('/')
-        #print >> sys.stderr, uri, relative
+            relative = relativize(uri, original_wiki_base+'/')
+            uri = absolutize(relative, wikibase)
         if pattern and not pattern.match(relative):
             continue
+        #print >> sys.stderr, uri, relative
         n = node.factory(uri, relative, outputdir)
-        if not n.check_up_to_date():
+        if n.up_to_date():
+            print >> sys.stderr, 'Up to date.  Skipped...'
+        else:
             process_list.append(n)
+            
     #Process nodes needing update according to priority
     for n in sorted(process_list, key=attrgetter('PRIORITY'), reverse=True):
         print >> sys.stderr, "processing ", n.rest_uri
