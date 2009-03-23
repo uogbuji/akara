@@ -1,4 +1,5 @@
-#akara.resource.repository
+########################################################################
+# akara/resource/repository/__init__.py
 """
 
 """
@@ -178,5 +179,3 @@ class driver(object):
         
         c.close()
         pass
-
-
