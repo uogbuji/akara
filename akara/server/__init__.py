@@ -6,7 +6,7 @@ import signal
 import httplib
 import SocketServer
 from wsgiref import simple_server
-from wsgiref.util import shift_path_info
+from wsgiref.util import shift_path_info, request_uri
 
 DEFAULT_MODULE_DIRECTORY = os.path.expanduser('~/.local/lib/akara')
 
@@ -131,7 +131,7 @@ class wsgi_application:
             service = self.services[name]
         except KeyError:
             start_response('404 Not Found', [('content-type', 'text/html')])
-            url = util.request_uri(environ)
+            url = request_uri(environ)
             params = {
                 'code': 404,
                 'message': 'Not Found',
