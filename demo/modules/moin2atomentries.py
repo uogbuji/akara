@@ -21,6 +21,8 @@ Can be launched from the command line, e.g.:
 #
 #Detailed license and copyright information: http://4suite.org/COPYRIGHT
 
+from __future__ import with_statement
+
 import os
 import re
 import pprint
@@ -32,6 +34,7 @@ from string import Template
 from cStringIO import StringIO
 from functools import partial
 from itertools import *
+from contextlib import closing
 
 from dateutil.parser import parse as dateparse
 import pytz
@@ -175,7 +178,8 @@ def moin2atomentries(wikibase, outputdir, rewrite, pattern):
     if pattern: pattern = re.compile(pattern)
     #print (wikibase, outputdir, rewrite)
     req = urllib2.Request(wikibase, headers={'Accept': RDF_IMT})
-    feed = bindery.parse(urllib2.urlopen(req))
+    with closing(urllib2.urlopen(req)) as resp:
+        feed = bindery.parse(resp)
     for item in feed.RDF.channel.items.Seq.li:
         uri = split_fragment(item.resource)[0]
         relative = uri[wikibase_len:]
@@ -185,9 +189,8 @@ def moin2atomentries(wikibase, outputdir, rewrite, pattern):
         if rewrite:
             uri = uri.replace(rewrite, wikibase)
         req = urllib2.Request(uri, headers={'Accept': DOCBOOK_IMT})
-        response = urllib2.urlopen(req)
-        page = bindery.parse(response)
-        response.close()
+        with closing(urllib2.urlopen(req)) as resp:
+            page = bindery.parse(resp)
         entrydate = dateparse(unicode(page.article.articleinfo.revhistory.revision.date))
         if entrydate.tzinfo == None: entrydate = entrydate.replace(tzinfo=DEFAULT_TZ)
         output = os.path.join(outputdir, OUTPUTPATTERN%pathsegment(relative))
@@ -198,9 +201,8 @@ def moin2atomentries(wikibase, outputdir, rewrite, pattern):
                 print >> sys.stderr, 'Not updated.  Skipped...'
                 continue
         print >> sys.stderr, 'Writing to ', output
-        output = open(output, 'w')
-        handle_page(uri, page, outputdir, relative, output)
-        output.close()
+        with open(output, 'w') as output:
+            handle_page(uri, page, outputdir, relative, output)
     return
 
 #Ideas borrowed from

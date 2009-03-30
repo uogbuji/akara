@@ -18,6 +18,8 @@ Can be launched from the command line, e.g.:
 """
 #Detailed license and copyright information: http://4suite.org/COPYRIGHT
 
+from __future__ import with_statement
+
 __all__ = [
     "WIKITEXT_IMT", "DOCBOOK_IMT", "RDF_IMT", "ATTACHMENTS_IMT",
     "ORIG_BASE_HEADER", "ATTACHMENTS_MODEL_XML", "ATTACHMENTS_MODEL",
@@ -36,6 +38,7 @@ import tempfile
 from functools import *
 from itertools import *
 from operator import *
+from contextlib import closing
 
 import amara
 from amara import bindery
@@ -141,9 +144,8 @@ class wikiwrapper(wsgibase):
             def upstream_handler():
                 buf = StringIO()
                 #Sigh.  Sometimes you have to break some Tag soup eggs to make a RESTful omlette
-                response = self.opener.open(request)
-                self.response = response.read()
-                response.close()
+                with closing(self.opener.open(request)) as resp:
+                    self.response = resp.read()
                 doc = htmlparse(self.response)
                 attachment_nodes = doc.xml_select(u'//*[contains(@href, "action=AttachFile") and contains(@href, "do=view")]')
                 targets = []
@@ -164,10 +166,9 @@ class wikiwrapper(wsgibase):
             url = self.wikibase + page + '?action=AttachFile&do=get&target=' + attachment
             request = urllib2.Request(url)
             def upstream_handler():
-                response = self.opener.open(request)
-                self.response = response.read()
-                response.close()
-                self.headers = [('content-type', dict(response.info())['content-type'])]
+                with closing(self.opener.open(request)) as resp:
+                    self.response = resp.read()
+                    self.headers = [('content-type', dict(resp.info())['content-type'])]
                 return
         else:
             url = self.wikibase + self.page
@@ -178,9 +179,8 @@ class wikiwrapper(wsgibase):
             if upstream_handler:
                 upstream_handler()
             else:
-                response = self.opener.open(request)
-                self.response = response.read()
-                response.close()
+                with closing(self.opener.open(request)) as resp:
+                    self.response = resp.read()
             self.headers = [(ORIG_BASE_HEADER, self.wikibase)]
             self.start_response(status_response(httplib.OK), self.headers)
             return ''
@@ -199,9 +199,8 @@ class wikiwrapper(wsgibase):
     def fill_page_edit_form(self, page=None):
         page = page or self.page
         url = self.wikibase + page + '?action=edit&editor=text'
-        response = self.opener.open(urllib2.Request(url))
-        doc = htmlparse(response)
-        response.close()
+        with closing(self.opener.open(urllib2.Request(url))) as resp:
+            doc = htmlparse(resp)
         form = doc.html.body.xml_select(u'.//*[@id="editor"]')[0]
         form_vars = {}
         #form / fieldset / input
@@ -214,9 +213,8 @@ class wikiwrapper(wsgibase):
 
     def fill_attachment_form(self, page, attachment):
         url = self.wikibase + page + '?action=AttachFile'
-        response = self.opener.open(urllib2.Request(url))
-        doc = htmlparse(response)
-        response.close()
+        with closing(self.opener.open(urllib2.Request(url))) as resp:
+            doc = htmlparse(resp)
         form = doc.html.body.xml_select(u'.//*[@id="content"]/form')[0]
         form_vars = {}
         #form / dl / ... dd
@@ -247,8 +245,9 @@ class wikiwrapper(wsgibase):
         #password = self.password if password is None else password
         url = self.wikibase + '?action=login&name=%s&password=%s&login=login'%(username, password)
         request = urllib2.Request(url)
-        response = self.opener.open(request)
-        response.close()
+        with closing(self.opener.open(request)) as resp:
+            #Don't need to do anything with the response.  The cookies will be captured automatically
+            pass
         self.environ['REMOTE_USER'] = username
         #print "="*60
         #doc = htmlparse(response)
@@ -277,15 +276,14 @@ class wikiwrapper(wsgibase):
         data = urllib.urlencode(form_vars)
         request = urllib2.Request(url, data)
         try:
-            response = self.opener.open(request)
+            with closing(self.opener.open(request)) as resp:
+                doc = htmlparse(resp)
         except urllib2.URLError:
             raise
             #404 error
             self.start_response(status_response(httplib.NOT_FOUND), [('content-type', 'text/html')])
             response = four_oh_four.substitute(fronturl=request_uri(self.environ), backurl=url)
             return response
-        doc = htmlparse(response)
-        response.close()
         #print "="*60
         #amara.xml_print(doc)
 
@@ -322,7 +320,8 @@ class wikiwrapper(wsgibase):
         #data = urllib.urlencode(form_vars)
         request = urllib2.Request(url, form_vars)
         try:
-            response = self.opener.open(request)
+            with closing(self.opener.open(request)) as resp:
+                doc = htmlparse(resp)
         except urllib2.URLError:
             raise
             #404 error
@@ -332,8 +331,6 @@ class wikiwrapper(wsgibase):
         form_vars["file"].close()
         os.close(temp[0])
         os.remove(temp[1])
-        doc = htmlparse(response)
-        response.close()
         #print "="*60
         #amara.xml_print(doc)
 

@@ -20,6 +20,7 @@ Can be launched from the command line, e.g.:
 #
 #Detailed license and copyright information: http://4suite.org/COPYRIGHT
 
+from __future__ import with_statement
 import os
 import stat  # index constants for os.stat()
 import re
@@ -34,6 +35,7 @@ from functools import partial
 from itertools import *
 from operator import *
 from collections import defaultdict
+from contextlib import closing
 
 from dateutil.parser import parse as dateparse
 import pytz
@@ -48,7 +50,6 @@ from amara.lib.iri import * #split_fragment, relativize, absolutize
 from amara.bindery.util import dispatcher, node_handler, property_sequence_getter
 from amara.lib.util import *
 from amara.bindery.model import *
-
 
 from akara.restwrap.moin import *
 
@@ -81,11 +82,11 @@ class node(object):
     @staticmethod
     def factory(rest_uri, relative, outputdir):
         req = urllib2.Request(rest_uri, headers={'Accept': DOCBOOK_IMT})
-        resp = urllib2.urlopen(req)
-        doc = bindery.parse(resp, standalone=True, model=MOIN_DOCBOOK_MODEL)
-        original_wiki_base = dict(resp.info())[ORIG_BASE_HEADER]
-        #self.original_wiki_base = dict(resp.info())[ORIG_BASE_HEADER]
-        #amara.xml_print(self.content_cache)
+        with closing(urllib2.urlopen(req)) as resp:
+            doc = bindery.parse(resp, standalone=True, model=MOIN_DOCBOOK_MODEL)
+            original_wiki_base = dict(resp.info())[ORIG_BASE_HEADER]
+            #self.original_wiki_base = dict(resp.info())[ORIG_BASE_HEADER]
+            #amara.xml_print(self.content_cache)
         output = os.path.join(outputdir, relative)
         parent_dir = os.path.split(output)[0]
         try:
@@ -97,7 +98,6 @@ class node(object):
         for eid, row in groupby(sorted(raw_metadata), itemgetter(0)):
             #It's all crazy lazy, so use list to consume the iterator
             list( metadata.setdefault(key, []).append(val) for (i, key, val) in row )
-        resp.close()
         #print metadata
         akara_type = first_item(metadata[u'ak-type'])
         cls = node.NODES[akara_type]
@@ -137,9 +137,8 @@ class folder(node):
     def render(self):
         #Copy attachments to dir
         req = urllib2.Request(self.rest_uri, headers={'Accept': ATTACHMENTS_IMT})
-        response = urllib2.urlopen(req)
-        doc = bindery.parse(response, model=ATTACHMENTS_MODEL)
-        response.close()
+        with closing(urllib2.urlopen(req)) as resp:
+            doc = bindery.parse(resp, model=ATTACHMENTS_MODEL)
         for attachment in (doc.attachments.attachment or ()):
             print attachment
         return
@@ -232,9 +231,10 @@ class page(node):
                 ),
             ),
         ))
-        output = open(self.output, 'w')
-        #print buf.getvalue()
-        transform(buf.getvalue(), template, output=output)
+        with open(self.output, 'w') as output:
+            text = f.read().rstrip()
+            #print buf.getvalue()
+            transform(buf.getvalue(), template, output=output)
         return
 
     def meta(self):
@@ -342,9 +342,9 @@ def moincms(wikibase, outputdir, pattern):
     if pattern: pattern = re.compile(pattern)
     #print (wikibase, outputdir, rewrite)
     req = urllib2.Request(wikibase, headers={'Accept': RDF_IMT})
-    resp = urllib2.urlopen(req)
-    original_wiki_base = dict(resp.info())[ORIG_BASE_HEADER]
-    feed = bindery.parse(resp)
+    with closing(urllib2.urlopen(req)) as resp:
+        original_wiki_base = dict(resp.info())[ORIG_BASE_HEADER]
+        feed = bindery.parse(resp)
     process_list = []
     for item in feed.RDF.channel.items.Seq.li:
         uri = split_fragment(item.resource)[0]

@@ -37,10 +37,16 @@ class manager(object):
         return
 
 
-class service(object):
-    def __init__(self, service_id, service_tag=None, content_type=None,
+class simple_service(object):
+    '''
+    A REST wrapper that turns the keyword parameters of a function from GET params 
+    '''
+    def __init__(self, method, service_id, service_tag=None, content_type=None,
                  **kwds):
+        if method not in ('get', 'post'):
+            raise ValueError('Unsupported HTTP method for this decorator')
         self.service_id = service_id
+        self.expects_body = method == 'get'
         #test if type(test) in (list, tuple) else [test]
         self.service_tag = service_tag
         self.content_type = content_type
@@ -57,13 +63,24 @@ class service(object):
         @functools.wraps(func)
         def wrapper(environ, start_response, service=self):
             parameters = parse_qs(environ.get('QUERY_STRING', ''))
+            #request_method = environ.get('METHOD').lower()
             parameters.update(service.params)
             #print parameters
-            content = func(**parameters)
-            if isinstance(content, response):
-                content_type = content.content_type
-                content = content.content
+            if self.expects_body:
+                content = func(**parameters)
             else:
+                ctype = environ.get('CONTENT_TYPE', 'application/unknown')
+                clen = int(environ.get('CONTENT_LENGTH', None))
+                if not clen:
+                    self.start_response(get_status(httplib.LENGTH_REQUIRED), [('Content-Type','text/plain')])
+                    return httplib.LENGTH_REQUIRED #"Content length Required"
+                request_content_bytes = environ['wsgi.input'].read(clen)
+                response_obj = func(request_content_bytes, ctype, **parameters)
+            if isinstance(response_obj, response):
+                content = response_obj.content
+                content_type = response_obj.content_type
+            else:
+                content = response_obj
                 content_type = service.content_type
                 if content_type is None:
                     raise RuntimeError(
@@ -83,8 +100,4 @@ class response(object):
     def __init__(self, content, content_type):
         self.content = content
         self.content_type = content_type
-
-'''
-A REST wrapper that turns the keyword parameters of a function from GET params 
-'''
 
