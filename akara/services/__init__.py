@@ -67,7 +67,7 @@ class simple_service(object):
             parameters.update(service.params)
             #print parameters
             if self.expects_body:
-                content = func(**parameters)
+                response_obj = func(**parameters)
             else:
                 ctype = environ.get('CONTENT_TYPE', 'application/unknown')
                 clen = int(environ.get('CONTENT_LENGTH', None))
