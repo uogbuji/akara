@@ -28,35 +28,11 @@ from akara.services import simple_service, response
 
 OAI_NAMESPACE = u"http://www.openarchives.org/OAI/2.0/"
 
-class oai2atom(dispatcher):
-    @node_handler([u'oai:OAI-PMH'])
-    def root(self, node):
-        yield E((ATOM_NAMESPACE, u'entry'),
-            chain(*imap(self.dispatch, node.xml_children))
-        )
-
-    @node_handler([u'oai:responseDate'])
-    def response_date(self, node):
-        yield E((ATOM_NAMESPACE, u'updated'),
-            unicode(node)
-        )
-
-    @node_handler([u'oai:request'])
-    def request(self, node):
-        #yield E((ATOM_NAMESPACE, u'link'), {u'rel': u'alternate', u'type': u'application/atom+xml'}
-        yield E((ATOM_NAMESPACE, u'link'), {u'rel': u'alternate', u'href': unicode(node)})
-
-    @node_handler([u'oai:description'])
-    def description(self, node):
-        yield E((ATOM_NAMESPACE, u'summary'), {u'type': u'text'}, unicode(node)),
-
-    @node_handler([u'*'])
-    def log(self, node):
-        self.dispatch_next(node)
-
-#Useful: http://dspace.mit.edu/oai/request?verb=Identify
-#Examples
+#Useful:
+# http://www.nostuff.org/words/tag/oai-pmh/
+#Examples:
 # http://eprints.sussex.ac.uk/perl/oai2?verb=GetRecord&metadataPrefix=oai_dc&identifier=oai:eprints.sussex.ac.uk:67
+# http://dspace.mit.edu/oai/request?verb=Identify
 # http://dspace.mit.edu/oai/request?verb=GetRecord&metadataPrefix=oai_dc&identifier=oai:dspace.mit.edu:1721.1/5451
 
 #Based on: http://dspace.mit.edu/oai/request?verb=GetRecord&metadataPrefix=oai_dc&identifier=oai:dspace.mit.edu:1721.1/5451
@@ -104,7 +80,8 @@ ATOM_ENVELOPE = '''<?xml version="1.0" encoding="UTF-8"?>
 </feed>
 '''
 
-@simple_service('get', 'http://purl.org/zepheira/oaitools', 'oai-record', 'application/atom+xml')
+SERVICE_ID = 'http://purl.org/akara/services/builtin/oai.json'
+@simple_service('get', SERVICE_ID, 'akara.oai.atom', 'application/atom+xml')
 def atomize_oai_record(endpoint=None, id=None):
     '''
     endpoint - the OAI request URL, e.g. http://dspace.mit.edu/oai/request
