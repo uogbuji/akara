@@ -46,7 +46,7 @@ class simple_service(object):
         if method not in ('get', 'post'):
             raise ValueError('Unsupported HTTP method for this decorator')
         self.service_id = service_id
-        self.expects_body = method == 'get'
+        self.expects_body = method == 'post'
         #test if type(test) in (list, tuple) else [test]
         self.service_tag = service_tag
         self.content_type = content_type
@@ -63,10 +63,14 @@ class simple_service(object):
         @functools.wraps(func)
         def wrapper(environ, start_response, service=self):
             parameters = parse_qs(environ.get('QUERY_STRING', ''))
-            #request_method = environ.get('METHOD').lower()
+            request_method = environ.get('REQUEST_METHOD')
+            if request_method not in ('GET', 'POST', 'HEAD'):
+                response_headers = [('Content-type','text/plain')]
+                start_response(get_status(httplib.METHOD_NOT_ALLOWED), response_headers)
+                return httplib.METHOD_NOT_ALLOWED
             parameters.update(service.params)
             #print parameters
-            if self.expects_body:
+            if not self.expects_body:
                 response_obj = func(**parameters)
             else:
                 ctype = environ.get('CONTENT_TYPE', 'application/unknown')

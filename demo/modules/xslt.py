@@ -20,15 +20,15 @@ SERVICE_ID = 'http://purl.org/akara/services/builtin/xslt'
 @simple_service('post', SERVICE_ID, 'akara.xslt')
 def akara_xslt(body, ctype, **params):
     '''
-    akaraxslttransform - URL to the XSLT transform to be applied
+    @xslt - URL to the XSLT transform to be applied
     all other query parameters are passed ot the XSLT processor as top-level params
     
     Sample request:
-    curl --request POST --data-binary "@foo.xml" --header "Content-Type: application/xml" "http://localhost:8880/akara.xslt?akara.xslt=http://cvs.4suite.org/viewcvs/*checkout*/4Suite/Ft/Data/identity.xslt"
+    curl --request POST --data-binary "@foo.xml" --header "Content-Type: application/xml" "http://localhost:8880/akara.xslt?@xslt=http://cvs.4suite.org/viewcvs/*checkout*/4Suite/Ft/Data/identity.xslt"
     '''
-    if "akara.xslt" not in params:
+    if "@xslt" not in params:
         raise ValueError('XSLT transform required')
-    akaraxslttransform = params["akara.xslt"][0]
+    akaraxslttransform = params["@xslt"][0]
     result = transform(body, akaraxslttransform)
     return response(str(result), result.parameters.media_type)
 
