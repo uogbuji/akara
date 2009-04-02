@@ -22,14 +22,25 @@ from amara.writers.struct import *
 from amara.bindery.model import *
 from amara.bindery.util import dispatcher, node_handler
 
-from atomtools import feed
+from amara.tools.atomtools import feed
 
 from akara.services import simple_service, response
 
 OAI_NAMESPACE = u"http://www.openarchives.org/OAI/2.0/"
 
+#OAI-PMH verbs:
+# * Identify
+# * ListMetadataFormats
+# * ListSets
+# * GetRecord
+# * ListIdentifiers
+# * ListRecords
+
+
 #Useful:
 # http://www.nostuff.org/words/tag/oai-pmh/
+# http://libraries.mit.edu/dspace-mit/about/faq.html
+# http://wiki.dspace.org/index.php/OaiInstallations - List of OAI installations harvested by DSpace
 #Examples:
 # http://eprints.sussex.ac.uk/perl/oai2?verb=GetRecord&metadataPrefix=oai_dc&identifier=oai:eprints.sussex.ac.uk:67
 # http://dspace.mit.edu/oai/request?verb=Identify
@@ -65,7 +76,7 @@ OAI_MODEL_XML = '''<?xml version="1.0" encoding="UTF-8"?>
           <dc:type>Article</dc:type>
           <dc:identifier>Joshua Cohen, "Maximizing Social Welfare or Institutionalizing Democratic Ideals?"; Politics and Society, Vol. 19, No. 1</dc:identifier>
         </oai_dc:dc>
-      </metadata>
+      </metadata>``
     </record>
   </GetRecord>
 </OAI-PMH>
@@ -88,7 +99,7 @@ def atomize_oai_record(endpoint=None, id=None):
     id, e.g. the article ID, e.g. oai:dspace.mit.edu:1721.1/5451
     
     Sample request:
-    curl "http://localhost:8888/oai-record?endpoint=http://dspace.mit.edu/oai/request&id=oai:dspace.mit.edu:1721.1/5451"
+    curl "http://localhost:8888/akara.oai.atom?endpoint=http://dspace.mit.edu/oai/request&id=oai:dspace.mit.edu:1721.1/5451"
     '''
     if not endpoint:
         raise ValueError('endpoint required')
@@ -99,7 +110,7 @@ def atomize_oai_record(endpoint=None, id=None):
     url = endpoint + '?' + qstr
     doc = bindery.parse(url, model=OAI_MODEL)
     resources = metadata_dict(doc.xml_model.generate_metadata(doc))
-    print resources
+    #print resources
     f = feed(ATOM_ENVELOPE)
     #f = feed(ATOM_ENVELOPE, title=resources['title'], id=resources['id'])
     #f.source.feed.xml_append(E((ATOM_NAMESPACE, u'link'), {u'rel': u'self', u'type': u'application/atom+xml', u'href': self_link.decode('utf-8')}))

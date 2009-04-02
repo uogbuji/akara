@@ -75,8 +75,8 @@ class simple_service(object):
             else:
                 ctype = environ.get('CONTENT_TYPE', 'application/unknown')
                 clen = int(environ.get('CONTENT_LENGTH', None))
-                if not clen:
-                    self.start_response(get_status(httplib.LENGTH_REQUIRED), [('Content-Type','text/plain')])
+                if clen is None:
+                    start_response(get_status(httplib.LENGTH_REQUIRED), [('Content-Type','text/plain')])
                     return httplib.LENGTH_REQUIRED #"Content length Required"
                 request_content_bytes = environ['wsgi.input'].read(clen)
                 response_obj = func(request_content_bytes, ctype, **parameters)
