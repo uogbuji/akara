@@ -1,10 +1,16 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, with_statement
 
-import os, errno, socket, sys, traceback, signal
+import os
+import sys
+import errno
+import signal
+import socket
+import traceback
 import select as _select
 import thread as _thread
 
 from .request import wsgi_request
+from .application import wsgi_application
 
 # possible socket errors during accept()
 _sock_non_fatal = []
@@ -14,20 +20,24 @@ for name in ('ECONNABORTED', 'ECONNRESET', 'ETIMEDOUT', 'EHOSTUNREACH',
         _sock_non_fatal.append(getattr(errno, name))
 
 
-class Worker(object):
+class wsgi_server(object):
 
     # How long select() should wait for a ready listener
     timeout = 1.0
 
-    def __init__(self, slot, max_requests, server):
+    def __init__(self, slot, parent):
         self.slot = slot
-        self.max_requests = max_requests
-        self.scoreboard = server.scoreboard
-        self.accepting_mutex = server.accepting_mutex
-        self.listeners = server.listeners
-        self.log = server.log
-        self.base_environ = server.base_environ
-        self.application = application
+        self.parent = parent
+
+        self.log = parent.log
+        self.scoreboard = parent.scoreboard
+        self.application = parent.application
+        self.environ = {
+            'GATEWAY_INTERFACE': 'CGI/1.1',
+            'SERVER_NAME': parent.server_name,
+            'SERVER_PORT': parent.server_port,
+            'SCRIPT_NAME': '',
+            }
 
         self._ident = 0
         self._parent_ident = self._get_ident()
@@ -35,12 +45,8 @@ class Worker(object):
         self._stopped = False
 
         # Initialize our scoreboard slot (indicate ready)
-        scoreboard[slot] = '\1'
+        self.scoreboard[slot] = '\1'
         return
-
-    # WSGIServer method
-    def get_app(self):
-        return self.application
 
     @property
     def name(self):
@@ -66,9 +72,9 @@ class Worker(object):
 
     def start(self):
         if self._get_ident() != self._parent_ident:
-            raise RuntimeError('only the server can start workers')
+            raise RuntimeError('only the parent can start servers')
         if self._started:
-            raise RuntimeError("worker '%s' already started" % self.name)
+            raise RuntimeError("server '%s' already started" % self.name)
         self._start(self._bootstrap, ())
         self._started = True
 
@@ -84,16 +90,16 @@ class Worker(object):
             except (SystemExit, KeyboardInterrupt):
                 pass
             except:
-                print >> sys.stderr, "Exception in worker '%s':" % self.name
+                print >> sys.stderr, "Exception in server '%s':" % self.name
                 traceback.print_exc(None, sys.stderr)
         finally:
             self._stopped = True
-        self.log.info("worker '%s' stopped", self.name)
+        self.log.info("server '%s' stopped", self.name)
         return
 
     def stop(self):
         if self._get_ident() != self._parent_ident:
-            raise RuntimeError('only the server can stop workers')
+            raise RuntimeError('only the parent can stop servers')
         if not self._stopped:
             self._stop()
         return
@@ -103,7 +109,7 @@ class Worker(object):
 
     def terminate(self):
         if self._get_ident() != self._parent_ident:
-            raise RuntimeError('only the server can terminate workers')
+            raise RuntimeError('only the parent can terminate servers')
         if not self._stopped:
             self._terminate()
         return
@@ -113,7 +119,7 @@ class Worker(object):
 
     def kill(self):
         if os.getpid() != self._parent_ident:
-            raise RuntimeError('only the server can kill workers')
+            raise RuntimeError('only the parent can kill servers')
         if not self._stopped:
             self._kill()
         return
@@ -123,7 +129,7 @@ class Worker(object):
 
     def run(self):
         """
-        Each worker runs within this function. They wait for a job to
+        Each server runs within this function. They wait for a job to
         become available, then handle all the requests on that connection
         until it is closed, then return to wait for more jobs.
         """
@@ -133,16 +139,17 @@ class Worker(object):
         # localize some variables
         slot = self.slot
         scoreboard = self.scoreboard
-        accepting_mutex = self.accepting_mutex
-        listeners = self.listeners
         timeout = self.timeout
+        listeners = self.parent.listeners
         log = self.log
-        requests = self.max_requests
+        requests = self.parent.max_requests
+        #accepting_mutex = self.parent.accepting_mutex
+        accepting_mutex = _thread.allocate_lock()
 
         SERVER_BUSY = '\0'
         SERVER_READY = '\1'
 
-        log.debug("worker '%s' started", self.name)
+        log.debug("server '%s' started", self.name)
 
         self._running = True
         while self._running and requests > 0:
@@ -165,11 +172,10 @@ class Worker(object):
                     continue
 
             try:
-                # Serialize the accepts between all workers
-                accepting_mutex.acquire()
-                try:
+                # Serialize the accepts between all servers
+                with accepting_mutex:
                     # Make sure there is still a request left to process,
-                    # because of multiple workers, this is not always true.
+                    # because of multiple servers, this is not always true.
                     try:
                         # A timeout of `0` means just poll as we already know
                         # that the list is "ready".
@@ -182,10 +188,7 @@ class Worker(object):
                     # As soon as a connection is accepted, it no longer will
                     # be in the input pending list
                     listener = ready[0]
-                    conn_sock, client_addr = listener.socket.accept()
-                    server = listener.server
-                finally:
-                    accepting_mutex.release()
+                    conn_sock, client_addr = listener.accept()
             except socket.error, (code, error):
                 # Most of the errors are quite fatal. So it seems
                 # best just to exit in most cases.
@@ -230,12 +233,12 @@ class Worker(object):
             requests -= 1
 
         if not requests:
-            log.notice("worker '%s' reached MaxRequestsPerServer", self.name)
+            log.notice("server '%s' reached MaxRequestsPerServer", self.name)
         self._running = False
         return
 
 
-class ThreadWorker(Worker):
+class wsgi_server_thread(wsgi_server):
 
     _get_ident = _thread.get_ident
     _start = _thread.start_new_thread
@@ -246,7 +249,7 @@ class ThreadWorker(Worker):
     _terminate = _kill = _stop
 
 
-class ProcessWorker(Worker):
+class wsgi_server_process(wsgi_server):
 
     # select() should wait forever as signals will interrupt as needed
     timeout = None
