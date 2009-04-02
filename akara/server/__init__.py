@@ -31,7 +31,7 @@ SERVER_CONFIG_DEFAULTS = {
     'MaxRequestsPerServer': '10000',
     'ModuleDir': 'modules',
     'ErrorLog': 'logs/error.log',
-    'LogLevel': 'warn',
+    'LogLevel': 'notice',
     'AccessLog': '',
     }
 
@@ -392,11 +392,11 @@ class daemon(object):
         # Read the configuration
         self.read_config()
 
-        # Let the controlling process know we're going to live
-        self.save_pid()
-
         if not self.debug:
             self.detach_process()
+
+        # Let the controlling process know we're going to live
+        self.save_pid()
 
         # Force once through the loop
         self.restart_pending = self.shutdown_pending = True
