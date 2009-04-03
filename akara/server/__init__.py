@@ -155,18 +155,7 @@ class daemon(object):
         self.max_free_servers = config.getint('global', 'MaxSpareServers')
         self.max_requests = config.getint('global', 'MaxRequestsPerServer')
 
-        self.module_dir = config.get('global', 'ModuleDir')
-        self.module_dir = os.path.join(self.server_root, self.module_dir)
-        try:
-            paths = os.listdir(self.module_dir)
-        except OSError, e:
-            self.log.info("could not list ModuleDir '%s': %s (errno=%d)",
-                          self.module_dir, e.strerror, e.errno)
-            modules = ()
-        else:
-            modules = [ os.path.join(self.module_dir, path)
-                        for path in paths if path.endswith('.py') ]
-        self.application = wsgi_application(self, modules)
+        self.application = wsgi_application(self, config)
         return
 
     def detach_process(self):
