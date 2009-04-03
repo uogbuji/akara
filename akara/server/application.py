@@ -1,6 +1,9 @@
 import os
+from cStringIO import StringIO
 from wsgiref.simple_server import WSGIRequestHandler
 from wsgiref.util import shift_path_info, request_uri
+
+from amara import tree, xml_print
 
 class configdict(dict):
 
@@ -63,25 +66,25 @@ class wsgi_application:
         return
 
     def _register_service(self, func, ident, path):
-        try:
-            name = func.__name__
-        except AttributeError:
-            name = func.__class__.__name__
         self.log.debug('  registering %s using %s.%s()', path,
-                       func.__module__, name)
+                       func.__module__, func.__name__)
         self.services[path] = func
         return
 
     def _list_services(self, environ, start_response):
-        template = ('<service name="%s">\n'
-                    '  <path>%s</path>\n'
-                    '  <description>%s</description>\n'
-                    '</service>\n')
-        services = []
+        document = tree.entity()
+        services = document.xml_append(tree.element(None, 'services'))
         for path, func in self.services.iteritems():
-            services.append(template % (func.__name__, path, func.__doc__))
+            service = services.xml_append(tree.element(None, 'service'))
+            service.xml_attributes['name'] = func.__name__
+            E = service.xml_append(tree.element(None, 'path'))
+            E.xml_append(tree.text(path))
+            E = service.xml_append(tree.element(None, 'description'))
+            E.xml_append(tree.text(func.__doc__ or ''))
         start_response('200 OK', [('Content-Type', 'text/xml')])
-        return services
+        io = StringIO()
+        xml_print(document, io, indent=True)
+        return [io.getvalue()]
 
     def __call__(self, environ, start_response):
         """WSGI handler"""
