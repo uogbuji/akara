@@ -63,8 +63,12 @@ class wsgi_application:
         return
 
     def _register_service(self, func, ident, path):
-        self.log.debug('registering %s to %s.%s()', path,
-                       func.__module__, func.__name__)
+        try:
+            name = func.__name__
+        except AttributeError:
+            name = func.__class__.__name__
+        self.log.debug('  registering %s using %s.%s()', path,
+                       func.__module__, name)
         self.services[path] = func
         return
 
