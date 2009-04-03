@@ -22,8 +22,14 @@ SERVICE_ID = 'http://purl.org/akara/services/builtin/rdfa.json'
 #@simple_service('get', SERVICE_ID, 'akara.rdfa.json', 'application/json')
 @simple_service('get', SERVICE_ID, 'akara.rdfa.json', 'application/json')
 def rdfa2json(url=None):
+    '''
+    url - the page to check for RDFa
+    
+    Sample request:
+    curl "http://localhost:8880/akara.rdfa.json?url=http://zepheira.com"
+    '''
     print url
-    ids = sets.Set()
+    ids = set()
     url = url[0]
     if url:
         content = urllib2.urlopen(url).read()

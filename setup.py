@@ -4,6 +4,7 @@ try:
     from setuptools import setup, find_packages
     setuptools_extras = dict(
         packages=find_packages(),
+        zip_safe=False,
         #install_requires='Amara>=2.0a0',
         #tests_require='Paste>=1.0',
         )

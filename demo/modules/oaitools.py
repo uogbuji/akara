@@ -99,7 +99,7 @@ def atomize_oai_record(endpoint=None, id=None):
     id, e.g. the article ID, e.g. oai:dspace.mit.edu:1721.1/5451
     
     Sample request:
-    curl "http://localhost:8888/akara.oai.atom?endpoint=http://dspace.mit.edu/oai/request&id=oai:dspace.mit.edu:1721.1/5451"
+    curl "http://localhost:8880/akara.oai.atom?endpoint=http://dspace.mit.edu/oai/request&id=oai:dspace.mit.edu:1721.1/5451"
     '''
     if not endpoint:
         raise ValueError('endpoint required')

@@ -41,7 +41,14 @@ SERVICE_ID = 'http://purl.org/akara/services/builtin/wwwlog.json'
 #@simple_service('get', SERVICE_ID, 'akara.wwwlog.json', 'application/json')
 @simple_service('post', SERVICE_ID, 'akara.wwwlog.json', 'application/json')
 def wwwlog2json(body, ctype, url=None):
-    ids = sets.Set()
+    '''
+    Convert Apache log info to Exhibit JSON
+    (see: http://www.ibm.com/developerworks/web/library/wa-realweb6/ )
+
+    Sample request:
+    * curl --request POST --data-binary "@access.log" --header "Content-Type: text/plain" "http://localhost:8880/akara.wwwlog.json"
+    '''
+    ids = set()
     entries = []
     #for line in fp:
     #postinput = fp.readlines(clen)

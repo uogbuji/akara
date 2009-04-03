@@ -16,6 +16,13 @@ from akara.services import simple_service, response
 SERVICE_ID = 'http://purl.org/akara/services/builtin/ical.json'
 @simple_service('post', SERVICE_ID, 'ical.json', 'application/json')
 def ical2json(body, ctype):
+    '''
+    Convert iCalendar info to Exhibit JSON
+    (see: http://www.ibm.com/developerworks/web/library/wa-realweb6/ )
+
+    Sample request:
+    * curl --request POST --data-binary "@foo.ics" --header "Content-Type: text/calendar" "http://localhost:8880/ical.json"
+    '''
     ids = set()
     entries = []
     cal = Calendar.from_string(body)
