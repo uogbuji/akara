@@ -3,7 +3,7 @@
 A tool for convenient viewing of log files
 '''
 
-import sys, time
+import sys, time, re
 import urllib2
 #from cgi import parse_qs
 #from cStringIO import StringIO
