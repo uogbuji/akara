@@ -9,6 +9,8 @@ SERVICE_ID = 'http://purl.org/akara/services/builtin/static'
 
 class MediaHandler(object):
 
+    __name__ = 'MediaHandler'
+
     def __init__(self, media_root):
         self.media_root = media_root
 
