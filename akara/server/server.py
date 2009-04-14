@@ -10,7 +10,6 @@ import select as _select
 import thread as _thread
 
 from .request import wsgi_request
-from .application import wsgi_application
 
 # possible socket errors during accept()
 _sock_non_fatal = []
@@ -143,8 +142,7 @@ class wsgi_server(object):
         listeners = self.parent.listeners
         log = self.log
         requests = self.parent.max_requests
-        #accepting_mutex = self.parent.accepting_mutex
-        accepting_mutex = _thread.allocate_lock()
+        accepting_mutex = self.parent.accepting_mutex
 
         SERVER_BUSY = '\0'
         SERVER_READY = '\1'

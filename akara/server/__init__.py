@@ -14,7 +14,7 @@ import functools
 import ConfigParser
 
 # HACK!
-from threading import Lock as mutex
+from threading import Lock as proc_mutex
 
 from akara.server import logger, server
 from akara.server.application import wsgi_application
@@ -58,6 +58,14 @@ MAINTENANCE_INTERVAL = 1.0
 
 # This value should prevent resource hogging
 MAX_SPAWN_RATE = 32
+
+
+class dummy_mutex(object):
+    def __enter__(self):
+        return
+    def __exit__(self):
+        return
+
 
 class daemon(object):
 
@@ -160,9 +168,7 @@ class daemon(object):
 
     def detach_process(self):
         if os.fork():
-            print 'parent'
             raise SystemExit(0)
-        print 'child'
         # create a new session with this process as the group leader
         try:
             setsid = os.setsid
@@ -392,12 +398,23 @@ class daemon(object):
 
         while self.restart_pending:
             self.listeners = [self.make_socket(*self.server_addr)]
-            self.accepting_mutex = mutex()
+
+            # Initialize cross-process accept lock */
+            if len(self.listeners) > 1:
+                mutex_class = proc_mutex
+            else:
+                mutex_class = dummy_mutex
+            try:
+                self.accepting_mutex = mutex_class()
+            except:
+                self.log.emerg('Could not create accept lock')
+                return 1
+
             self.scoreboard = mmap.mmap(-1, self.max_servers)
             self.servers = [None]*self.max_servers
             self.spawn_servers(range(self.start_servers))
 
-            self.log.notice("started akara server for %s:%d",
+            self.log.notice("started akara server (pid=%d) for %s:%d",
                             self.server_name, self.server_port)
 
             self.restart_pending = self.shutdown_pending = False
