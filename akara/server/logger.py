@@ -187,6 +187,7 @@ class loggerstream:
                 msg, sep, bytes = bytes.partition('\n')
                 with self._lock:
                     msg = ''.join(self._buffer) + msg
+                    del self._buffer[:]
                 self._logger.log(self._level, msg)
             msg, sep, bytes = bytes.rpartition('\n')
             self._logger.log(self._level, msg)
