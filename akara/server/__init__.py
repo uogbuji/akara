@@ -63,7 +63,7 @@ MAX_SPAWN_RATE = 32
 class dummy_mutex(object):
     def __enter__(self):
         return
-    def __exit__(self):
+    def __exit__(self, *args):
         return
 
 
@@ -415,7 +415,8 @@ class daemon(object):
             self.spawn_servers(range(self.start_servers))
 
             self.log.notice("started akara server (pid=%d) for %s:%d",
-                            self.server_name, self.server_port)
+                            self.current_pid, self.server_name,
+                            self.server_port)
 
             self.restart_pending = self.shutdown_pending = False
             self._idle_spawn_rate = 1
@@ -439,7 +440,7 @@ class daemon(object):
             self.read_config()
             continue
 
-        self.log.notice('process %d exiting' % os.getpid())
+        self.log.notice('process %d exiting' % self.current_pid)
         return 0
 
 
