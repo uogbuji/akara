@@ -19,23 +19,37 @@ for name in ('ECONNABORTED', 'ECONNRESET', 'ETIMEDOUT', 'EHOSTUNREACH',
         _sock_non_fatal.append(getattr(errno, name))
 
 
+class wsgi_error(Exception):
+
+    code = 500
+    reason, message = wsgi_request.responses[code]
+
+    def __init__(self, code):
+        self.code = int(code)
+        self.reason, self.message = wsgi_request.responses[self.code]
+
+    def __str__(self):
+        return '%d %s' % (self.code, self.reason)
+
+
 class wsgi_server(object):
 
     # How long select() should wait for a ready listener
     timeout = 1.0
 
-    def __init__(self, slot, parent):
+    def __init__(self, slot, process):
         self.slot = slot
-        self.parent = parent
+        self.process = process
 
-        self.log = parent.log
-        self.scoreboard = parent.scoreboard
-        self.application = parent.application
+        self.log = process.log
+        self.scoreboard = process.scoreboard
+        self.application = process.application
         self.environ = {
             'GATEWAY_INTERFACE': 'CGI/1.1',
-            'SERVER_NAME': parent.server_name,
-            'SERVER_PORT': parent.server_port,
+            'SERVER_NAME': process.server_name,
+            'SERVER_PORT': process.server_port,
             'SCRIPT_NAME': '',
+            'akara.http_response': wsgi_error,
             }
 
         self._ident = 0
@@ -139,10 +153,10 @@ class wsgi_server(object):
         slot = self.slot
         scoreboard = self.scoreboard
         timeout = self.timeout
-        listeners = self.parent.listeners
+        listeners = self.process.listeners
         log = self.log
-        requests = self.parent.max_requests
-        accepting_mutex = self.parent.accepting_mutex
+        requests = self.process.max_requests
+        accepting_mutex = self.process.accepting_mutex
 
         SERVER_BUSY = '\0'
         SERVER_READY = '\1'

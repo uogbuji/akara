@@ -1,7 +1,7 @@
 import os
 from cStringIO import StringIO
-from wsgiref.simple_server import WSGIRequestHandler
-from wsgiref.util import shift_path_info, request_uri
+from email.utils import formatdate
+from wsgiref.util import shift_path_info
 
 from amara import tree, xml_print
 
@@ -22,17 +22,18 @@ class wsgi_application:
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <hmtl xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
 <head>
-  <title>%(title)s</title>
+  <title>%(reason)s</title>
 </head>
 <body>
-  <h1>%(title)s</h1>
+  <h1>%(reason)s</h1>
   <p>
-  %(body)s
+  %(message)s
   </p>
   <h2>Error %(code)s</h2>
 </body>
 </html>
 """
+    error_document_type = 'text/html'
 
     def __init__(self, server, config):
         self.services = { '': self._list_services }
@@ -55,12 +56,14 @@ class wsgi_application:
                     module_config.update(config.items(name))
                 # Start with a clean slate each time to prevent
                 # namespace corruption.
+                filename = os.path.join(self.module_dir, path)
                 module_globals = {
                     '__builtins__': __builtins__,
+                    '__name__': name,
+                    '__file__': filename,
                     '__AKARA_REGISTER_SERVICE__': self._register_service,
                     'AKARA_MODULE_CONFIG': module_config,
                     }
-                filename = os.path.join(self.module_dir, path)
                 self.log.debug('loading %r', filename)
                 execfile(filename, module_globals)
         return
@@ -81,7 +84,8 @@ class wsgi_application:
             E.xml_append(tree.text(path))
             E = service.xml_append(tree.element(None, 'description'))
             E.xml_append(tree.text(func.__doc__ or ''))
-        start_response('200 OK', [('Content-Type', 'text/xml')])
+        start_response('200 OK', [('Content-Type', 'text/xml'),
+                                  ])
         io = StringIO()
         xml_print(document, io, indent=True)
         return [io.getvalue()]
@@ -90,16 +94,17 @@ class wsgi_application:
         """WSGI handler"""
         name = shift_path_info(environ)
         try:
-            service = self.services[name]
-        except KeyError:
-            start_response('404 Not Found', [('Content-Type', 'text/html')])
-            code = 404
-            status, body = WSGIRequestHandler.responses[code]
-            params = {'code': code,
-                      'title': status,
-                      'body': body,
-                      }
-            response = [self.error_document_template % params]
-        else:
-            response = service(environ, start_response)
+            try:
+                service = self.services[name]
+            except KeyError:
+                raise environ['akara.http_response'](404)
+            else:
+                response = service(environ, start_response)
+        except environ['akara.http_response'], response:
+            content = self.error_document_template % vars(response)
+            headers = [('Content-Type', self.error_document_type),
+                       ('Content-Length', str(len(content))),
+                       ]
+            start_response(str(response), headers)
+            response = [content]
         return response
