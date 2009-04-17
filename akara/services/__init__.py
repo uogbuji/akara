@@ -90,7 +90,11 @@ class simple_service(object):
             else:
                 parameters = service.parameters
             # run the service
-            response_obj = func(*args, **parameters)
+            func.func_globals['WSGI_ENVIRON'] = environ
+            try:
+                response_obj = func(*args, **parameters)
+            finally:
+                del func.func_globals['WSGI_ENVIRON']
             if isinstance(response_obj, response):
                 content = response_obj.content
                 content_type = response_obj.content_type
