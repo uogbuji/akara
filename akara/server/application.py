@@ -1,4 +1,5 @@
 import os
+import time
 from cStringIO import StringIO
 from email.utils import formatdate
 from wsgiref.util import shift_path_info
@@ -40,6 +41,10 @@ class wsgi_application:
         self.log = server.log
         self.module_dir = config.get('global', 'ModuleDir')
         self.module_dir = os.path.join(server.server_root, self.module_dir)
+        now = time.time()
+        self.last_modified = formatdate(now, usegmt=True)
+        expires = now + config.getint('akara.cache', 'DefaultExpire')
+        self.expires = formatdate(expires, usegmt=True)
         try:
             paths = os.listdir(self.module_dir)
         except OSError, e:
@@ -85,6 +90,8 @@ class wsgi_application:
             E = service.xml_append(tree.element(None, 'description'))
             E.xml_append(tree.text(func.__doc__ or ''))
         start_response('200 OK', [('Content-Type', 'text/xml'),
+                                  ('Last-Modified', self.last_modified),
+                                  ('Expires', self.expires),
                                   ])
         io = StringIO()
         xml_print(document, io, indent=True)

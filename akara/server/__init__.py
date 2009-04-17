@@ -9,7 +9,6 @@ import mmap
 import time
 import signal
 import socket
-import httplib
 import functools
 import ConfigParser
 
@@ -22,17 +21,22 @@ from akara.server.application import wsgi_application
 SERVER_CONFIG_FILE = os.path.expanduser('~/.config/akara.conf')
 
 SERVER_CONFIG_DEFAULTS = {
-    'ServerRoot': '~/.local/lib/akara',
-    'PidFile': 'logs/akara.pid',
-    'StartServers': '5',
-    'MinSpareServers': '5',
-    'MaxSpareServers': '10',
-    'MaxServers': '150',
-    'MaxRequestsPerServer': '10000',
-    'ModuleDir': 'modules',
-    'ErrorLog': 'logs/error.log',
-    'LogLevel': 'notice',
-    'AccessLog': '',
+    'global': {
+        'ServerRoot': '~/.local/lib/akara',
+        'PidFile': 'logs/akara.pid',
+        'StartServers': '5',
+        'MinSpareServers': '5',
+        'MaxSpareServers': '10',
+        'MaxServers': '150',
+        'MaxRequestsPerServer': '10000',
+        'ModuleDir': 'modules',
+        'ErrorLog': 'logs/error.log',
+        'LogLevel': 'notice',
+        'AccessLog': '',
+        },
+    'akara.cache': {
+        'DefaultExpire': '3600',
+        },
     }
 
 _log_levels = {
@@ -67,7 +71,7 @@ class dummy_mutex(object):
         return
 
 
-class daemon(object):
+class process(object):
 
     ident = 'akara'
     config_file = SERVER_CONFIG_FILE
@@ -103,9 +107,10 @@ class daemon(object):
 
     def read_config(self):
         config = ConfigParser.ConfigParser()
-        config.add_section('global')
-        for name, value in SERVER_CONFIG_DEFAULTS.iteritems():
-            config.set('global', name, value)
+        for section, defaults in SERVER_CONFIG_DEFAULTS.iteritems():
+            config.add_section(section)
+            for name, value in defaults.iteritems():
+                config.set(section, name, value)
         if not os.path.exists(self.config_file):
             self.log.info('configuration file %r not found, using defaults',
                            self.config_file)
@@ -477,7 +482,7 @@ def main(argv=None):
     else:
         log_level = logger.LOG_WARN
 
-    return daemon(options.config_file, log_level, options.debug).run()
+    return process(options.config_file, log_level, options.debug).run()
 
 if __name__ == "__main__":
     sys.exit(main())
