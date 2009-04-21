@@ -65,7 +65,7 @@ MAX_SPAWN_RATE = 32
 
 
 class dummy_mutex(object):
-    def __enter__(self):
+    def __enter__(self, *args):
         return
     def __exit__(self, *args):
         return

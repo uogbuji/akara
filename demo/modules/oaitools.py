@@ -76,7 +76,7 @@ OAI_MODEL_XML = '''<?xml version="1.0" encoding="UTF-8"?>
           <dc:type>Article</dc:type>
           <dc:identifier>Joshua Cohen, "Maximizing Social Welfare or Institutionalizing Democratic Ideals?"; Politics and Society, Vol. 19, No. 1</dc:identifier>
         </oai_dc:dc>
-      </metadata>``
+      </metadata>
     </record>
   </GetRecord>
 </OAI-PMH>

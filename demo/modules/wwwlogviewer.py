@@ -3,6 +3,8 @@
 A tool for convenient viewing of log files
 '''
 
+#See also: Beazley's approach: http://www.dabeaz.com/generators/Generators.pdf (slide 61 et seq)
+
 import sys, time, re
 import urllib2
 #from cgi import parse_qs

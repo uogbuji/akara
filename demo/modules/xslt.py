@@ -19,10 +19,10 @@ from akara.services import simple_service, response
 
 #AKARA_MODULE_CONFIG is automatically defined at global scope for a module running within Akara
 DEFAULT_TRANSFORM = AKARA_MODULE_CONFIG.get('default_transform')
-print DEFAULT_TRANSFORM
+#print DEFAULT_TRANSFORM
 
 SERVICE_ID = 'http://purl.org/akara/services/builtin/xslt'
-@simple_service('post', SERVICE_ID, 'akara.xslt')
+@simple_service('POST', SERVICE_ID, 'akara.xslt')
 def akara_xslt(body, ctype, **params):
     '''
     @xslt - URL to the XSLT transform to be applied
@@ -37,7 +37,9 @@ def akara_xslt(body, ctype, **params):
         if not DEFAULT_TRANSFORM:
             raise ValueError('XSLT transform required')
         akaraxslttransform = DEFAULT_TRANSFORM
+    import sys; print >> sys.stderr, 'GRIPPO'
     result = transform(body, akaraxslttransform)
+    import sys; print >> sys.stderr, str(result)
     return response(str(result), result.parameters.media_type)
 
 
