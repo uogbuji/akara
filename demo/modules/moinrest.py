@@ -40,13 +40,13 @@ import httplib, urllib, urllib2, cookielib
 from string import Template
 from cStringIO import StringIO
 import tempfile
+from gettext import gettext as _
 from functools import *
 from itertools import *
 from operator import *
 from contextlib import closing
 
 import amara
-from amara import _
 from amara import bindery
 from amara.writers.struct import *
 from amara.bindery.html import parse as htmlparse

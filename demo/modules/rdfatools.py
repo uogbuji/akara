@@ -1,11 +1,13 @@
 # -*- encoding: utf-8 -*-
 '''
 '''
+from __future__ import with_statement
 
 import sys, time
 import urllib2
 #from cgi import parse_qs
 #from cStringIO import StringIO
+from gettext import gettext as _
 from itertools import *
 from contextlib import closing
 
@@ -13,7 +15,6 @@ import simplejson
 
 #from amara.tools.atomtools import feed
 from amara.tools import rdfascrape
-from amara import _
 
 from akara.services import simple_service, response
 

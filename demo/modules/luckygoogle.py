@@ -3,14 +3,15 @@
 '''
 
 from __future__ import with_statement
+
 import urllib, urllib2
+from gettext import gettext as _
 from itertools import *
 from functools import *
 from contextlib import closing
 
 import simplejson
 
-from amara import _
 from amara.lib.util import *
 from akara.services import simple_service, response
 

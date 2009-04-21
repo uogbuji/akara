@@ -6,6 +6,7 @@ import sys, time
 import urllib2
 #from cgi import parse_qs
 #from cStringIO import StringIO
+from gettext import gettext as _
 from itertools import *
 from unicodedata import *
 
