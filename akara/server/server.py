@@ -158,6 +158,8 @@ class wsgi_server(object):
         requests = self.process.max_requests
         accepting_mutex = self.process.accepting_mutex
 
+        self.process.application.child_init()
+
         SERVER_BUSY = '\0'
         SERVER_READY = '\1'
 

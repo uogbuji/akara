@@ -85,6 +85,19 @@ class wsgi_application:
         now = time.time()
         return now + ((now - self.last_modified) * self.expiry_factor)
 
+    def child_init(self):
+        try:
+            self.last_modified = os.stat(self.module_dir).st_mtime
+        except OSError:
+            # Error already indicated at startup
+            pass
+        else:
+            for module_code, module_globals in self.modules:
+                self.log.debug("initializing module '%s'",
+                            module_globals['__name__'])
+                exec module_code in module_globals
+        return
+
     def _register_service(self, func, ident, path):
         self.log.debug('  registering %s using %s()', path, func.__name__)
         self.services[path] = func
@@ -113,25 +126,6 @@ class wsgi_application:
 
     def __call__(self, environ, start_response):
         """WSGI handler"""
-        try:
-            module_mtime = os.stat(self.module_dir).st_mtime
-        except OSError:
-            # Error already indicated at startup
-            pass
-        else:
-            if self.last_modified < module_mtime:
-                #import sys, pprint
-                #from operator import itemgetter
-                #modules = [ (name, getattr(module, '__file__', '(built-in)'))
-                #            for name, module in sys.modules.items()
-                #            if module is not None ]
-                #modules.sort()
-                #pprint.pprint(sorted(modules, key=itemgetter(1)))
-                self.last_modified = module_mtime
-                for module_code, module_globals in self.modules:
-                    self.log.debug("initializing module '%s'",
-                                module_globals['__name__'])
-                    exec module_code in module_globals
         name = shift_path_info(environ)
         try:
             try:
