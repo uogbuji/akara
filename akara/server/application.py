@@ -7,8 +7,6 @@ from contextlib import closing
 from email.utils import formatdate
 from wsgiref.util import shift_path_info
 
-from amara import tree, xml_print
-
 class configdict(dict):
 
     def __init__(self, server):
@@ -93,6 +91,7 @@ class wsgi_application:
         return
 
     def _list_services(self, environ, start_response):
+        from amara import tree, xml_print
         document = tree.entity()
         services = document.xml_append(tree.element(None, 'services'))
         for path, func in self.services.iteritems():
@@ -121,6 +120,13 @@ class wsgi_application:
             pass
         else:
             if self.last_modified < module_mtime:
+                #import sys, pprint
+                #from operator import itemgetter
+                #modules = [ (name, getattr(module, '__file__', '(built-in)'))
+                #            for name, module in sys.modules.items()
+                #            if module is not None ]
+                #modules.sort()
+                #pprint.pprint(sorted(modules, key=itemgetter(1)))
                 self.last_modified = module_mtime
                 for module_code, module_globals in self.modules:
                     self.log.debug("initializing module '%s'",
