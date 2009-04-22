@@ -1,6 +1,9 @@
+from __future__ import with_statement
+
 import os
 import time
 from cStringIO import StringIO
+from contextlib import closing
 from email.utils import formatdate
 from wsgiref.util import shift_path_info
 
@@ -36,46 +39,56 @@ class wsgi_application:
 """
     error_document_type = 'text/html'
 
+    last_modified = 0
+    modules = ()
+
     def __init__(self, server, config):
         self.services = { '': self._list_services }
         self.log = server.log
         self.module_dir = config.get('global', 'ModuleDir')
         self.module_dir = os.path.join(server.server_root, self.module_dir)
-        now = time.time()
-        self.last_modified = formatdate(now, usegmt=True)
-        expires = now + config.getint('akara.cache', 'DefaultExpire')
-        self.expires = formatdate(expires, usegmt=True)
+        self.expiry_factor = config.getfloat('akara.cache',
+                                             'LastModifiedFactor')
         try:
             paths = os.listdir(self.module_dir)
         except OSError, e:
-            self.log.info("could not list ModuleDir '%s': %s (errno=%d)",
+            self.log.info("could not read ModuleDir '%s': %s (errno=%d)",
                           self.module_dir, e.strerror, e.errno)
         else:
             self.log.debug("loading modules from '%s'", self.module_dir)
+            modules = []
             for path in paths:
                 name, ext = os.path.splitext(path)
                 if ext != '.py':
                     continue
+                filename = os.path.join(self.module_dir, path)
                 module_config = configdict(server)
                 if config.has_section(name):
                     module_config.update(config.items(name))
                 # Start with a clean slate each time to prevent
                 # namespace corruption.
-                filename = os.path.join(self.module_dir, path)
                 module_globals = {
-                    '__builtins__': __builtins__,
+                    #'__builtins__': __builtins__.copy(),
                     '__name__': name,
                     '__file__': filename,
-                    '__AKARA_REGISTER_SERVICE__': self._register_service,
                     'AKARA_MODULE_CONFIG': module_config,
+                    # Warning, this must match in the service decorators!
+                    '__AKARA_REGISTER_SERVICE__': self._register_service,
                     }
-                self.log.debug('loading %r', filename)
-                execfile(filename, module_globals)
+                self.log.debug("loading '%s'", filename)
+                with closing(open(filename, 'rU')) as f:
+                    module_code = compile(f.read(), filename, 'exec')
+                modules.append((module_code, module_globals))
+            self.modules = tuple(modules)
         return
 
+    @property
+    def expires(self):
+        now = time.time()
+        return now + ((now - self.last_modified) * self.expiry_factor)
+
     def _register_service(self, func, ident, path):
-        self.log.debug('  registering %s using %s.%s()', path,
-                       func.__module__, func.__name__)
+        self.log.debug('  registering %s using %s()', path, func.__name__)
         self.services[path] = func
         return
 
@@ -89,9 +102,11 @@ class wsgi_application:
             E.xml_append(tree.text(path))
             E = service.xml_append(tree.element(None, 'description'))
             E.xml_append(tree.text(func.__doc__ or ''))
+        last_modified = formatdate(self.last_modified, usegmt=True)
+        expires = formatdate(self.expires, usegmt=True)
         start_response('200 OK', [('Content-Type', 'text/xml'),
-                                  ('Last-Modified', self.last_modified),
-                                  ('Expires', self.expires),
+                                  ('Last-Modified', last_modified),
+                                  ('Expires', expires),
                                   ])
         io = StringIO()
         xml_print(document, io, indent=True)
@@ -99,6 +114,18 @@ class wsgi_application:
 
     def __call__(self, environ, start_response):
         """WSGI handler"""
+        try:
+            module_mtime = os.stat(self.module_dir).st_mtime
+        except OSError:
+            # Error already indicated at startup
+            pass
+        else:
+            if self.last_modified < module_mtime:
+                self.last_modified = module_mtime
+                for module_code, module_globals in self.modules:
+                    self.log.debug("initializing module '%s'",
+                                module_globals['__name__'])
+                    exec module_code in module_globals
         name = shift_path_info(environ)
         try:
             try:

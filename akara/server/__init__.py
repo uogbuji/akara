@@ -36,6 +36,7 @@ SERVER_CONFIG_DEFAULTS = {
         },
     'akara.cache': {
         'DefaultExpire': '3600',
+        'LastModifiedFactor': '0.1',
         },
     }
 
