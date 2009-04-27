@@ -92,7 +92,7 @@ ATOM_ENVELOPE = '''<?xml version="1.0" encoding="UTF-8"?>
 '''
 
 SERVICE_ID = 'http://purl.org/akara/services/builtin/oai.json'
-@simple_service('get', SERVICE_ID, 'akara.oai.atom', 'application/atom+xml')
+@simple_service('GET', SERVICE_ID, 'akara.oai.atom', 'application/atom+xml')
 def atomize_oai_record(endpoint=None, id=None):
     '''
     endpoint - the OAI request URL, e.g. http://dspace.mit.edu/oai/request

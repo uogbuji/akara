@@ -39,12 +39,13 @@ def akara_xslt(body, ctype, **params):
         akaraxslttransform = DEFAULT_TRANSFORM
     import sys; print >> sys.stderr, 'GRIPPO'
     result = transform(body, akaraxslttransform)
+    import sys; print >> sys.stderr, 'STACEY'
     import sys; print >> sys.stderr, str(result)
     return response(str(result), result.parameters.media_type)
 
 
 SERVICE_ID = 'http://purl.org/akara/services/builtin/xpath'
-@simple_service('post', SERVICE_ID, 'akara.xpath', 'text/xml')
+@simple_service('POST', SERVICE_ID, 'akara.xpath', 'text/xml')
 def akara_xpath(body, ctype, **params):
     '''
     select - XPath expression to be evaluated against the document

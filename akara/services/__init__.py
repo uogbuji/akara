@@ -67,6 +67,7 @@ class simple_service(object):
             else:
                 parameters = service.parameters
             # run the service
+            #import sys; print >> sys.stderr, 10
             func.func_globals['WSGI_ENVIRON'] = environ
             try:
                 response_obj = func(*args, **parameters)
@@ -150,6 +151,7 @@ def status_response(code):
 class response(object):
     __slots__ = ('body', 'content_type', 'headers', 'status')
     #Considered compat with webob.Response, but a bit too much baggage in those waters
+    #Also consider forwards-compat support for OrderedDict: http://www.python.org/dev/peps/pep-0372/
     def __init__(self, body='', content_type=None, status=None, headers=None):
         self.body = body
         self.content_type = content_type

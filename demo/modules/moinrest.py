@@ -16,7 +16,7 @@ Project home, documentation, distributions: http://wiki.xml3k.org/Akara
 You'll need a config entry such as:
 
 [moinrest]
-target=http://localhost:8080
+target=http://wiki.xml3k.org
 
 Can be launched from the command line, e.g.:
     python akara/restwrap/moin.py http://mywiki.example.com/
@@ -30,6 +30,23 @@ __all__ = [
     "ORIG_BASE_HEADER", "ATTACHMENTS_MODEL_XML", "ATTACHMENTS_MODEL",
     "MOIN_DOCBOOK_MODEL_XML", "MOIN_DOCBOOK_MODEL",
 ]
+
+MAIN_DOC = '''
+Some sample queries:
+    curl http://localhost:8880/moin/FrontPage
+    curl -H Accept: application/docbook+xml" http://localhost:8880/moin/FrontPage
+    curl -H "Accept: application/rdf+xml" http://localhost:8880/moin/FrontPage
+    curl -H "Accept: application/x-moin-attachments+xml" http://localhost:8880/moin/FrontPage
+    curl --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: text/plain" "http://localhost:8880/moin/FooTest"
+    curl --request POST --data-binary "@wikicontent.txt" --header "Content-Type: text/plain" "http://localhost:8880/moin/FooTest;attachment=wikicontent.txt"
+
+    curl -u me:passwd -p --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: text/plain" "http://localhost:8880/moin/FooTest"
+
+    Get an attached page:
+    curl "http://localhost:8880/moin/FooTest;attachment=wikicontent.txt"
+'''
+
+__doc__ += MAIN_DOC
 
 import sys
 import os
@@ -166,7 +183,6 @@ def _head_page(environ, start_response):
         request = urllib2.Request(url)
         ctype = ATTACHMENTS_IMT
         def upstream_handler():
-            buf = StringIO()
             #Sigh.  Sometimes you have to break some Tag soup eggs to make a RESTful omlette
             with closing(OPENER.open(request)) as resp:
                 rbody = resp.read()
@@ -176,6 +192,7 @@ def _head_page(environ, start_response):
             for node in attachment_nodes:
                 target = [ param.split('=', 1)[1] for param in node.href.split(u'&') if param.startswith('target=') ][0]
                 targets.append(target)
+            buf = StringIO()
             structwriter(indent=u"yes", stream=buf).feed(
             ROOT(
                 E((u'attachments'),
@@ -209,7 +226,7 @@ def _head_page(environ, start_response):
     except urllib2.URLError:
         raise
         #404 error
-        response = four_oh_four.substitute(fronturl=request_uri(environ), backurl=url)
+        rbody = four_oh_four.substitute(fronturl=request_uri(environ), backurl=url)
         return httplib.NOT_FOUND, rbody, 'text/html', {}
 
 def fill_page_edit_form(page):
@@ -250,18 +267,10 @@ def fill_attachment_form(page, attachment):
     #return start_response(status, headers)
 #    return
 
+
 @service(['HEAD', 'GET', 'PUT', 'POST'], SERVICE_ID, DEFAULT_MOUNT)
 def dispatcher(environ, start_response):
-    '''
-    Some sample queries:
-        curl http://localhost:8880/moin/FrontPage
-        curl -H Accept: application/docbook+xml" http://localhost:8880/FrontPage
-        curl -H "Accept: application/rdf+xml" http://localhost:8880/FrontPage
-        curl -H "Accept: application/x-moin-attachments+xml" http://localhost:8880/FrontPage
-        curl --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: text/plain" "http://localhost:8880/FooTest"
-        curl --request POST --data-binary "@wikicontent.txt" --header "Content-Type: text/plain" "http://localhost:8880/FooTest;attachment=wikicontent.txt"
-        curl -u me:passwd -p --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: text/plain" "http://localhost:8880/FooTest"
-    '''
+    __doc__ = MAIN_DOC
     #print >> sys.stderr, globals()['head_page'], dir(globals()['head_page'])
     return rest_dispatch(environ, start_response, environ['akara.service_id'], globals())
 
@@ -288,6 +297,7 @@ def get_page(environ, start_response):
 def put_page(environ, start_response):
     '''
     '''
+    page = environ['PATH_INFO']
     url = TARGET_WIKI + page
     ctype = environ.get('CONTENT_TYPE', 'application/unknown')
     clen = int(environ.get('CONTENT_LENGTH', None))
@@ -305,8 +315,8 @@ def put_page(environ, start_response):
             doc = htmlparse(resp)
     except urllib2.URLError:
         raise
-        response = four_oh_four.substitute(fronturl=request_uri(environ), backurl=url)
-        return response(response, 'text/html', httplib.NOT_FOUND)
+        rbody = four_oh_four.substitute(fronturl=request_uri(environ), backurl=url)
+        return response(rbody, 'text/html', httplib.NOT_FOUND)
     #print "="*60
     #amara.xml_print(doc)
 
@@ -321,6 +331,7 @@ def put_page(environ, start_response):
 def post_page(environ, start_response):
     #http://groups.google.com/group/comp.lang.python/browse_thread/thread/4662d41aca276d99
     #ctype = environ.get('CONTENT_TYPE', 'application/unknown')
+    page = environ['PATH_INFO']
     page, attachment = page.split(';attachment=')
     url = TARGET_WIKI + page
     #print page, attachment
@@ -344,8 +355,8 @@ def post_page(environ, start_response):
             doc = htmlparse(resp)
     except urllib2.URLError:
         raise
-        response = four_oh_four.substitute(fronturl=request_uri(environ), backurl=url)
-        return response(response, 'text/html', httplib.NOT_FOUND)
+        rbody = four_oh_four.substitute(fronturl=request_uri(environ), backurl=url)
+        return response(rbody, 'text/html', httplib.NOT_FOUND)
     form_vars["file"].close()
     os.close(temp[0])
     os.remove(temp[1])

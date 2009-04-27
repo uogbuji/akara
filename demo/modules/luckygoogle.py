@@ -25,7 +25,7 @@ def lucky_google(q=None):
     A simple and fun transform to return the first ghit for a given search
     
     Sample request:
-    * curl "http://localhost:8888/akara.luckygoogle?q=zepheira"
+    * curl "http://localhost:8880/akara.luckygoogle?q=zepheira"
     '''
     #FIXME: L10N
     q = first_item(q, next=partial(assert_not_equal, None, msg=Q_REQUIRED))
