@@ -125,7 +125,7 @@ class process(object):
             raise SystemExit(1)
 
         if ':' in addr:
-            host, port = listen.rsplit(':', 1)
+            host, port = addr.rsplit(':', 1)
         else:
             host, port = '', addr
         self.server_addr = host, int(port)
