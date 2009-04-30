@@ -37,10 +37,7 @@ def akara_xslt(body, ctype, **params):
         if not DEFAULT_TRANSFORM:
             raise ValueError('XSLT transform required')
         akaraxslttransform = DEFAULT_TRANSFORM
-    import sys; print >> sys.stderr, 'GRIPPO'
     result = transform(body, akaraxslttransform)
-    import sys; print >> sys.stderr, 'STACEY'
-    import sys; print >> sys.stderr, str(result)
     return response(str(result), result.parameters.media_type)
 
 
