@@ -46,6 +46,12 @@ mydata <- spss.get(file='%s')
 write.csv2(mydata)
 '''
 
+try:
+    R_FILE_CMD = AKARA_MODULE_CONFIG.get('r_command', 'r')
+except NameError:
+    #Not running from Akara
+    R_FILE_CMD = 'r'
+
 POR_REQUIRED = _("The 'POR' POST parameter is mandatory.")
 
 SERVICE_ID = 'http://purl.org/akara/services/builtin/spss.json'
@@ -67,7 +73,6 @@ def spss2json(body, ctype, **params):
     # * [[http://wiki.math.yorku.ca/index.php/R:_Data_conversion_from_SPSS|R: Data conversion from SPSS]]
 
     import simplejson
-    R_FILE_CMD = AKARA_MODULE_CONFIG.get('r_command', 'r')
 
     body = StringIO(body)
     form = cgi.FieldStorage(fp=body, environ=WSGI_ENVIRON)
@@ -79,25 +84,22 @@ def spss2json(body, ctype, **params):
     
     (items, varlabels, valuelabels) = parse_spss(por, spss)
 
-    for item in items:
+    for count, item in enumerate(items):
         #print >> sys.stderr, row
-        item['id'] = '_' + str(item['index'])
-        item['label'] = '_' + str(item['id'])
-        del item['index']
+        item['id'] = item['label'] = '_' + str(count)
         item['type'] = VALUE_SET_TYPE
-        items.append(item)
 
     return simplejson.dumps({'items': items, VARIABLE_LABELS_TYPE: varlabels, VALUE_LABELS_TYPE: valuelabels}, indent=4)
 
 
-def parse_spss(spss_por, spss_syntax):
+def parse_spss(spss_por, spss_syntax=None):
     '''
     Uses GNU R to convert SPSS to a simple Python data structure
     Optionally tries to guess long labels from an original .SPS file
     '''
     varlabels = {}
     valuelabels = {}
-    if spss:
+    if spss_syntax:
         matchinfo = VAR_PAT.search(spss_syntax)
         if matchinfo:
             #print >> sys.stderr, matchinfo.groups
@@ -113,8 +115,8 @@ def parse_spss(spss_por, spss_syntax):
                 valuelabelset[defn.group(1)] = defn.group(2)
             valuelabels[defset.group(1)] = valuelabelset
 
-    print >> sys.stderr, varlabels
-    print >> sys.stderr, valuelabels
+    #print >> sys.stderr, varlabels
+    #print >> sys.stderr, valuelabels
 
     #print >> sys.stderr, por[:100]
     #print >> sys.stderr, spss[:100]
@@ -133,20 +135,17 @@ def parse_spss(spss_por, spss_syntax):
         #FIXME: L10N
         raise ValueError('Empty output from the command line.  Probably a failure.  Command line: "%s"'%cmdline)
 
-    #r_reader = csv.DictReader(csvdata.splitlines(), delimiter=' ', quotechar='|')
-    
-    r_reader = csv.DictReader(csvdata.splitlines(), delimiter=';')
-    items = []
     def value(k, v):
         if k in valuelabels and v in valuelabels[k]:
             return valuelabels[k][v]
         else:
             return v
-    for count, row in enumerate(r_reader):
-        #print >> sys.stderr, row
-        item = dict(((k, value(k, v.strip())) for (k, v) in row.iteritems()))
-        item['index'] = count
-        items.append(item)
 
-    return (items, varlabels, valuelabels)
+    r_reader = csv.DictReader(csvdata.splitlines(), delimiter=';')
+    rows = [
+        dict(((k, value(k, v.strip())) for (k, v) in row.iteritems()))
+        for row in r_reader
+    ]
+
+    return (rows, varlabels, valuelabels)
 
