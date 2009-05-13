@@ -184,3 +184,16 @@ def method_handler(request_method, service_id):
         return wrapper
     return deco
 
+
+#
+#def get_params(environ):
+#    parameters = environ['QUERY_STRING']
+#    if parameters:
+#        parameters = parse_qs(parameters)
+#        parameters.update(service.parameters)
+#    else:
+#        parameters = service.parameters
+
+#def get_params(environ):
+#    return 
+

@@ -25,12 +25,6 @@ Can be launched from the command line, e.g.:
 
 from __future__ import with_statement
 
-__all__ = [
-    "WIKITEXT_IMT", "DOCBOOK_IMT", "RDF_IMT", "ATTACHMENTS_IMT",
-    "ORIG_BASE_HEADER", "ATTACHMENTS_MODEL_XML", "ATTACHMENTS_MODEL",
-    "MOIN_DOCBOOK_MODEL_XML", "MOIN_DOCBOOK_MODEL",
-]
-
 MAIN_DOC = '''
 Some sample queries:
     curl http://localhost:8880/moin/FrontPage
@@ -62,9 +56,11 @@ from functools import *
 from itertools import *
 from operator import *
 from contextlib import closing
+from wsgiref.util import shift_path_info
 
 import amara
 from amara import bindery
+from amara.lib.iri import *
 from amara.writers.struct import *
 from amara.bindery.html import parse as htmlparse
 from amara.bindery.model import *
@@ -72,16 +68,46 @@ from amara.bindery.model import *
 from akara.util import multipart_post_handler, wsgibase, http_method_handler
 
 from akara.services import *
+from akara.util.moin import *
 
 #AKARA_MODULE_CONFIG is automatically defined at global scope for a module running within Akara
 #WIKIBASE = AKARA_MODULE_CONFIG.get('wrapped_wiki')
-TARGET_WIKI = AKARA_MODULE_CONFIG['target']
+TARGET_WIKIS = dict(( (k.split('-', 1)[1], AKARA_MODULE_CONFIG[k].rstrip('/') + '/') for k in AKARA_MODULE_CONFIG if k.startswith('target-')))
 
-WIKITEXT_IMT = 'text/plain'
-DOCBOOK_IMT = 'application/docbook+xml'
-RDF_IMT = 'application/rdf+xml'
-ATTACHMENTS_IMT = 'application/x-moin-attachments+xml'
-ORIG_BASE_HEADER = 'x-akara-wrapped-moin'
+#print >> sys.stderr, AKARA_MODULE_CONFIG
+
+TARGET_WIKI_OPENERS = {}
+DEFAULT_OPENER = urllib2.build_opener(
+    urllib2.HTTPCookieProcessor(cookielib.CookieJar()),
+    multipart_post_handler.MultipartPostHandler)
+
+#Re: HTTP basic auth: http://www.voidspace.org.uk/python/articles/urllib2.shtml#id6
+for k, v in TARGET_WIKIS.items():
+    (scheme, authority, path, query, fragment) = split_uri_ref(v)
+    auth, host, port = split_authority(authority)
+    #print >> sys.stderr, (scheme, authority, path, query, fragment)
+    authority = host + ':' + port if port else host
+    schemeless_url = authority + path
+    #print >> sys.stderr, schemeless_url
+
+    if auth:
+        TARGET_WIKIS[k] = unsplit_uri_ref((scheme, authority, path, query, fragment))
+        #print >> sys.stderr, auth, TARGET_WIKIS[k]
+        auth = auth.split(':')
+        password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
+        # Not setting the realm for now, so use None
+        password_mgr.add_password(None, schemeless_url, auth[0], auth[1])
+        password_handler = urllib2.HTTPDigestAuthHandler(password_mgr)
+        #password_handler = urllib2.HTTPBasicAuthHandler(password_mgr)
+
+        TARGET_WIKI_OPENERS[k] = urllib2.build_opener(
+            password_handler,
+            urllib2.HTTPCookieProcessor(cookielib.CookieJar()),
+            multipart_post_handler.MultipartPostHandler)
+    else:
+        TARGET_WIKI_OPENERS[k] = DEFAULT_OPENER
+
+print >> sys.stderr, 'Moin target wiki info', TARGET_WIKIS
 
 # Templates
 four_oh_four = Template("""
@@ -90,68 +116,44 @@ four_oh_four = Template("""
   The requested URL <i>$fronturl</i> was not found (<i>$backurl</i> in the target wiki).
 </body></html>""")
 
-# XML models
-
-ATTACHMENTS_MODEL_XML = '''<?xml version="1.0" encoding="UTF-8"?>
-<attachments xmlns:eg="http://examplotron.org/0/" xmlns:ak="http://purl.org/dc/org/xml3k/akara">
-  <attachment href="" ak:rel="name()" ak:value="@href"/>
-</attachments>
-'''
-
-ATTACHMENTS_MODEL = examplotron_model(ATTACHMENTS_MODEL_XML)
-
-MOIN_DOCBOOK_MODEL_XML = '''<?xml version="1.0" encoding="UTF-8"?>
-<article xmlns:eg="http://examplotron.org/0/" xmlns:ak="http://purl.org/dc/org/xml3k/akara" ak:resource="">
-  <ak:rel name="'ak-type'" ak:value="glosslist[1]/glossentry[glossterm='akara:type']/glossdef//ulink/@url"/>
-  <ak:rel name="'ak-updated'" ak:value="articleinfo/revhistory/revision[1]/date"/>
-  <articleinfo>
-    <title ak:rel="name()" ak:value=".">FrontPage</title>
-    <revhistory>
-      <revision eg:occurs="*">
-        <revnumber>15</revnumber>
-        <date>2009-02-22 07:45:22</date>
-        <authorinitials>localhost</authorinitials>
-      </revision>
-    </revhistory>
-  </articleinfo>
-  <section eg:occurs="*" ak:resource="">
-    <title ak:rel="name()" ak:value=".">A page</title>
-    <para>
-    Using: <ulink url="http://moinmo.in/DesktopEdition"/> set <code>interface = ''</code>)
-    </para>
-    <itemizedlist>
-      <listitem>
-        <para>
-          <ulink url="http://localhost:8080/Developer#">Developer</ulink> </para>
-      </listitem>
-    </itemizedlist>
-  </section>
-</article>
-'''
-
-MOIN_DOCBOOK_MODEL = examplotron_model(MOIN_DOCBOOK_MODEL_XML)
-
-OPENER = urllib2.build_opener(
-    urllib2.HTTPCookieProcessor(cookielib.CookieJar()),
-    multipart_post_handler.MultipartPostHandler)
-
 SERVICE_ID = 'http://purl.org/akara/services/builtin/xslt'
 DEFAULT_MOUNT = 'moin'
 
-def check_auth(environ, start_response):
+normalize = DEFAULT_RESOLVER.normalize
+
+
+def target(environ):
+    #print >> sys.stderr, 'SCRIPT_NAME', environ['SCRIPT_NAME']
+    #print >> sys.stderr, 'PATH_INFO', environ['PATH_INFO']
+    wiki_id = shift_path_info(environ)
+    return wiki_id, TARGET_WIKIS[wiki_id], TARGET_WIKI_OPENERS.get(wiki_id)
+
+
+def check_auth(environ, start_response, base, opener):
+    '''
+    Warning: mutates environ in place
+    '''
+    #print >> sys.stderr, 'HTTP_AUTHORIZATION: ', environ.get('HTTP_AUTHORIZATION')
     auth = environ.get('HTTP_AUTHORIZATION')
     if not auth: return
     scheme, data = auth.split(None, 1)
     if scheme.lower() != 'basic':
         raise RuntimeError('Unsupported HTTP auth scheme: %s'%scheme)
     username, password = data.decode('base64').split(':', 1)
+    #print >> sys.stderr, 'Auth creds: ', username, password
     #user = self.user if user is None else user
     #password = self.password if password is None else password
-    url = TARGET_WIKI + '?action=login&name=%s&password=%s&login=login'%(username, password)
+    url = normalize('?action=login&name=%s&password=%s&login=login'%(username, password), base)
     request = urllib2.Request(url)
-    with closing(OPENER.open(request)) as resp:
-        #Don't need to do anything with the response.  The cookies will be captured automatically
-        pass
+    try:
+        with closing(opener.open(request)) as resp:
+            #Don't need to do anything with the response.  The cookies will be captured automatically
+            pass
+    except urllib2.URLError:
+        print >> sys.stderr, 'Error accessing: ', url
+        raise
+        rbody = four_oh_four.substitute(fronturl=request_uri(environ), backurl=url)
+        return response(rbody, 'text/html', httplib.NOT_FOUND)
     environ['REMOTE_USER'] = username
     #print "="*60
     #doc = htmlparse(response)
@@ -164,27 +166,40 @@ def check_auth(environ, start_response):
 
 
 def _head_page(environ, start_response):
+    wiki_id, base, opener = target(environ)
     page = environ['PATH_INFO']
-    check_auth(environ, start_response)
+    check_auth(environ, start_response, base, opener)
     #print page
     upstream_handler = None
     status = httplib.OK
-    if DOCBOOK_IMT in environ['HTTP_ACCEPT']:
-        url = TARGET_WIKI + page
+    params = cgi.parse_qs(environ['QUERY_STRING'])
+    if 'search' in params:
+        searchq = params['search'][0]
+        query = urllib.urlencode({'value' : searchq, 'action': 'fullsearch', 'context': '180', 'fullsearch': 'Text'})
+        #?action=fullsearch&context=180&value=foo&=Text
+        url = base + query
+        request = urllib2.Request(url)
+        ctype = RDF_IMT
+    elif DOCBOOK_IMT in environ['HTTP_ACCEPT']:
+        url = base + page
         request = urllib2.Request(url + "?mimetype=text/docbook")
         ctype = DOCBOOK_IMT
+    elif HTML_IMT in environ['HTTP_ACCEPT']:
+        url = base + page
+        request = urllib2.Request(url)
+        ctype = HTML_IMT
     elif RDF_IMT in environ['HTTP_ACCEPT']:
         #FIXME: Make unique flag optional
-        url = TARGET_WIKI + '/RecentChanges?action=rss_rc&unique=1&ddiffs=1'
+        url = base + '/RecentChanges?action=rss_rc&unique=1&ddiffs=1'
         request = urllib2.Request(url)
         ctype = RDF_IMT
     elif ATTACHMENTS_IMT in environ['HTTP_ACCEPT']:
-        url = TARGET_WIKI + page + '?action=AttachFile'
+        url = base + page + '?action=AttachFile'
         request = urllib2.Request(url)
         ctype = ATTACHMENTS_IMT
         def upstream_handler():
             #Sigh.  Sometimes you have to break some Tag soup eggs to make a RESTful omlette
-            with closing(OPENER.open(request)) as resp:
+            with closing(opener.open(request)) as resp:
                 rbody = resp.read()
             doc = htmlparse(rbody)
             attachment_nodes = doc.xml_select(u'//*[contains(@href, "action=AttachFile") and contains(@href, "do=view")]')
@@ -203,35 +218,41 @@ def _head_page(environ, start_response):
     #Notes on use of URI parameters - http://markmail.org/message/gw6xbbvx4st6bksw
     elif ';attachment=' in page:
         page, attachment = page.split(';attachment=')
-        url = TARGET_WIKI + page + '?action=AttachFile&do=get&target=' + attachment
+        url = base + page + '?action=AttachFile&do=get&target=' + attachment
         request = urllib2.Request(url)
         def upstream_handler():
-            with closing(OPENER.open(request)) as resp:
+            with closing(opener.open(request)) as resp:
                 rbody = resp.read()
             return rbody, dict(resp.info())['content-type']
     else:
-        url = TARGET_WIKI + page
+        url = base + page
         request = urllib2.Request(url + "?action=raw")
         ctype = WIKITEXT_IMT
     try:
         if upstream_handler:
             rbody, ctype = upstream_handler()
         else:
-            with closing(OPENER.open(request)) as resp:
+            with closing(opener.open(request)) as resp:
                 rbody = resp.read()
         
-        #headers = {ORIG_BASE_HEADER: TARGET_WIKI}
-        headers = [(ORIG_BASE_HEADER, TARGET_WIKI)]
+        #headers = {ORIG_BASE_HEADER: base}
+        headers = [(ORIG_BASE_HEADER, base)]
         return status, rbody, ctype, headers
-    except urllib2.URLError:
-        raise
-        #404 error
-        rbody = four_oh_four.substitute(fronturl=request_uri(environ), backurl=url)
-        return httplib.NOT_FOUND, rbody, 'text/html', {}
+    except urllib2.URLError, e:
+        if e.code == 403:
+            #send back 401
+            return httplib.UNAUTHORIZED, '', 'text/html', [('WWW-Authenticate', 'Basic realm="%s"'%wiki_id)]
+        if e.code == 404:
+            rbody = four_oh_four.substitute(fronturl=request_uri(environ), backurl=url)
+            return httplib.NOT_FOUND, rbody, 'text/html', {}
+        else:
+            print >> sys.stderr, 'Error accessing: ', (url, e.code)
+            raise
 
 def fill_page_edit_form(page):
-    url = TARGET_WIKI + page + '?action=edit&editor=text'
-    with closing(OPENER.open(urllib2.Request(url))) as resp:
+    wiki_id, base, opener = target(environ)
+    url = base + page + '?action=edit&editor=text'
+    with closing(opener.open(urllib2.Request(url))) as resp:
         doc = htmlparse(resp)
     form = doc.html.body.xml_select(u'.//*[@id="editor"]')[0]
     form_vars = {}
@@ -245,8 +266,9 @@ def fill_page_edit_form(page):
 
 
 def fill_attachment_form(page, attachment):
-    url = TARGET_WIKI + page + '?action=AttachFile'
-    with closing(OPENER.open(urllib2.Request(url))) as resp:
+    wiki_id, base, opener = target(environ)
+    url = base + page + '?action=AttachFile'
+    with closing(opener.open(urllib2.Request(url))) as resp:
         doc = htmlparse(resp)
     form = doc.html.body.xml_select(u'.//*[@id="content"]/form')[0]
     form_vars = {}
@@ -281,6 +303,7 @@ def head_page(environ, start_response):
     status, rbody, ctype, headers = _head_page(environ, start_response)
     #headers['CONTENT_TYPE'] = ctype
     headers.append(('CONTENT_TYPE', ctype))
+    #print >> sys.stderr, headers
     return response('', None, status, headers)
 
 
@@ -289,6 +312,7 @@ def get_page(environ, start_response):
     status, rbody, ctype, headers = _head_page(environ, start_response)
     #headers['CONTENT_TYPE'] = ctype
     headers.append(('CONTENT_TYPE', ctype))
+    #print >> sys.stderr, headers
     return response(rbody, None, status, headers)
 
 
@@ -297,8 +321,9 @@ def get_page(environ, start_response):
 def put_page(environ, start_response):
     '''
     '''
+    wiki_id, base, opener = target(environ)
     page = environ['PATH_INFO']
-    url = TARGET_WIKI + page
+    check_auth(environ, start_response, base, opener)
     ctype = environ.get('CONTENT_TYPE', 'application/unknown')
     clen = int(environ.get('CONTENT_LENGTH', None))
     if not clen:
@@ -308,12 +333,14 @@ def put_page(environ, start_response):
     form_vars = fill_page_edit_form(page)
     form_vars["savetext"] = content
 
+    url = base + page
     data = urllib.urlencode(form_vars)
     request = urllib2.Request(url, data)
     try:
-        with closing(OPENER.open(request)) as resp:
+        with closing(opener.open(request)) as resp:
             doc = htmlparse(resp)
     except urllib2.URLError:
+        print >> sys.stderr, 'Error accessing: ', url
         raise
         rbody = four_oh_four.substitute(fronturl=request_uri(environ), backurl=url)
         return response(rbody, 'text/html', httplib.NOT_FOUND)
@@ -331,9 +358,10 @@ def put_page(environ, start_response):
 def post_page(environ, start_response):
     #http://groups.google.com/group/comp.lang.python/browse_thread/thread/4662d41aca276d99
     #ctype = environ.get('CONTENT_TYPE', 'application/unknown')
+    wiki_id, base, opener = target(environ)
+    check_auth(environ, start_response, base, opener)
     page = environ['PATH_INFO']
     page, attachment = page.split(';attachment=')
-    url = TARGET_WIKI + page
     #print page, attachment
     clen = int(environ.get('CONTENT_LENGTH', None))
     if not clen:
@@ -348,12 +376,14 @@ def post_page(environ, start_response):
     form_vars = fill_attachment_form(page, attachment)
     form_vars["file"] = open(temp[1], "rb")
 
+    url = base + page
     #data = urllib.urlencode(form_vars)
     request = urllib2.Request(url, form_vars)
     try:
-        with closing(OPENER.open(request)) as resp:
+        with closing(opener.open(request)) as resp:
             doc = htmlparse(resp)
     except urllib2.URLError:
+        print >> sys.stderr, 'Error accessing: ', url
         raise
         rbody = four_oh_four.substitute(fronturl=request_uri(environ), backurl=url)
         return response(rbody, 'text/html', httplib.NOT_FOUND)
@@ -363,7 +393,7 @@ def post_page(environ, start_response):
     #print "="*60
     #amara.xml_print(doc)
 
-    msg = 'Attachment updated OK: %s\n'%(TARGET_WIKI + page)
+    msg = 'Attachment updated OK: %s\n'%(base + page)
     headers = [('Content-Type', 'text/plain'), ('Content-Location', url)]
 
     #headers.append(('Content-Length', str(len(msg))))

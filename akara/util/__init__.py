@@ -1,5 +1,8 @@
+import sys
+import urllib2
 from urllib import quote
 from functools import wraps
+from amara.lib.iri import *
 
 class iterwrapper:
     """
@@ -125,4 +128,35 @@ class wsgibase(object):
         s = self.environ['wsgi.input'].read(int(self.environ['CONTENT_LENGTH']))
         return cgi.parse_qs(s)
 
-        
+
+def copy_auth(environ, top, realm=None):
+    '''
+    Get auth creds (HTTP basic only, for now) from the incoming request and return an
+    HTTP auth handler for urllib2.  This handler allows you to "forward" this auth to
+    remote services
+
+    environ - The usual WSGI structure. Note: if you are using simple_service, you usually get this from WSGI_ENVIRON
+    top - top URL to be used for this auth.
+    '''
+    #Useful: http://www.voidspace.org.uk/python/articles/authentication.shtml
+    auth = environ.get('HTTP_AUTHORIZATION')
+    if not auth: return None
+    scheme, data = auth.split(None, 1)
+    if scheme.lower() != 'basic':
+        raise RuntimeError('Unsupported HTTP auth scheme: %s'%scheme)
+    username, password = data.decode('base64').split(':', 1)
+    password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
+    # HTTPPasswordMgr top must omit any URL components before the host (i.e. no scheme and no auth info in the authority section)
+    #(scheme, authority, path, query, fragment) = split_uri_ref(top)
+    #auth, host, port = split_authority(authority)
+    #auth_top_url = (host + ':' + port if port else host) + path
+    #print >> sys.stderr, 'Auth creds: %s:%s (%s)'%(username, password, auth_top_url)
+    
+    # Not setting the realm for now, so use None
+    #password_mgr.add_password(None, auth_top_url, username, password)
+    password_mgr.add_password(None, top, username, password)
+    #password_handler = urllib2.HTTPDigestAuthHandler(password_mgr)
+    password_handler = urllib2.HTTPBasicAuthHandler(password_mgr)
+    return password_handler
+
+

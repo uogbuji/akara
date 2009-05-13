@@ -109,7 +109,7 @@ def atomize_oai_record(endpoint=None, id=None):
     qstr = urllib.urlencode({'verb' : 'GetRecord', 'metadataPrefix': 'oai_dc', 'identifier': id})
     url = endpoint + '?' + qstr
     doc = bindery.parse(url, model=OAI_MODEL)
-    resources = metadata_dict(doc.xml_model.generate_metadata(doc))
+    resources = metadata_dict(generate_metadata(doc))
     #print resources
     f = feed(ATOM_ENVELOPE)
     #f = feed(ATOM_ENVELOPE, title=resources['title'], id=resources['id'])

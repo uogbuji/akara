@@ -51,7 +51,7 @@ from amara.bindery.util import dispatcher, node_handler, property_sequence_gette
 from amara.lib.util import *
 from amara.bindery.model import *
 
-from akara.restwrap.moin import *
+from akara.util.moin import *
 
 UTC = pytz.timezone('UTC')
 DEFAULT_LOCAL_TZ = pytz.timezone('UTC')
@@ -93,11 +93,7 @@ class node(object):
             os.makedirs(parent_dir)
         except OSError:
             pass
-        raw_metadata = doc.xml_model.generate_metadata(doc)
-        metadata = {}
-        for eid, row in groupby(sorted(raw_metadata), itemgetter(0)):
-            #It's all crazy lazy, so use list to consume the iterator
-            list( metadata.setdefault(key, []).append(val) for (i, key, val) in row )
+        metadata = metadata_dict(generate_metadata(doc))
         #print metadata
         akara_type = first_item(metadata[u'ak-type'])
         cls = node.NODES[akara_type]
@@ -232,7 +228,7 @@ class page(node):
             ),
         ))
         with open(self.output, 'w') as output:
-            text = f.read().rstrip()
+            #text = f.read().rstrip()
             #print buf.getvalue()
             transform(buf.getvalue(), template, output=output)
         return
@@ -354,7 +350,7 @@ def moincms(wikibase, outputdir, pattern):
             uri = absolutize(relative, wikibase)
         if pattern and not pattern.match(relative):
             continue
-        #print >> sys.stderr, uri, relative
+        print >> sys.stderr, uri, relative
         n = node.factory(uri, relative, outputdir)
         if n.up_to_date():
             print >> sys.stderr, 'Up to date.  Skipped...'
