@@ -56,7 +56,7 @@ from functools import *
 from itertools import *
 from operator import *
 from contextlib import closing
-from wsgiref.util import shift_path_info
+from wsgiref.util import shift_path_info, request_uri
 
 import amara
 from amara import bindery
@@ -64,6 +64,7 @@ from amara.lib.iri import *
 from amara.writers.struct import *
 from amara.bindery.html import parse as htmlparse
 from amara.bindery.model import *
+from amara.lib.iri import * #split_fragment, relativize, absolutize
 
 from akara.util import multipart_post_handler, wsgibase, http_method_handler
 
@@ -167,7 +168,8 @@ def check_auth(environ, start_response, base, opener):
 
 def _head_page(environ, start_response):
     wiki_id, base, opener = target(environ)
-    page = environ['PATH_INFO']
+    page = environ['PATH_INFO'].lstrip('/')
+    print >> sys.stderr, (page, wiki_id, base)
     check_auth(environ, start_response, base, opener)
     #print page
     upstream_handler = None
@@ -177,24 +179,26 @@ def _head_page(environ, start_response):
         searchq = params['search'][0]
         query = urllib.urlencode({'value' : searchq, 'action': 'fullsearch', 'context': '180', 'fullsearch': 'Text'})
         #?action=fullsearch&context=180&value=foo&=Text
-        url = base + query
+        url = absolutize(query, base)
         request = urllib2.Request(url)
         ctype = RDF_IMT
     elif DOCBOOK_IMT in environ['HTTP_ACCEPT']:
-        url = base + page
+        url = absolutize(page, base)
         request = urllib2.Request(url + "?mimetype=text/docbook")
         ctype = DOCBOOK_IMT
     elif HTML_IMT in environ['HTTP_ACCEPT']:
-        url = base + page
+        url = absolutize(page, base)
         request = urllib2.Request(url)
         ctype = HTML_IMT
     elif RDF_IMT in environ['HTTP_ACCEPT']:
         #FIXME: Make unique flag optional
-        url = base + '/RecentChanges?action=rss_rc&unique=1&ddiffs=1'
+        #url = base + '/RecentChanges?action=rss_rc&unique=1&ddiffs=1'
+        url = absolutize('/RecentChanges?action=rss_rc&unique=1&ddiffs=1', base)
+        #print >> sys.stderr, (url, base, '/RecentChanges?action=rss_rc&unique=1&ddiffs=1', )
         request = urllib2.Request(url)
         ctype = RDF_IMT
     elif ATTACHMENTS_IMT in environ['HTTP_ACCEPT']:
-        url = base + page + '?action=AttachFile'
+        url = absolutize(page + '?action=AttachFile', base)
         request = urllib2.Request(url)
         ctype = ATTACHMENTS_IMT
         def upstream_handler():
@@ -218,14 +222,14 @@ def _head_page(environ, start_response):
     #Notes on use of URI parameters - http://markmail.org/message/gw6xbbvx4st6bksw
     elif ';attachment=' in page:
         page, attachment = page.split(';attachment=')
-        url = base + page + '?action=AttachFile&do=get&target=' + attachment
+        url = absolutize(page + '?action=AttachFile&do=get&target=' + attachment, base)
         request = urllib2.Request(url)
         def upstream_handler():
             with closing(opener.open(request)) as resp:
                 rbody = resp.read()
             return rbody, dict(resp.info())['content-type']
     else:
-        url = base + page
+        url = absolutize(page, base)
         request = urllib2.Request(url + "?action=raw")
         ctype = WIKITEXT_IMT
     try:
@@ -236,23 +240,23 @@ def _head_page(environ, start_response):
                 rbody = resp.read()
         
         #headers = {ORIG_BASE_HEADER: base}
-        headers = [(ORIG_BASE_HEADER, base)]
+        headers = [(ORIG_BASE_HEADER, absolutize(wiki_id, base))]
         return status, rbody, ctype, headers
     except urllib2.URLError, e:
         if e.code == 403:
             #send back 401
-            return httplib.UNAUTHORIZED, '', 'text/html', [('WWW-Authenticate', 'Basic realm="%s"'%wiki_id)]
+            #FIXME: L10N
+            return httplib.UNAUTHORIZED, 'Unauthorized access.  Please authenticate.', 'text/html', [('WWW-Authenticate', 'Basic realm="%s"'%wiki_id)]
         if e.code == 404:
             rbody = four_oh_four.substitute(fronturl=request_uri(environ), backurl=url)
-            return httplib.NOT_FOUND, rbody, 'text/html', {}
+            return httplib.NOT_FOUND, rbody, 'text/html', []
         else:
             print >> sys.stderr, 'Error accessing: ', (url, e.code)
             raise
 
-def fill_page_edit_form(page):
-    wiki_id, base, opener = target(environ)
-    url = base + page + '?action=edit&editor=text'
-    with closing(opener.open(urllib2.Request(url))) as resp:
+def fill_page_edit_form(page, wiki_id, base, opener):
+    url = absolutize(page, base)
+    with closing(opener.open(urllib2.Request(url + '?action=edit&editor=text'))) as resp:
         doc = htmlparse(resp)
     form = doc.html.body.xml_select(u'.//*[@id="editor"]')[0]
     form_vars = {}
@@ -265,10 +269,9 @@ def fill_page_edit_form(page):
     return form_vars
 
 
-def fill_attachment_form(page, attachment):
-    wiki_id, base, opener = target(environ)
-    url = base + page + '?action=AttachFile'
-    with closing(opener.open(urllib2.Request(url))) as resp:
+def fill_attachment_form(page, attachment, wiki_id, base, opener):
+    url = absolutize(page, base)
+    with closing(opener.open(urllib2.Request(url + '?action=AttachFile'))) as resp:
         doc = htmlparse(resp)
     form = doc.html.body.xml_select(u'.//*[@id="content"]/form')[0]
     form_vars = {}
@@ -322,7 +325,7 @@ def put_page(environ, start_response):
     '''
     '''
     wiki_id, base, opener = target(environ)
-    page = environ['PATH_INFO']
+    page = environ['PATH_INFO'].lstrip('/')
     check_auth(environ, start_response, base, opener)
     ctype = environ.get('CONTENT_TYPE', 'application/unknown')
     clen = int(environ.get('CONTENT_LENGTH', None))
@@ -330,10 +333,10 @@ def put_page(environ, start_response):
         return response('Content length Required', 'text/plain', httplib.LENGTH_REQUIRED)
     content = environ['wsgi.input'].read(clen)
 
-    form_vars = fill_page_edit_form(page)
+    form_vars = fill_page_edit_form(page, wiki_id, base, opener)
     form_vars["savetext"] = content
 
-    url = base + page
+    url = absolutize(page, base)
     data = urllib.urlencode(form_vars)
     request = urllib2.Request(url, data)
     try:
@@ -360,9 +363,9 @@ def post_page(environ, start_response):
     #ctype = environ.get('CONTENT_TYPE', 'application/unknown')
     wiki_id, base, opener = target(environ)
     check_auth(environ, start_response, base, opener)
-    page = environ['PATH_INFO']
-    page, attachment = page.split(';attachment=')
-    #print page, attachment
+    page = environ['PATH_INFO'].lstrip('/')
+    page, chaff, attachment = page.partition(';attachment=')
+    print >> sys.stderr, page, attachment
     clen = int(environ.get('CONTENT_LENGTH', None))
     if not clen:
         return response('Content length Required', 'text/plain', httplib.LENGTH_REQUIRED)
@@ -373,15 +376,17 @@ def post_page(environ, start_response):
     temp = tempfile.mkstemp(suffix=".dat")
     os.write(temp[0], environ['wsgi.input'].read(clen))
 
-    form_vars = fill_attachment_form(page, attachment)
+    form_vars = fill_attachment_form(page, attachment, wiki_id, base, opener)
     form_vars["file"] = open(temp[1], "rb")
 
-    url = base + page
+    url = absolutize(page, base)
+    print >> sys.stderr, url, 
     #data = urllib.urlencode(form_vars)
     request = urllib2.Request(url, form_vars)
     try:
         with closing(opener.open(request)) as resp:
             doc = htmlparse(resp)
+            amara.xml_print(doc, stream=sys.stderr, indent=True)
     except urllib2.URLError:
         print >> sys.stderr, 'Error accessing: ', url
         raise
@@ -393,7 +398,7 @@ def post_page(environ, start_response):
     #print "="*60
     #amara.xml_print(doc)
 
-    msg = 'Attachment updated OK: %s\n'%(base + page)
+    msg = 'Attachment updated OK: %s\n'%(url)
     headers = [('Content-Type', 'text/plain'), ('Content-Location', url)]
 
     #headers.append(('Content-Length', str(len(msg))))

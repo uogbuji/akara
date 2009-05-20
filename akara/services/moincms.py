@@ -93,8 +93,8 @@ class node(object):
             os.makedirs(parent_dir)
         except OSError:
             pass
-        metadata = metadata_dict(generate_metadata(doc))
-        #print metadata
+        metadata, first_id = metadata_dict(generate_metadata(doc))
+        metadata = metadata[first_id]
         akara_type = first_item(metadata[u'ak-type'])
         cls = node.NODES[akara_type]
         instance = cls(rest_uri, relative, outputdir, cache=(doc, metadata, original_wiki_base))
@@ -344,13 +344,15 @@ def moincms(wikibase, outputdir, pattern):
     process_list = []
     for item in feed.RDF.channel.items.Seq.li:
         uri = split_fragment(item.resource)[0]
+        #print >> sys.stderr, (uri, str(item.resource), split_fragment(item.resource))
         #Deal with the wrapped URI
         if original_wiki_base:
-            relative = relativize(uri, original_wiki_base+'/')
+            #print >> sys.stderr, (uri, original_wiki_base.rstrip('/')+'/')
+            relative = relativize(uri, original_wiki_base.rstrip('/')+'/').lstrip('/')
             uri = absolutize(relative, wikibase)
+        #print >> sys.stderr, (uri, relative)
         if pattern and not pattern.match(relative):
             continue
-        print >> sys.stderr, uri, relative
         n = node.factory(uri, relative, outputdir)
         if n.up_to_date():
             print >> sys.stderr, 'Up to date.  Skipped...'

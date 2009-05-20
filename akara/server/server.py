@@ -47,7 +47,7 @@ class wsgi_server(object):
         self.environ = {
             'GATEWAY_INTERFACE': 'CGI/1.1',
             'SERVER_NAME': process.server_name,
-            'SERVER_PORT': process.server_port,
+            'SERVER_PORT': str(process.server_port),
             'SCRIPT_NAME': '',
             'akara.http_response': wsgi_error,
             }
