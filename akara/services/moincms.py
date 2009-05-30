@@ -240,6 +240,11 @@ class page(node):
 node.NODES[page.AKARA_TYPE] = page
 #AKARA_TYPES = [page, folder]
 
+
+def register_node_type(type_id, nclass):
+    node.NODES[type_id] = nclass
+
+
 class content_handlers(dispatcher):
     def __init__(self, orig_wikibase):
         dispatcher.__init__(self)

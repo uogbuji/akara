@@ -33,8 +33,6 @@ def svncommit(body, ctype, **params):
     curl -F "POR=@foo.por" http://localhost:8880/spss.json
     curl -F "msg=akara test" -F "fpath=/path/to/file" -F "q=http://example.org/my-rest-request" http://localhost:8880/akara.svncommit
     '''
-    #curl --request POST -F "POR=@lat506.por" -F "SPSS=@LAT506.SPS" http://labs.zepheira.com:8880/spss.json
-    
     #Useful:
     # * [[http://wiki.math.yorku.ca/index.php/R:_Data_conversion_from_SPSS|R: Data conversion from SPSS]]
 
@@ -45,17 +43,18 @@ def svncommit(body, ctype, **params):
     q = form.getvalue('q')
     fpath = form.getvalue('fpath')
     msg = form.getvalue('msg')
-    assert_not_equal(q, None, msg=Q_REQUIRED)
+    #assert_not_equal(q, None, msg=Q_REQUIRED)
 
-    handler = copy_auth(WSGI_ENVIRON, q)
-    opener = urllib2.build_opener(handler) if handler else urllib2.build_opener()
-    req = urllib2.Request(q)
-    with closing(opener.open(req)) as resp:
-        result = resp.read()
-        ctype = dict(resp.info()).get('Content-Type')
+    if q:
+        handler = copy_auth(WSGI_ENVIRON, q)
+        opener = urllib2.build_opener(handler) if handler else urllib2.build_opener()
+        req = urllib2.Request(q)
+        with closing(opener.open(req)) as resp:
+            result = resp.read()
+            ctype = dict(resp.info()).get('Content-Type')
 
-    with closing(open(fpath, 'w')) as f:
-        f.write(result)
+        with closing(open(fpath, 'w')) as f:
+            f.write(result)
 
     cmdline = SVN_COMMIT_CMD%{'msg': msg, 'fpath': fpath}
     print >> sys.stderr, 'Executing subprocess in shell: ', cmdline

@@ -11,7 +11,9 @@ import functools
 from cgi import parse_qs
 from wsgiref.simple_server import WSGIRequestHandler
 
-__all__ = ['simple_service', 'service', 'response', 'rest_dispatch', 'method_handler']
+__all__ = ['simple_service', 'service', 'response', 'rest_dispatch',
+    'method_handler'
+]
 
 class simple_service(object):
     '''
@@ -29,9 +31,10 @@ class simple_service(object):
                              % (method,))
         self.service_id = service_id
         self.mount_point = mount_point
-        self.content_type = content_type
+        self.content_type = str(content_type)
         self.parameters = kwds
         self.use_request_content = method == 'POST'
+        
 
     def __call__(self, func):
         try:
