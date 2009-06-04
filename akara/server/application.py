@@ -13,7 +13,7 @@ class configdict(dict):
         self._server = server
 
     def server_root_relative(self, path):
-        path if path.startswith('/') else os.path.join(self._server.server_root, path)
+        return path if path.startswith('/') else os.path.join(self._server.server_root, path)
 
 
 class wsgi_application:

@@ -179,7 +179,7 @@ def _head_page(environ, start_response):
         searchq = params['search'][0]
         query = urllib.urlencode({'value' : searchq, 'action': 'fullsearch', 'context': '180', 'fullsearch': 'Text'})
         #?action=fullsearch&context=180&value=foo&=Text
-        url = absolutize(query, base)
+        url = absolutize('?'+query, base)
         request = urllib2.Request(url)
         ctype = RDF_IMT
     elif DOCBOOK_IMT in environ['HTTP_ACCEPT']:
@@ -193,7 +193,7 @@ def _head_page(environ, start_response):
     elif RDF_IMT in environ['HTTP_ACCEPT']:
         #FIXME: Make unique flag optional
         #url = base + '/RecentChanges?action=rss_rc&unique=1&ddiffs=1'
-        url = absolutize('/RecentChanges?action=rss_rc&unique=1&ddiffs=1', base)
+        url = absolutize('RecentChanges?action=rss_rc&unique=1&ddiffs=1', base)
         #print >> sys.stderr, (url, base, '/RecentChanges?action=rss_rc&unique=1&ddiffs=1', )
         request = urllib2.Request(url)
         ctype = RDF_IMT
