@@ -26,6 +26,7 @@ from amara.tools.atomtools import parse as atomparse
 
 from akara.services import simple_service, response
 
+
 #text/uri-list from RFC 2483
 SERVICE_ID = 'http://purl.org/akara/services/builtin/atom.json'
 @simple_service('GET', SERVICE_ID, 'akara.atom.json', 'application/json')
@@ -36,18 +37,22 @@ def atom_json(url=None):
     
     Sample request:
     * curl "http://localhost:8880/akara.atom.json?url=http://zepheira.com/news/atom/entries/"
+    * curl http://localhost:8880/akara.atom.json?url=http://zepheira.com/news/index.atom
+    * curl http://localhost:8880/akara.atom.json?url=http://picasaweb.google.com/data/feed/base/user/dysryi/albumid/5342439351589940049
+    * curl http://freemix.it/transform/akara.atom.json?url=http://earthquake.usgs.gov/eqcenter/catalogs/7day-M2.5.xml
     '''
     import simplejson
     url = url[0]
-    return simplejson.dumps({'items': atomparse(url)}, indent=4)
+    feed, entries = atomparse(url)
+    return simplejson.dumps({'items': entries}, indent=4)
 
 
 #
 ENTRIES = AKARA_MODULE_CONFIG.get('entries')
 FEED_ENVELOPE = AKARA_MODULE_CONFIG.get('feed_envelope')
 
-print >> sys.stderr, "Entries:", ENTRIES
-print >> sys.stderr, "Feed envelope:", FEED_ENVELOPE
+#print >> sys.stderr, "Entries:", ENTRIES
+#print >> sys.stderr, "Feed envelope:", FEED_ENVELOPE
 
 #FIXME: use stat to check dir and apply a cache otherwise
 DOC_CACHE = None
@@ -56,7 +61,7 @@ SERVICE_ID = 'http://purl.org/akara/services/builtin/aggregate.atom'
 @simple_service('GET', SERVICE_ID, 'akara.aggregate.atom', str(ATOM_IMT))
 def aggregate_atom():
     '''
-]    Sample request:
+    Sample request:
     * curl "http://localhost:8880/akara.aggregate.atom"
     '''
     global DOC_CACHE
@@ -67,4 +72,41 @@ def aggregate_atom():
         amara.xml_print(doc, stream=buf, indent=True)
         DOC_CACHE = buf.getvalue()
     return DOC_CACHE
+
+
+#We love Atom, but for sake of practicality, here is a transform for general feeds
+SERVICE_ID = 'http://purl.org/akara/services/builtin/webfeed.json'
+@simple_service('GET', SERVICE_ID, 'akara.webfeed.json', 'application/json')
+def webfeed_json(url=None):
+    '''
+    Convert Web feed to Exhibit JSON
+    
+    Sample request:
+    * curl "http://localhost:8880/akara.webfeed.json?url=http://feeds.delicious.com/v2/rss/url/0a12ebb52dbdeab338c01803d28f0835%3Fcount=15"
+    '''
+    import feedparser
+    import simplejson
+    url = url[0]
+    feed = feedparser.parse(url)
+    print >> sys.stderr, "Feed info:", url, feed.version, feed.encoding, feed.headers.get('Content-type')
+    
+    def process_entry(e):
+        data = {
+            u'id': e.link,
+            u'label': e.link,
+            u'title': e.title,
+            u'link': e.link,
+            u'updated': e.updated,
+        }
+        #Optional bits
+        if 'content' in data:
+            data[u'content'] = e.content
+        if 'description' in data:
+            data[u'description'] = e.description
+        if 'author_detail' in data:
+            data[u'author_name'] = e.author_detail.name
+        return data
+
+    entries = [ process_entry(e) for e in feed.entries ]
+    return simplejson.dumps({'items': entries}, indent=4)
 
