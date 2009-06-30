@@ -82,7 +82,7 @@ def handle_page(uri, page, outputdir, relative, output):
     summary = sections["entry:summary"]
     content = sections["entry:content"]
     tags = [ g for g in page.article.section.glosslist.glossentry if unicode(g.glossterm) == u'entry:tags' ]
-    if tags: tags = [ unicode(gd.para).strip() for gd in tags[0].glossdef ]
+    if tags: tags = [ gd.para.xml_select(u'string(.)').strip() for gd in tags[0].glossdef ]
     authors = [ a
         for a in page.article.section.glosslist.glossentry
         if unicode(a.glossterm) == u'entry:authors'
@@ -104,7 +104,7 @@ def handle_page(uri, page, outputdir, relative, output):
             E(u'id', eid),
             E(u'title', title),
             #FIXME: Use updated time from feed
-            E(u'updated', unicode(revdate)),
+            E(u'updated', unicode(revdate.isoformat())),
             #E(u'updated', datetime.datetime.now().isoformat()),
             #E(u'updated', page.updated),
             ( E(u'category', {u'term': t}) for t in tags ),

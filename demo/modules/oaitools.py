@@ -20,7 +20,6 @@ from amara import bindery
 from amara import tree
 from amara.writers.struct import *
 from amara.bindery.model import *
-from amara.bindery.util import dispatcher, node_handler
 
 from amara.tools.atomtools import feed
 
