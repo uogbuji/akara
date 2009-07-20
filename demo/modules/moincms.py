@@ -83,7 +83,8 @@ class atom_entry(node):
             if lastrev.tzinfo == None: lastrev = lastrev.replace(tzinfo=DEFAULT_TZ)
             if (entrydate == lastrev):
                 print >> sys.stderr, 'Not updated.  Skipped...'
-                continue
+                # continue
+                return
 
         if force_update:
             self.load()
@@ -298,6 +299,7 @@ def execute(top=None):
 
     #print (wikibase, outputdir, rewrite)
     with closing(urllib2.urlopen(req)) as resp:
+        raise NotImplementedError
     return
 
 
