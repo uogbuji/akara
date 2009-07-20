@@ -15,7 +15,7 @@ Project home, documentation, distributions: http://wiki.xml3k.org/Akara
 """
 #
 #Detailed license and copyright information: http://4suite.org/COPYRIGHT
-
+from __future__ import with_statement
 import os
 import sys
 import re

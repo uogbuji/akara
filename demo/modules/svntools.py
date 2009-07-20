@@ -2,7 +2,7 @@
 '''
 See also:
 '''
-
+from __future__ import with_statement
 import sys, time
 import urllib, urllib2, urlparse
 from subprocess import *
