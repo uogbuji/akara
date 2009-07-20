@@ -22,7 +22,7 @@ SERVICE_ID = 'http://purl.org/akara/services/builtin/luckygoogle'
 @simple_service('GET', SERVICE_ID, 'akara.luckygoogle', 'text/uri-list')
 def lucky_google(q=None):
     '''
-    A simple and fun transform to return the first ghit for a given search
+    A simple and fun transform to return the first hit for a given search
     
     Sample request:
     * curl "http://localhost:8880/akara.luckygoogle?q=zepheira"
