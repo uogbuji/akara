@@ -10,7 +10,6 @@ import datetime
 import urllib, urlparse
 from cgi import parse_qs
 from cStringIO import StringIO
-import feedparser
 from itertools import *
 
 import simplejson
