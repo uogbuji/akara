@@ -8,9 +8,16 @@ import urllib, urllib2
 from itertools import *
 
 import simplejson
-from icalendar import Calendar, Event
+# Top-level import errors cause an infinite loop problem (see trac #6)
+# If this third-party package doesn't exist, report the problem but
+# keep on going.
+try:
+    from icalendar import Calendar, Event
+except ImportError, err:
+    import warnings
+    warnings.warn("Cannot import 'icalendar': %s" % (err,))
+    Calendar = Event = None
 
-#from amara.tools.atomtools import feed
 from akara.services import simple_service, response
 
 SERVICE_ID = 'http://purl.org/akara/services/builtin/ical.json'
