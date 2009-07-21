@@ -5,9 +5,12 @@ import os
 from os.path import abspath, dirname
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
+import time
+import urllib2
 
 import python_support
 
@@ -69,36 +72,78 @@ atexit.register(remove_server_dir)
 
 # Start a new Akara server in server mode.
 def start_server():
+    global server_pid
+
     port = python_support.find_unused_port()
     create_server_dir(port)
     args = [sys.executable, "-m", "akara.server",
             "--config-file", config_filename]
     result = subprocess.call(args)
+
+    # Akara started, but it might have failed during startup.
     # Report errors by reading the error log
     if result != 0:
         f = open(os.path.join(server_root, "logs", "error.log"))
         err_text = f.read()
         raise AssertionError("Could not start %r:\n%s" % (args, err_text))
 
-    # If the above worked then the server process is running.
-    # Get the pid for later (used to kill the server)
-    f = open(os.path.join(server_root, "logs", "akara.pid"))
-    line = f.readline()
-    f.close()
+    # Akara started, but perhaps it didn't get that far.
+    # Check that by fetching the pid from the pid log file.
+    # However, the pid file is created after the process
+    # detactes from the controlling process, so there's a
+    # timing problem. (ticket #9). The file might not yet
+    # exist, or not yet be populated with the pid information.
+    # Try getting it a few times
+    for i in range(10):
+        try:
+            f = open(os.path.join(server_root, "logs", "akara.pid"))
+            line = f.readline()
+            f.close()
+            # Make sure it's an integer (I've seen it be a blank line)
+            int(line)
+        except (IOError, ValueError):
+            if i == 9:
+                raise
+        else:
+            break
+        time.sleep(0.1)
+
+    # Save the pid information now so the server will be shut down
+    # if there are any problems.
     server_pid = int(line)
 
-    # Check to see that the server really exists.
+    # Check to see that the server process really exists.
     # (Is this overkill? Is this portable for Windows?)
     os.kill(server_pid, 0)  # Did Akara really start?
 
-    return server_pid, port
+    check_that_server_is_available(port)
+
+    return port
+
+# It takes the server a little while to get started.
+# In the worst case (trac #6), top-level import failures
+# will loop forever, and the server won't hear requests.
+def check_that_server_is_available(port):
+    old_timeout = socket.getdefaulttimeout()
+    try:
+        socket.setdefaulttimeout(5.0)
+        try:
+            urllib2.urlopen("http://localhost:%d/" % port).read()
+        except urllib2.URLError, err:
+            print "Current error log is:"
+            f = open(os.path.join(server_root, "logs", "error.log"))
+            err_text = f.read()
+            print err_text
+            raise
+    finally:
+        socket.setdefaulttimeout(old_timeout)
 
 # Get the server URI prefix, like "http://localhost:8880/"
 def server():
-    global server_pid, SERVER_URI
+    global SERVER_URI
     if SERVER_URI is None:
         # No server specified and need to start my own
-        server_pid, port = start_server()
+        port = start_server()
         SERVER_URI = "http://localhost:%d/" % port
 
     return SERVER_URI
