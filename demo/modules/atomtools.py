@@ -12,7 +12,7 @@ title><id>http://example.com/myfeed</id></feed>
 '''
 
 import sys
-import urllib, urllib2
+import urllib2
 from cStringIO import StringIO
 from operator import *
 from itertools import *
@@ -51,8 +51,8 @@ def atom_json(url=None):
 ENTRIES = AKARA_MODULE_CONFIG.get('entries')
 FEED_ENVELOPE = AKARA_MODULE_CONFIG.get('feed_envelope')
 
-#print >> sys.stderr, "Entries:", ENTRIES
-#print >> sys.stderr, "Feed envelope:", FEED_ENVELOPE
+print >> sys.stderr, "Entries:", ENTRIES
+print >> sys.stderr, "Feed envelope:", FEED_ENVELOPE
 
 #FIXME: use stat to check dir and apply a cache otherwise
 DOC_CACHE = None

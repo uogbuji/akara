@@ -15,8 +15,11 @@ import urllib2
 import python_support
 
 ######
-module_dir = os.path.join(dirname(dirname(abspath(__file__))), "demo", "modules")
-assert os.path.exists(module_dir), "no module directory?"
+MODULE_DIR = os.path.join(dirname(dirname(abspath(__file__))), "demo", "modules")
+assert os.path.exists(MODULE_DIR), "no module directory?"
+
+ATOM_ENTRIES = os.path.join(dirname(abspath(__file__)), "resource", "atom")
+assert os.path.exists(ATOM_ENTRIES), "no atom entries directory?"
 
 # All of the tests use a single server instance.
 # This is started the first time it's needed.
@@ -47,9 +50,16 @@ def create_server_dir(port):
 ServerRoot: %(server_root)s
 ModuleDir: %(module_dir)s
 Listen: localhost:%(port)s
+
+[atomtools]
+entries: %(atom_entries)s
+feed_envelope: <spam></spam>
+
 """ % dict(server_root = server_root,
-           module_dir = module_dir,
-           port = port))
+           module_dir = MODULE_DIR,
+           port = port,
+           atom_entries = ATOM_ENTRIES,
+           ))
     f.close()
 
     os.mkdir(os.path.join(server_root, "logs"))
