@@ -4,10 +4,10 @@ Requires http://pypi.python.org/pypi/icalendar/
 easy_install icalendar
 '''
 
-import urllib, urllib2
-from itertools import *
+import urllib2
 
 import simplejson
+
 # Top-level import errors cause an infinite loop problem (see trac #6)
 # If this third-party package doesn't exist, report the problem but
 # keep on going.
@@ -16,7 +16,7 @@ try:
 except ImportError, err:
     import warnings
     warnings.warn("Cannot import 'icalendar': %s" % (err,))
-    Calendar = Event = None
+    Calendar = Event = NotImplementedError
 
 from akara.services import simple_service, response
 
@@ -40,12 +40,18 @@ def ical2json(body, ctype):
         entry = {}
         entry['summary'] = unicode(component['SUMMARY'])
         entry['label'] = entry['summary'] + '_' + str(count)
-        entry['description'] = unicode(component['DESCRIPTION'])
         entry['start'] = component['DTSTART'].dt.isoformat()
         entry['end'] = component['DTEND'].dt.isoformat()
-        entry['timestamp'] = component['DTSTAMP'].dt.isoformat()
-        entry['url'] = component['URL']
-        entry['id'] = unicode(component['UID'])
+        if "URL" in component:
+            entry['url'] = component['URL']
+        # These are Outlook specific(?)
+        if "DESCRIPTION" in component:
+            entry['description'] = unicode(component['DESCRIPTION'])
+        if "UID" in component:
+            entry['id'] = unicode(component['UID'])
+        if "DTSTAMP" in component:
+            entry['timestamp'] = component['DTSTAMP'].dt.isoformat()
+
         entries.append(entry)
     return simplejson.dumps({'items': entries}, indent=4)
 
