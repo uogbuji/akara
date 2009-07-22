@@ -51,8 +51,8 @@ def atom_json(url=None):
 ENTRIES = AKARA_MODULE_CONFIG.get('entries')
 FEED_ENVELOPE = AKARA_MODULE_CONFIG.get('feed_envelope')
 
-print >> sys.stderr, "Entries:", ENTRIES
-print >> sys.stderr, "Feed envelope:", FEED_ENVELOPE
+#print >> sys.stderr, "Entries:", ENTRIES
+#print >> sys.stderr, "Feed envelope:", FEED_ENVELOPE
 
 #FIXME: use stat to check dir and apply a cache otherwise
 DOC_CACHE = None
@@ -93,8 +93,8 @@ def webfeed_json(url=None):
         raise AssertionError("The 'url' query parameter is mandatory.")
     url = url[0]
     feed = feedparser.parse(url)
-    # Note: bad URLs might cause feedparser to return without headers
-    print >> sys.stderr, "Feed info:", url, feed.version, feed.encoding, feed.headers.get('Content-type')
+    # Note: bad URLs might mean the feed doesn't have headers
+    #print >> sys.stderr, "Feed info:", url, feed.version, feed.encoding, feed.headers.get('Content-type')
     
     def process_entry(e):
         data = {

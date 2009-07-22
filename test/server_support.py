@@ -53,12 +53,13 @@ Listen: localhost:%(port)s
 
 [atomtools]
 entries: %(atom_entries)s
-feed_envelope: <spam></spam>
+feed_envelope: <feed xmlns="http://www.w3.org/2005/Atom">
+    <title>Feed me!</title><id>http://example.com/myfeed</id></feed>
 
 """ % dict(server_root = server_root,
            module_dir = MODULE_DIR,
            port = port,
-           atom_entries = ATOM_ENTRIES,
+           atom_entries = os.path.join(ATOM_ENTRIES, "*.atom"),
            ))
     f.close()
 

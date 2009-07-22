@@ -1,7 +1,8 @@
 from server_support import server
 
 from urllib2 import urlopen
-
+from amara import bindery
+from amara.tools import atomtools
 
 # luckygoogle.pt
 def test_luckygoogle():
@@ -19,6 +20,13 @@ def test_atom_json():
     items = results["items"]
     for item in items:
         assert "title" in item
+
+def test_aggregate_atom():
+    url = server() + "akara.aggregate.atom"
+    f = urlopen(url)
+    doc = bindery.parse(f, model=atomtools.FEED_MODEL)
+    assert str(doc.feed.title[0]) == "Feed me!", str(doc.feed.title[0])
+    assert len(doc.feed.entry) == 3, len(doc.feed.entry)
 
 def test_webfeedjson():
     import simplejson
