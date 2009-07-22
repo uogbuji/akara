@@ -4,7 +4,7 @@ from urllib2 import urlopen
 from amara import bindery
 from amara.tools import atomtools
 
-# luckygoogle.pt
+# luckygoogle.py
 def test_luckygoogle():
     url = server() + "akara.luckygoogle?q=google"
     f = urlopen(url)
@@ -34,6 +34,16 @@ def test_webfeedjson():
     f = urlopen(url)
     results = simplejson.load(f)
     print results
+
+# calweb.py
+# Frankly, this module doesn't seem that useful, so I'll only check
+# to see that I get a response and that it contains a "bcCalendarToday"
+def test_calendar():
+    url = server() + "akara.calendar"
+    s = urlopen(url).read()
+    assert "bcCalendarToday" in s
+
+
 
 if __name__ == "__main__":
     raise SystemExit("Use nosetests")
