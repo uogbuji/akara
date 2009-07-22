@@ -36,11 +36,11 @@ def atom_json(url=None):
     (see: http://www.ibm.com/developerworks/web/library/wa-realweb6/ ; this is based on listing 3)
     
     Sample request:
-    * curl "http://localhost:8880/akara.atom.json?url=http://zepheira.com/news/atom/entries/"
-    * curl http://localhost:8880/akara.atom.json?url=http://zepheira.com/news/index.atom
-    * curl http://localhost:8880/akara.atom.json?url=http://picasaweb.google.com/data/feed/base/user/dysryi/albumid/5342439351589940049
-    * curl http://freemix.it/transform/akara.atom.json?url=http://earthquake.usgs.gov/eqcenter/catalogs/7day-M2.5.xml
+    * curl "http://localhost:8880/akara.atom.json?url=url=http://zepheira.com/feeds/news.atom"
+    * curl "http://localhost:8880/akara.atom.json?url=http://picasaweb.google.com/data/feed/base/user/dysryi/albumid/5342439351589940049"
+    * curl "http://localhost:8880/akara.atom.json?url=http://earthquake.usgs.gov/eqcenter/catalogs/7day-M2.5.xml"
     '''
+    # From http://code.google.com/p/simplejson/
     import simplejson
     url = url[0]
     feed, entries = atomparse(url)
@@ -82,12 +82,18 @@ def webfeed_json(url=None):
     Convert Web feed to Exhibit JSON
     
     Sample request:
-    * curl "http://localhost:8880/akara.webfeed.json?url=http://feeds.delicious.com/v2/rss/url/0a12ebb52dbdeab338c01803d28f0835%3Fcount=15"
+    * curl "http://localhost:8880/akara.webfeed.json?url=http://feeds.delicious.com/v2/rss/recent%3Fmin=1%26count=15"
     '''
+    # From http://www.feedparser.org/
     import feedparser
+    # From http://code.google.com/p/simplejson/
     import simplejson
+
+    if not url:
+        raise AssertionError("The 'url' query parameter is mandatory.")
     url = url[0]
     feed = feedparser.parse(url)
+    # Note: bad URLs might cause feedparser to return without headers
     print >> sys.stderr, "Feed info:", url, feed.version, feed.encoding, feed.headers.get('Content-type')
     
     def process_entry(e):
