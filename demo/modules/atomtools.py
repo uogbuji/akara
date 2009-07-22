@@ -12,17 +12,12 @@ title><id>http://example.com/myfeed</id></feed>
 '''
 
 import sys
-import urllib2
 from cStringIO import StringIO
-from operator import *
-from itertools import *
-from functools import *
 import glob
 
 import amara
 from amara import bindery
-from amara.tools.atomtools import *
-from amara.tools.atomtools import parse as atomparse
+from amara.tools import atomtools
 
 from akara.services import simple_service, response
 
@@ -43,7 +38,7 @@ def atom_json(url=None):
     # From http://code.google.com/p/simplejson/
     import simplejson
     url = url[0]
-    feed, entries = atomparse(url)
+    feed, entries = atomtools.parse(url)
     return simplejson.dumps({'items': entries}, indent=4)
 
 
@@ -58,7 +53,7 @@ FEED_ENVELOPE = AKARA_MODULE_CONFIG.get('feed_envelope')
 DOC_CACHE = None
 
 SERVICE_ID = 'http://purl.org/akara/services/builtin/aggregate.atom'
-@simple_service('GET', SERVICE_ID, 'akara.aggregate.atom', str(ATOM_IMT))
+@simple_service('GET', SERVICE_ID, 'akara.aggregate.atom', str(atomtools.ATOM_IMT))
 def aggregate_atom():
     '''
     Sample request:
@@ -67,7 +62,7 @@ def aggregate_atom():
     global DOC_CACHE
     if DOC_CACHE is None:
         fnames = glob.glob(ENTRIES)
-        doc, metadata = aggregate_entries(FEED_ENVELOPE, fnames)
+        doc, metadata = atomtools.aggregate_entries(FEED_ENVELOPE, fnames)
         buf = StringIO()
         amara.xml_print(doc, stream=buf, indent=True)
         DOC_CACHE = buf.getvalue()
