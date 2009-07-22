@@ -2,6 +2,8 @@ from server_support import server
 
 import urllib, urllib2
 from urllib2 import urlopen
+import os
+
 from amara import bindery
 from amara.tools import atomtools
 
@@ -48,12 +50,18 @@ def test_calendar():
 # icaltools.py
 def test_ical2json():
     import simplejson
+
+    ical_filename = os.path.join(os.path.dirname(__file__), "resource", "icalendar_test.ics")
     url = server() + "ical.json"
+
     req = urllib2.Request(url)
     req.add_header('Content-Type', 'test/calendar')
-    data = open("/Users/dalke/cvses/akara/test/resource/icalendar_test.ics").read()
+
+    data = open(ical_filename).read()
+
     response = urllib2.urlopen(req, data)
     results = simplejson.load(response)
+
     items = results["items"]
     assert len(items) == 2
     assert items[0]["summary"] == "Bastille Day Party"
