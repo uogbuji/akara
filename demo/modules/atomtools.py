@@ -42,7 +42,7 @@ def atom_json(url=None):
     return simplejson.dumps({'items': entries}, indent=4)
 
 
-#
+# These come from the "[atomtools]" section of the Akara configuration file
 ENTRIES = AKARA_MODULE_CONFIG.get('entries')
 FEED_ENVELOPE = AKARA_MODULE_CONFIG.get('feed_envelope')
 
