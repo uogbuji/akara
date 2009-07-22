@@ -3,23 +3,17 @@
 Useful tools for processing markup
 '''
 
-from __future__ import with_statement
-import sys, time
-import urllib, urlparse
 from cStringIO import StringIO
-from itertools import *
 
 import amara
 from amara.bindery import html as htmldoc
 from amara.lib.util import trim_word_count
 
-from akara.services import simple_service, response
+from akara.services import simple_service
 
 SERVICE_ID = 'http://purl.org/akara/services/builtin/trim-word-count'
 @simple_service('post', SERVICE_ID, 'akara.twc', 'application/xml')
 def akara_twc(body, ctype, max=None, html='no'):
-    #Note: the masking of the Python built-in max here illustrats the need to
-    #Declare overridden param -> kwarg mappings
     '''
     Take some POSTed markup and return a version with words trimmed, but intelligently,
     with understanding of markup, so that tags are not counted, and the structure of
@@ -35,7 +29,8 @@ def akara_twc(body, ctype, max=None, html='no'):
     #Is there a monadic approach we can provide for Akara for error handling?  This cries out for "Maybe"
     #(OK OK, the idea of Maybe, but more of the simple expressiveness of assert)
     max_ = int(max[0]) if max else 500
-    html = html if html is 'no' else html[0]
+    if html != "no":
+        html = html[0]
     if html == 'yes':
         doc = amara.parse(body)
     else:
