@@ -94,7 +94,8 @@ def start_server():
     # timing problem. (ticket #9). The file might not yet
     # exist, or not yet be populated with the pid information.
     # Try getting it a few times
-    for i in range(10):
+    REPEAT = 40
+    for i in range(REPEAT):
         try:
             f = open(os.path.join(server_root, "logs", "akara.pid"))
             line = f.readline()
@@ -102,11 +103,11 @@ def start_server():
             # Make sure it's an integer (I've seen it be a blank line)
             int(line)
         except (IOError, ValueError):
-            if i == 9:
+            if i == REPEAT-1:
                 raise
         else:
             break
-        time.sleep(0.1)
+        time.sleep(0.25)
 
     # Save the pid information now so the server will be shut down
     # if there are any problems.
