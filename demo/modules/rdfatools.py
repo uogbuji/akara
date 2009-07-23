@@ -16,7 +16,6 @@ from akara.services import simple_service, response
 URL_REQUIRED = _("The 'url' query parameter is mandatory.")
 
 def get_first_item(items, errmsg):
-    # Handle 'None'
     if not items:
         raise AssertionError(errmsg)
     return items[0]
