@@ -56,10 +56,15 @@ entries: %(atom_entries)s
 feed_envelope: <feed xmlns="http://www.w3.org/2005/Atom">
     <title>Feed me!</title><id>http://example.com/myfeed</id></feed>
 
+[static]
+resource: %(resource_dir)s
+static: %(resource_dir)s/static
+
 """ % dict(server_root = server_root,
            module_dir = MODULE_DIR,
            port = port,
            atom_entries = os.path.join(ATOM_ENTRIES, "*.atom"),
+           resource_dir = os.path.join(dirname(abspath(__file__)), "resource"),
            ))
     f.close()
 
