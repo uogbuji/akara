@@ -35,7 +35,10 @@ def charbyname(name=None):
     curl "http://localhost:8880/akara.unicode.charbyname?name=DOUBLE+DAGGER"
     '''
     name = get_first_item(name, NAME_REQUIRED)
-    return lookup(name).encode('utf-8')
+    try:
+        return lookup(name).encode('utf-8')
+    except KeyError:
+        return ""
 
 
 Q_REQUIRED = _("The 'q' query parameter is mandatory.")
