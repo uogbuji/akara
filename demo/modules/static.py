@@ -1,9 +1,19 @@
 # -*- encoding: utf-8 -*-
+'''
+
+Requires a configuration section, for example:
+
+[static]
+images: /path/to/image/directory
+~me:  /home/directory/public_files
+
+'''
 
 import os
 import stat
 import mimetypes
 from email.utils import formatdate
+import warnings
 
 SERVICE_ID = 'http://purl.org/akara/services/builtin/static'
 
@@ -12,6 +22,9 @@ class MediaHandler(object):
     __name__ = 'MediaHandler'
 
     def __init__(self, media_root):
+        media_root = os.path.abspath(media_root)
+        if not media_root.endswith(os.sep):
+            media_root += os.sep
         self.media_root = media_root
 
     def __call__(self, environ, start_response):
@@ -21,6 +34,12 @@ class MediaHandler(object):
             path_info = path_info[1:]
 
         filename = os.path.join(self.media_root, path_info)
+        # Simple security check.
+        # Things like "con" on Windows will mess it up.
+        filename = os.path.normpath(filename)
+        if not filename.startswith(self.media_root):
+            start_response('401 Unauthorized', [('Content-Type', 'text/plain')])
+            return ["Path is outside of the served directory"]
 
         if not os.path.exists(filename):
             start_response('404 Not Found', [('Content-Type', 'text/plain')])
@@ -38,6 +57,7 @@ class MediaHandler(object):
         # (assuming the browser/client supports conditional GET).
         mtime = formatdate(os.stat(filename).st_mtime, usegmt=True)
         headers = [('Last-Modified', mtime)]
+        print environ
         if environ.get('HTTP_IF_MODIFIED_SINCE', None) == mtime:
             status = '304 Not Modified'
             output = ()
@@ -54,8 +74,10 @@ class MediaHandler(object):
 try:
     paths = list(AKARA_MODULE_CONFIG)
 except NameError:
-    pass
+    warnings.warn("Missing module configuration - is this running in Akara?")
 else:
+    if not paths:
+        warnings.warn("No path information found. Missing [static] configuration section?")
     for path in paths:
         root = AKARA_MODULE_CONFIG[path]
         handler = MediaHandler(root)
