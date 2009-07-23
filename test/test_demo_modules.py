@@ -98,8 +98,30 @@ def test_akara_twc_html():
 <html><head/><body>0 1 2 3 4 5 6 7 8 9</body></html>""", repr(result)
 
 
+# rdfatools.py
+
+def test_rdfa2json():
+    import simplejson
+    url = server() + "akara.rdfa.json?url=http://zepheira.com/"
+    results = simplejson.load(urllib2.urlopen(url))
+    for item in results["items"]:
+        if "dc:creator" in item:
+            assert "Zepheira" in item["dc:creator"]
+            break
+    else:
+        raise AssertionError("Could not find dc:creator")
 
 
+def test_rdfa2json_with_date():
+    import simplejson
+    url = server() + "akara.rdfa.json?url=http://www.myspace.com/parishilton"
+    results = simplejson.load(urllib2.urlopen(url))
+    for item in results["items"]:
+        if "myspace:lastLogin" in item:
+            assert "myspace:lastLoginlocalized" in item
+            break
+    else:
+        raise AssertionError("Could not find myspace:lastLogin")
 
 if __name__ == "__main__":
     raise SystemExit("Use nosetests")
