@@ -1,0 +1,4 @@
+Test files for the static demo module.
+
+The string "SECRET MESSAGE" must be in this README
+file for the regression tests to pass.
