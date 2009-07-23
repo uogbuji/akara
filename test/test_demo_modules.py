@@ -123,5 +123,31 @@ def test_rdfa2json_with_date():
     else:
         raise AssertionError("Could not find myspace:lastLogin")
 
+# unicodetools.py
+
+def test_charbyname():
+    url = server() + "akara.unicode.charbyname?name=DOUBLE+DAGGER"
+    s = urllib2.urlopen(url).read()
+    assert s == u"\N{DOUBLE DAGGER}".encode("utf-8")
+
+def test_charbyname_missing():
+    url = server() + "akara.unicode.charbyname?name=ETAOIN+SHRDLU"
+    s = urllib2.urlopen(url).read()
+    assert s == ""
+
+def test_charsearch():
+    url = server() + "akara.unicode.search?q=DAGGER"
+    doc = bindery.parse(urllib2.urlopen(url))
+    names = set()
+    see_alsos = set()
+    for child in doc.xml_select(u"characters/character"):
+        names.add(child.name)
+        see_alsos.add(child.see_also)
+    assert names == set(["DAGGER", "DOUBLE DAGGER"]), names
+    assert see_alsos == set(
+        ["http://www.fileformat.info/info/unicode/char/2020/index.htm",
+         "http://www.fileformat.info/info/unicode/char/2021/index.htm"]), see_alsos
+    
+
 if __name__ == "__main__":
     raise SystemExit("Use nosetests")
