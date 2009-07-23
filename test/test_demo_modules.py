@@ -3,6 +3,7 @@ from server_support import server
 import urllib, urllib2
 from urllib2 import urlopen
 import os
+from email.utils import formatdate
 
 from amara import bindery
 from amara.tools import atomtools
@@ -147,7 +148,61 @@ def test_charsearch():
     assert see_alsos == set(
         ["http://www.fileformat.info/info/unicode/char/2020/index.htm",
          "http://www.fileformat.info/info/unicode/char/2021/index.htm"]), see_alsos
-    
+
+# static.py
+
+def test_static():
+    # Pull up some static files
+    url = server() + "resource/atom/entry1.atom"
+    response = urllib2.urlopen(url)
+    assert response.code == 200
+    assert response.headers["Content-Type"] == "application/atom+xml", response.headers["Content-Type"]
+    s = response.read()
+    assert "Poster Boy @ Flickr" in s
+
+    url = server() + "static/README"
+    s = urllib2.urlopen(url).read()
+    assert "SECRET MESSAGE" in s
+
+    # Check that that leading "/" is trimmed
+    url = server() + "//static////README"
+    s = urllib2.urlopen(url).read()
+    assert "SECRET MESSAGE" in s
+
+def _http_failure(url, code):
+    try:
+        urllib2.urlopen(url).read()
+        raise AssertionError("unexpected success")
+    except urllib2.HTTPError, err:
+        assert err.code == code
+
+def test_static_missing_file():
+    url = server() + "static/missing_file"
+    _http_failure(url, 404)
+
+def test_static_bad_relative_file():
+    url = server() + "static/../../server_support.py"
+    _http_failure(url, 401)
+
+def test_static_unauthorized():
+    url = server() + "static"
+    _http_failure(url, 401)
+
+
+# The simple code in the server only checks to see
+# if the timestamp has changed.
+_readme = os.path.join(os.path.dirname(__file__), "resource", "static", "README")
+_modified_since = formatdate(os.stat(_readme).st_mtime, usegmt=True)
+
+def test_static_last_modified():
+    url = server() + "static/README"
+    req = urllib2.Request(url)
+    req.add_header('If-Modified-Since', _modified_since)
+    try:
+        response = urllib2.urlopen(req)
+        raise AssertionError("testing shows that this path isn't taken")
+    except urllib2.HTTPError, err:
+        assert err.code == 304, err.code
 
 if __name__ == "__main__":
     raise SystemExit("Use nosetests")
