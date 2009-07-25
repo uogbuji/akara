@@ -80,8 +80,8 @@ def remove_server_dir():
         server_pid = None
 
     if server_root is not None:
-        print server_root
-        #shutil.rmtree(server_root)
+        #print server_root
+        shutil.rmtree(server_root)
         server_root = None
 
 atexit.register(remove_server_dir)
