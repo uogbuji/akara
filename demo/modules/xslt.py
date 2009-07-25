@@ -5,9 +5,6 @@ See also:
 
 from __future__ import with_statement
 import sys, time
-import urllib, urlparse
-from cgi import parse_qs
-from cStringIO import StringIO
 from itertools import *
 
 import amara

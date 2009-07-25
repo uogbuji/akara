@@ -8,13 +8,6 @@ from email.utils import formatdate
 from amara import bindery
 from amara.tools import atomtools
 
-# luckygoogle.py
-def test_luckygoogle():
-    url = server() + "akara.luckygoogle?q=google"
-    response = urlopen(url)
-    s = response.read()
-    assert s == "http://www.google.com/\n", repr(s)
-
 # atomtools.py
 def test_atom_json():
     import simplejson
@@ -40,6 +33,7 @@ def test_webfeedjson():
     print results
 
 # calweb.py
+
 # Frankly, this module doesn't seem that useful, so I'll only check
 # to see that I get a response and that it contains a "bcCalendarToday"
 def test_calendar():
@@ -49,6 +43,7 @@ def test_calendar():
 
 
 # icaltools.py
+
 def test_ical2json():
     import simplejson
 
@@ -67,6 +62,15 @@ def test_ical2json():
     assert len(items) == 2
     assert items[0]["summary"] == "Bastille Day Party"
     assert items[1]["summary"] == "Akara test"
+
+# luckygoogle.py
+
+def test_luckygoogle():
+    url = server() + "akara.luckygoogle?q=google"
+    response = urlopen(url)
+    s = response.read()
+    assert s == "http://www.google.com/\n", repr(s)
+
 
 # markuptools.py
 
@@ -98,6 +102,13 @@ def test_akara_twc_html():
 <?xml version="1.0" encoding="UTF-8"?>
 <html><head/><body>0 1 2 3 4 5 6 7 8 9</body></html>""", repr(result)
 
+# moin2atomentries.py - incomplete? Couldn't figure out what to test.
+
+# moincms.py - the commented example fails, couldn't figure out what to test.
+
+# moinrest - instructions didn't work, couldn't figure out what to test.
+
+# oaitools - couldn't get it to work, couldn't figure out how to make it work, hence no tests.
 
 # rdfatools.py
 
@@ -123,31 +134,6 @@ def test_rdfa2json_with_date():
             break
     else:
         raise AssertionError("Could not find myspace:lastLogin")
-
-# unicodetools.py
-
-def test_charbyname():
-    url = server() + "akara.unicode.charbyname?name=DOUBLE+DAGGER"
-    s = urllib2.urlopen(url).read()
-    assert s == u"\N{DOUBLE DAGGER}".encode("utf-8")
-
-def test_charbyname_missing():
-    url = server() + "akara.unicode.charbyname?name=ETAOIN+SHRDLU"
-    s = urllib2.urlopen(url).read()
-    assert s == ""
-
-def test_charsearch():
-    url = server() + "akara.unicode.search?q=DAGGER"
-    doc = bindery.parse(urllib2.urlopen(url))
-    names = set()
-    see_alsos = set()
-    for child in doc.xml_select(u"characters/character"):
-        names.add(child.name)
-        see_alsos.add(child.see_also)
-    assert names == set(["DAGGER", "DOUBLE DAGGER"]), names
-    assert see_alsos == set(
-        ["http://www.fileformat.info/info/unicode/char/2020/index.htm",
-         "http://www.fileformat.info/info/unicode/char/2021/index.htm"]), see_alsos
 
 # static.py
 
@@ -203,6 +189,40 @@ def test_static_last_modified():
         raise AssertionError("testing shows that this path isn't taken")
     except urllib2.HTTPError, err:
         assert err.code == 304, err.code
+
+# statstools - needs R installed
+
+# svntools - needs SVN installed
+
+# unicodetools.py
+
+def test_charbyname():
+    url = server() + "akara.unicode.charbyname?name=DOUBLE+DAGGER"
+    s = urllib2.urlopen(url).read()
+    assert s == u"\N{DOUBLE DAGGER}".encode("utf-8")
+
+def test_charbyname_missing():
+    url = server() + "akara.unicode.charbyname?name=ETAOIN+SHRDLU"
+    s = urllib2.urlopen(url).read()
+    assert s == ""
+
+def test_charsearch():
+    url = server() + "akara.unicode.search?q=DAGGER"
+    doc = bindery.parse(urllib2.urlopen(url))
+    names = set()
+    see_alsos = set()
+    for child in doc.xml_select(u"characters/character"):
+        names.add(child.name)
+        see_alsos.add(child.see_also)
+    assert names == set(["DAGGER", "DOUBLE DAGGER"]), names
+    assert see_alsos == set(
+        ["http://www.fileformat.info/info/unicode/char/2020/index.htm",
+         "http://www.fileformat.info/info/unicode/char/2021/index.htm"]), see_alsos
+
+
+# wwwlogviewer.py
+
+# xslt.py
 
 if __name__ == "__main__":
     raise SystemExit("Use nosetests")
