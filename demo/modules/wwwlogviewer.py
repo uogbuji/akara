@@ -44,7 +44,7 @@ LOGLINE_PAT = re.compile(r'(?P<origin>\d+\.\d+\.\d+\.\d+) '
 # Python uses Perl regex, so it should be readily portable
 # The r'' string form is just a convenience so you don't have to escape backslashes
 COMBINED_LOGLINE_PAT = re.compile(
-  r'(?P<origin>\d+\.\d+\.\d+\.\d+) '
+  r'(?P<origin>[^\s]+) '
 + r'(?P<identd>-|\w*) (?P<auth>-|\w*) '
 + r'\[(?P<ts>(?P<date>[^\[\]:]+):(?P<time>\d+:\d+:\d+)) (?P<tz>[\-\+]?\d\d\d\d)\] '
 + r'"(?P<method>\w+) (?P<path>[\S]+) (?P<protocol>[^"]+)" (?P<status>\d+) (?P<bytes>-|\d+)'
@@ -118,20 +118,22 @@ def wwwlog2json(body, ctype, maxrecords=None, nobots=False):
     Sample request:
     * curl --request POST --data-binary "@access.log" --header "Content-Type: text/plain" "http://localhost:8880/akara.wwwlog.json"
     '''
+    if maxrecords:
+        maxrecords = int(maxrecords[0])
     entries = []
-    #for count, line in enumerate(itertools.islice(sys.stdin, 0, MAXRECORDS)):
     for count, line in enumerate(body.splitlines()):
-        if maxrecords and count > maxrecords: break
+        if maxrecords and count >= maxrecords:
+            break
         match_info = COMBINED_LOGLINE_PAT.match(line)
         if not match_info:
             print >> sys.stderr, "Unable to parse log line: ", line
             continue
-        # If you want to include robot clients, comment out the next two lines
         if nobots and bot_check(match_info):
             continue
         entry = {}
         timestamp = parse_apache_date(match_info.group('ts'), match_info.group('tz'))
         timestamp_str = timestamp.isoformat()
+
         # To make Exhibit happy, set id and label fields that give some information
         # about the entry, but are unique across all entries (ensured by appending count)
         entry['id'] = match_info.group('origin') + ':' + timestamp_str + ':' + str(count)
@@ -149,6 +151,7 @@ def wwwlog2json(body, ctype, maxrecords=None, nobots=False):
             entry['referrer'] = match_info.group('referrer')
         entry['client'] = match_info.group('client')
         entries.append(entry)
+
     return simplejson.dumps({'items': entries}, indent=4)
 
 """
