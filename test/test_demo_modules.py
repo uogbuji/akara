@@ -11,6 +11,7 @@ import os
 from email.utils import formatdate
 
 from amara import bindery
+from amara.lib import iri
 from amara.tools import atomtools
 
 RESOURCE_DIR = os.path.join(os.path.dirname(__file__), "resource")
@@ -233,7 +234,6 @@ _apache_query_data = open(os.path.join(RESOURCE_DIR, "widefinder_100.apache_log"
 def _make_log2json_request(query_args):
     import simplejson
     url = server() + "akara.wwwlog.json" + query_args
-    print "Sending", url
     req = urllib2.Request(url)
     req.add_header("Content-Type", "text/plain")
     response = urllib2.urlopen(req, _apache_query_data)
@@ -265,6 +265,16 @@ def test_wwwlog2json_nobots():
     assert len(items) == 183, len(items)
 
 # xslt.py
+XML_DATA = open(os.path.join(RESOURCE_DIR, "xslt_spec_example.xml")).read()
+XSLT_URL = iri.os_path_to_uri(os.path.join(RESOURCE_DIR, "xslt_spec_example.xslt"))
+def test_xslt():
+    url = server() + "akara.xslt?" + urllib.urlencode({"@xslt": XSLT_URL})
+    req = urllib2.Request(url)
+    req.add_header("Content-Type", "text/xml")
+    response = urllib2.urlopen(req, XML_DATA)
 
+    doc = bindery.parse(response)
+    assert str(doc.html.head.title) == "Document Title", repr(str(doc.html.head.title))
+    
 if __name__ == "__main__":
     raise SystemExit("Use nosetests")
