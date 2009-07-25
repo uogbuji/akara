@@ -1,3 +1,8 @@
+# NOTE: you can test against a running server by setting AKARA_TEST_SERVER
+# Here's one way to use a server on a different port on localhost:
+#   env AKARA_TEST_SERVER=localhost:49658 nosetests test_demo_modules.py
+# I do this to get around the server startup costs when developing/debugging tests.
+
 from server_support import server
 
 import urllib, urllib2
@@ -7,6 +12,8 @@ from email.utils import formatdate
 
 from amara import bindery
 from amara.tools import atomtools
+
+RESOURCE_DIR = os.path.join(os.path.dirname(__file__), "resource")
 
 # atomtools.py
 def test_atom_json():
@@ -47,7 +54,7 @@ def test_calendar():
 def test_ical2json():
     import simplejson
 
-    ical_filename = os.path.join(os.path.dirname(__file__), "resource", "icalendar_test.ics")
+    ical_filename = os.path.join(RESOURCE_DIR, "icalendar_test.ics")
     url = server() + "ical.json"
 
     req = urllib2.Request(url)
@@ -177,7 +184,7 @@ def test_static_unauthorized():
 
 # The simple code in the server only checks to see
 # if the timestamp has changed.
-_readme = os.path.join(os.path.dirname(__file__), "resource", "static", "README")
+_readme = os.path.join(RESOURCE_DIR, "static", "README")
 _modified_since = formatdate(os.stat(_readme).st_mtime, usegmt=True)
 
 def test_static_last_modified():
@@ -221,6 +228,41 @@ def test_charsearch():
 
 
 # wwwlogviewer.py
+
+_apache_query_data = open(os.path.join(RESOURCE_DIR, "widefinder_100.apache_log")).read()
+def _make_log2json_request(query_args):
+    import simplejson
+    url = server() + "akara.wwwlog.json" + query_args
+    print "Sending", url
+    req = urllib2.Request(url)
+    req.add_header("Content-Type", "text/plain")
+    response = urllib2.urlopen(req, _apache_query_data)
+    return simplejson.load(response)
+
+def test_wwwlog2json():
+    results = _make_log2json_request("")
+    items = results["items"]
+    assert len(items) == 200, len(items)
+    assert items[0]["origin"] == "host-24-225-218-245.patmedia.net"
+    assert items[-1]["timestamp"] == "2006-10-01T06:36:01-07:00"
+
+def test_wwwlog2json_maxrecords():
+    results = _make_log2json_request("?maxrecords=10")
+    items = results["items"]
+    assert len(items) == 10, len(items)
+    assert items[0]["origin"] == "host-24-225-218-245.patmedia.net"
+    assert items[-1]["timestamp"] == "2006-10-01T06:33:55-07:00", items[-1]["timestamp"]
+
+def test_wwwlog2json_maxrecords_large():
+    # Size is greater than the number of records
+    results = _make_log2json_request("?maxrecords=1000")
+    items = results["items"]
+    assert len(items) == 200, len(items)
+
+def test_wwwlog2json_nobots():
+    results = _make_log2json_request("?nobots=1")
+    items = results["items"]
+    assert len(items) == 183, len(items)
 
 # xslt.py
 
