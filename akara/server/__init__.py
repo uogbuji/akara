@@ -449,7 +449,6 @@ class process(object):
         self.log.notice('process %d exiting' % self.current_pid)
         return 0
 
-
 # COMMAND-LINE --------------------------------------------------------
 
 import getopt

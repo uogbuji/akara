@@ -12,6 +12,7 @@ title><id>http://example.com/myfeed</id></feed>
 '''
 
 import sys
+from datetime import datetime, timedelta
 from cStringIO import StringIO
 import glob
 
@@ -60,13 +61,20 @@ def aggregate_atom():
     * curl "http://localhost:8880/akara.aggregate.atom"
     '''
     global DOC_CACHE
+    refresh = False
     if DOC_CACHE is None:
+        refresh = True
+    else:
+        expiration = DOC_CACHE[1] + timedelta(minutes=15)
+        if datetime.now() > expiration:
+            refresh = True
+    if refresh:
         fnames = glob.glob(ENTRIES)
         doc, metadata = atomtools.aggregate_entries(FEED_ENVELOPE, fnames)
         buf = StringIO()
         amara.xml_print(doc, stream=buf, indent=True)
-        DOC_CACHE = buf.getvalue()
-    return DOC_CACHE
+        DOC_CACHE = buf.getvalue(), datetime.now()
+    return DOC_CACHE[0]
 
 
 #We love Atom, but for sake of practicality, here is a transform for general feeds

@@ -1,8 +1,6 @@
 # -*- coding: iso-8859-1 -*-
 # 
 """
-akara.restwrap.moin
-
 A RESTful wrapper for MoinMoin wikis
 
 Copyright 2009 Uche Ogbuji
@@ -16,31 +14,29 @@ Project home, documentation, distributions: http://wiki.xml3k.org/Akara
 You'll need a config entry such as:
 
 [moinrest]
-target=http://wiki.xml3k.org
+target-xml3k=http://wiki.xml3k.org
 
-Can be launched from the command line, e.g.:
-    python akara/restwrap/moin.py http://mywiki.example.com/
 """
 #Detailed license and copyright information: http://4suite.org/COPYRIGHT
 
 from __future__ import with_statement
 
-MAIN_DOC = '''
+SAMPLE_QUERIES_DOC = '''
 Some sample queries:
-    curl http://localhost:8880/moin/FrontPage
-    curl -H Accept: application/docbook+xml" http://localhost:8880/moin/FrontPage
-    curl -H "Accept: application/rdf+xml" http://localhost:8880/moin/FrontPage
-    curl -H "Accept: application/x-moin-attachments+xml" http://localhost:8880/moin/FrontPage
-    curl --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: text/plain" "http://localhost:8880/moin/FooTest"
-    curl --request POST --data-binary "@wikicontent.txt" --header "Content-Type: text/plain" "http://localhost:8880/moin/FooTest;attachment=wikicontent.txt"
+    curl http://localhost:8880/moin/xml3k/FrontPage
+    curl -H Accept: application/docbook+xml" http://localhost:8880/moin/xml3k/FrontPage
+    curl -H "Accept: application/rdf+xml" http://localhost:8880/moin/xml3k/FrontPage
+    curl -H "Accept: application/x-moin-attachments+xml" http://localhost:8880/moin/xml3k/FrontPage
+    curl --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: text/plain" "http://localhost:8880/moin/xml3k/FooTest"
+    curl --request POST --data-binary "@wikicontent.txt" --header "Content-Type: text/plain" "http://localhost:8880/moin/xml3k/FooTest;attachment=wikicontent.txt"
 
-    curl -u me:passwd -p --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: text/plain" "http://localhost:8880/moin/FooTest"
+    curl -u me:passwd -p --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: text/plain" "http://localhost:8880/moin/xml3k/FooTest"
 
     Get an attached page:
-    curl "http://localhost:8880/moin/FooTest;attachment=wikicontent.txt"
+    curl "http://localhost:8880/moin/xml3k/FooTest;attachment=wikicontent.txt"
 '''
 
-__doc__ += MAIN_DOC
+__doc__ += SAMPLE_QUERIES_DOC
 
 import sys
 import os
@@ -295,7 +291,7 @@ def fill_attachment_form(page, attachment, wiki_id, base, opener):
 
 @service(['HEAD', 'GET', 'PUT', 'POST'], SERVICE_ID, DEFAULT_MOUNT)
 def dispatcher(environ, start_response):
-    __doc__ = MAIN_DOC
+    __doc__ = SAMPLE_QUERIES_DOC
     #print >> sys.stderr, globals()['head_page'], dir(globals()['head_page'])
     return rest_dispatch(environ, start_response, environ['akara.service_id'], globals())
 
