@@ -61,6 +61,7 @@ from amara.writers.struct import *
 from amara.bindery.html import parse as htmlparse
 from amara.bindery.model import *
 from amara.lib.iri import * #split_fragment, relativize, absolutize
+#from amara import inputsource
 
 from akara.util import multipart_post_handler, wsgibase, http_method_handler
 
@@ -116,8 +117,6 @@ four_oh_four = Template("""
 SERVICE_ID = 'http://purl.org/akara/services/builtin/xslt'
 DEFAULT_MOUNT = 'moin'
 
-normalize = DEFAULT_RESOLVER.normalize
-
 
 def target(environ):
     #print >> sys.stderr, 'SCRIPT_NAME', environ['SCRIPT_NAME']
@@ -140,7 +139,7 @@ def check_auth(environ, start_response, base, opener):
     #print >> sys.stderr, 'Auth creds: ', username, password
     #user = self.user if user is None else user
     #password = self.password if password is None else password
-    url = normalize('?action=login&name=%s&password=%s&login=login'%(username, password), base)
+    url = absolutize('?action=login&name=%s&password=%s&login=login'%(username, password), base)
     request = urllib2.Request(url)
     try:
         with closing(opener.open(request)) as resp:
