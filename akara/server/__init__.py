@@ -76,21 +76,21 @@ class process(object):
 
     ident = 'akara'
     config_file = SERVER_CONFIG_FILE
-    log_level = logger.LOG_WARN
-
     current_pid = 0
 
-    def __init__(self, config_file=None, log_level=None, debug=None):
+    def __init__(self, config_file=None, debug=None):
         if config_file is not None:
             self.config_file = config_file
-        if log_level is not None:
-            log_level = logger.LOG_WARN
-        self.debug = not not debug
-        # Force debug level logging for "one process" debug mode
+        self.debug = bool(debug)
+        # Default log level, only used until the config file is read.
         if debug:
-            log_level = logger.LOG_DEBUG
+            # Force debug level logging for "one process" debug mode
+            self.log_level = logger.LOG_DEBUG
+        else:
+            self.log_level = logger.LOG_WARN
+
         # setup stderr logging for startup logging
-        self.log = logger.logger(self.ident, sys.stderr, log_level, False)
+        self.log = logger.logger(self.ident, sys.stderr, self.log_level, False)
 
     def set_signals(self):
         def shutdown_callback(signum, frame, process=self):
@@ -453,24 +453,20 @@ class process(object):
 
 import getopt
 
-def main(argv=None):
-    if argv is None:
-        argv = sys.argv
+def create_process(argv):
     ##OptionParser commented out in changeset 54:0cc733983ad4 because
     ## of some _locale interaction with CoreFoundation on Mac OSX 10.5.
     #from optparse import OptionParser
     #parser = OptionParser(prog=os.path.basename(argv[0]))
     #parser.add_option('-X', '--debug', action='store_true')
-    #parser.add_option('-v', '--verbose', action='count', default=0)
     #parser.add_option('-f', '--config-file')
 
     # Parse the command-line
     debug = False
-    verbosity = 0
     config_file = None
     try:
-        options, args = getopt.getopt(argv[1:], 'hqvf:X',
-                                      ('help', 'quiet', 'verbose',
+        options, args = getopt.getopt(argv[1:], 'hf:X',
+                                      ('help', 
                                        'config-file='))
     except getopt.GetoptError, e:
         print >> sys.stderr, e.msg
@@ -480,10 +476,6 @@ def main(argv=None):
         if opt in ('-h', '--help'):
             print >> sys.stderr, 'usage: '
             return 1
-        elif opt in ('-q', '--quiet'):
-            verbosity -= 1
-        elif opt in ('-v', '--verbose'):
-            verbosity += 1
         elif opt in ('-f', '--config-file'):
             config_file = val
         elif opt == '-X':
@@ -495,17 +487,13 @@ def main(argv=None):
     #except IndexError:
     #    parser.error("Missing required argument")
 
-    # Setup initial logging levels
-    if verbosity > 2:
-        log_level = logger.LOG_DEBUG
-    elif verbosity > 1:
-        log_level = logger.LOG_INFO
-    elif verbosity > 0:
-        log_level = logger.LOG_NOTICE
-    else:
-        log_level = logger.LOG_WARN
+    return process(config_file, debug)
 
-    return process(config_file, log_level, debug).run()
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    process = create_process(argv)
+    process.run()
 
 if __name__ == "__main__":
     sys.exit(main())
