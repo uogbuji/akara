@@ -81,7 +81,7 @@ class process(object):
     def __init__(self, config_file=None, debug=None):
         if config_file is not None:
             self.config_file = config_file
-        self.debug = bool(debug)
+        self.debug = debug
         # Default log level, only used until the config file is read.
         if debug:
             # Force debug level logging for "one process" debug mode
