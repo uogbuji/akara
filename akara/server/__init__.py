@@ -93,10 +93,10 @@ class process(object):
         self.log = logger.logger(self.ident, sys.stderr, log_level, False)
 
     def set_signals(self):
-        def shutdown_callback(signum, frame, server=self):
-            server.shutdown_pending = True
-        def restart_callback(signum, frame, server=self):
-            server.restart_pending = True
+        def shutdown_callback(signum, frame, process=self):
+            process.shutdown_pending = True
+        def restart_callback(signum, frame, process=self):
+            process.restart_pending = True
 
         signal.signal(signal.SIGTERM, shutdown_callback)
         if self.debug:
@@ -456,6 +456,8 @@ import getopt
 def main(argv=None):
     if argv is None:
         argv = sys.argv
+    ##OptionParser commented out in changeset 54:0cc733983ad4 because
+    ## of some _locale interaction with CoreFoundation on Mac OSX 10.5.
     #from optparse import OptionParser
     #parser = OptionParser(prog=os.path.basename(argv[0]))
     #parser.add_option('-X', '--debug', action='store_true')
