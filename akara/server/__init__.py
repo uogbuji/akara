@@ -144,15 +144,18 @@ class process(object):
         self.log_level = config.get('global', 'LogLevel')
         try:
             logf = open(self.error_log, 'a+')
-        except OSError, e:
-            self.log.alert("could not open error log file '%s': %s\n",
-                           self.error_log, str(e))
+        except IOError, e:
+            self.log.alert("could not open error log file %r: %s\n",
+                           self.error_log, e)
             raise SystemExit(1)
         try:
             self.log_level = _log_levels[self.log_level.lower()]
-        except:
-            self.log.crit('LogLevel requires level keyword; one of %s',
-                          ' | '.join(_log_levels))
+        except KeyError:
+            ordered_log_levels = sorted(_log_levels, key=lambda key: _log_levels[key])
+            self.log.critical('LogLevel requires level keyword; one of %s',
+                              ' | '.join(ordered_log_levels))
+            raise SystemExit(1)
+
         if self.debug:
             self.log = logger.logger(self.ident, sys.stderr, logger.LOG_DEBUG,
                                      True, False)
@@ -169,8 +172,11 @@ class process(object):
         self.max_free_servers = config.getint('global', 'MaxSpareServers')
         self.max_requests = config.getint('global', 'MaxRequestsPerServer')
 
+        return config
+
+    def start_application(self):
+        config = self.read_config()
         self.application = wsgi_application(self, config)
-        return
 
     def detach_process(self):
         if os.fork():
@@ -390,8 +396,8 @@ class process(object):
         # Setup hooks for controlling within the OS
         self.set_signals()
 
-        # Read the configuration
-        self.read_config()
+        # Read the configuration and start the WSGI application
+        self.start_application()
 
         if not self.debug:
             self.detach_process()
@@ -443,7 +449,7 @@ class process(object):
 
             self.log.notice("graceful restart...")
 
-            self.read_config()
+            self.start_application()
             continue
 
         self.log.notice('process %d exiting' % self.current_pid)
