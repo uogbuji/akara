@@ -192,24 +192,23 @@ class process(object):
         for stream in (sys.stdin, sys.stdout, sys.stderr):
             if stream.isatty():
                 stream.close()
-        return
 
     def save_pid(self):
         pid = os.getpid()
         if os.path.exists(self.pid_file) and self.current_pid != pid:
-            self.log.warning('PID file %s overwritten -- unclean '
+            self.log.warning('PID file %r overwritten -- unclean '
                              'shutdown of previous run?', self.pid_file)
         try:
             fd = open(self.pid_file, 'w')
         except Exception, error:
-            self.log.critical("Unable to open pid file '%s': %s\n",
-                              self.pid_file, str(error))
+            self.log.critical("Unable to open PID file %r: %s\n",
+                              self.pid_file, error)
             sys.exit(1)
 
         try:
             fd.write(str(pid))
         except Exception, error:
-            self.log.critical("Unable to write to pid file '%s': %s\n",
+            self.log.critical("Unable to write to PID file '%s': %s\n",
                               self.pid_file, str(error))
             try:
                 fd.close()
@@ -224,18 +223,16 @@ class process(object):
             sys.exit(1)
 
         self.current_pid = pid
-        return
 
     def remove_pid(self):
         if os.path.exists(self.pid_file):
             try:
                 os.remove(self.pid_file)
             except Exception, error:
-                self.log.debug("Unable to remove file '%s': %s\n",
-                               self.pid_file, str(error))
+                self.log.debug("Unable to remove PID file %r: %s\n",
+                               self.pid_file, error)
             else:
-                self.log.info('removed PID file %s\n', self.pid_file)
-        return
+                self.log.info('Removed PID file %r\n', self.pid_file)
 
     wait_or_timeout = functools.partial(time.sleep, MAINTENANCE_INTERVAL)
 
@@ -250,7 +247,7 @@ class process(object):
 
         # Remove any dead servers
         if inactive:
-            self.log.notice('purging %d unused servers', len(inactive))
+            self.log.notice('Purging %d unused servers', len(inactive))
             for slot in inactive:
                 self.servers[slot] = None
 
@@ -302,21 +299,21 @@ class process(object):
         else:
             address = 'address %s port %d' % (host, port)
 
-        self.log.debug('creating socket for %s' % address)
+        self.log.debug('Creating socket for %s' % address)
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         except:
-            raise Exception('failed to get a socket for %s' % address)
+            raise Exception('Failed to get a socket for %s' % address)
 
         try:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         except:
-            raise Exception('for %s, setsockopt: SO_REUSEADDR' % address)
+            raise Exception('For %s, setsockopt: SO_REUSEADDR' % address)
 
         try:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
         except:
-            raise Exception('for %s, setsockopt: SO_KEEPALIVE' % address)
+            raise Exception('For %s, setsockopt: SO_KEEPALIVE' % address)
 
         # The Nagle algorithm says that we should delay sending partial
         # packets in hopes of getting more data.  We don't want to do
@@ -329,68 +326,62 @@ class process(object):
         try:
             sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         except:
-            msg = 'for %s, setsockopt: TCP_NODELAY' % address
+            msg = 'For %s, setsockopt: TCP_NODELAY' % address
             self.log.warning(msg)
 
         try:
             sock.bind((host, port))
         except:
-            raise Exception('could not bind to %s' % address)
+            raise Exception('Could not bind to %s' % address)
 
         try:
             sock.listen(socket.SOMAXCONN)
         except:
-            raise Exception('unable to listen for connections on %s' % address)
+            raise Exception('Unable to listen for connections on %s' % address)
 
         return sock
 
     def spawn_servers(self, slots):
-        self.log.notice('creating %d new servers', len(slots))
+        self.log.notice('Creating %d new servers', len(slots))
         for slot in slots:
             server = self.server_type(slot, self)
             server.start()
             self.servers[slot] = server
-        return
 
-    def reclaim_servers(self, _time=time.time, _sleep=time.sleep):
-        self.log.info('waiting for servers to exit...')
-        # Begin with the set of servers that are alive
-        servers = [ server for server in self.servers if server ]
-        # Continue trying each each `action` for the given `duration`.
-        waittime = 1.0 / 64
-        for action, duration in (('stop', 3.0), ('term', 6.0),
-                                 # A `duration` <1 ensures one iteration
-                                 ('kill', 0.5), ('cont', 0.5)):
-            endtime = _time() + duration
-            while servers and _time() < endtime:
-                _sleep(waittime)
-                # Don't let `waittime` exceed 1 second, to ensure reasonable
-                # response time.
-                if waittime < 1.0: waittime *= 4
-                # Process the servers which are still serving requests
-                servers = [ server for server in servers if server.active ]
-                for server in servers:
-                    if action == 'stop':
-                        server.stop()
-                    elif action == 'term':
-                        self.log.warning(
-                            "server '%s' still did not exit, terminating",
-                            server.name)
-                        server.terminate()
-                    elif action == 'kill':
-                        self.log.error(
-                            "server '%s' still did not exit, killing",
-                            server.name)
-                        server.kill()
-                    elif action == 'cont':
-                        self.log.error(
-                            "could not make server '%s' exit, "
-                            "attempting to continue anyway", server.name)
-            # Everyone has finished!
+    def reclaim_servers(self, _sleep=time.sleep):
+        def stop(server):
+            server.stop()
+        def terminate(server):
+            self.log.warning("Server %r still did not exit, terminating",
+                             server.name)
+            server.terminate()
+        def kill(server):
+            self.log.error("Server %r still did not exit, killing",
+                           server.name)
+            server.kill()
+        def cont(server):
+            self.log.error("Could not make server %r exit, "
+                           "attempting to continue anyway", server.name)
+
+
+        self.log.info('Waiting for servers to exit...')
+        # Begin with the set of active servers
+        servers = [ server for server in self.servers if server.active ]
+        # Try each 'action' and wait at least 'duration' seconds until the next action
+        for action, duration in (
+            (stop, 1./64), (stop, 1./16), (stop, 1./4), (stop, 1.0), (stop, 2.0),
+            (terminate, 2.0), (terminate, 3.0),
+            (kill, 0.5), (cont, 0.0)):
+
+            for server in servers:
+                action(server)
+
+            servers = [ server for server in servers if server.active ]
             if not servers:
                 break
+            _sleep(duration)
+
         del self.listeners, self.servers
-        return
 
     def run(self):
         # Setup hooks for controlling within the OS
@@ -426,7 +417,7 @@ class process(object):
             self.servers = [None]*self.max_servers
             self.spawn_servers(range(self.start_servers))
 
-            self.log.notice("started akara server (pid=%d) for %s:%d",
+            self.log.notice("Started akara server (pid=%d) for %s:%d",
                             self.current_pid, self.server_name,
                             self.server_port)
 
@@ -437,7 +428,7 @@ class process(object):
                 self.idle_maintenance()
 
             if self.shutdown_pending:
-                self.log.notice("shutting down")
+                self.log.notice("Shutting down")
 
             self.reclaim_servers()
 
@@ -447,12 +438,12 @@ class process(object):
                 self.remove_pid()
                 break
 
-            self.log.notice("graceful restart...")
+            self.log.notice("Graceful restart...")
 
             self.start_application()
             continue
 
-        self.log.notice('process %d exiting' % self.current_pid)
+        self.log.notice('Process %d exiting' % self.current_pid)
         return 0
 
 # COMMAND-LINE --------------------------------------------------------
