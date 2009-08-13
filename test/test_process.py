@@ -63,12 +63,13 @@ def test_process_missing_config():
             process = server.create_process([argv0, "-f", "/dev/null/does/not/exist", "-X"])
             try:
                 process.read_config()
+                raise AssertionError("Why didn't that fail?")
             except SystemExit:
                 # ignore the SystemExit because no port was specified
                 pass
         msg = stderr.getvalue()
         assert "does/not/exist" in msg, msg
-        assert "no listening sockets available" in msg, msg
+        assert "Missing required 'Listen' setting" in msg, msg
 
 
 def write_config(server_root, params):
@@ -130,7 +131,7 @@ def test_process_no_error_log():
             except SystemExit:
                 pass
     msg = stderr.getvalue()
-    assert "could not open error log file"  in msg, msg
+    assert "Could not open error log file"  in msg, msg
     assert "/does/not/exist" in msg, msg
 
 
@@ -302,3 +303,120 @@ def test_reclaim_servers():
     assert "Server 'bacon' still did not exit, killing" not in msg, msg
     assert "Server 'ni' still did not exit, killing" in msg, msg
     assert "Could not make server 'ni' exit" in msg, msg
+
+
+class RunningServer(object):
+    started = False
+    stopped = False
+    def __init__(self, active, ready):
+        self.active = active
+        self.ready = ready
+    def start(self):
+        self.started = True
+    def stop(self):
+        self.stopped = True
+
+def IdleServer(): return RunningServer(active=1, ready=1)
+def InactiveServer(): return RunningServer(active=0, ready=0)
+def start_new_server(slot, server):
+    return RunningServer(active=1, ready=0)
+
+
+def test_idle_cull():
+    fake_servers = [IdleServer(), IdleServer(),
+                    None, InactiveServer(),
+                    IdleServer(), IdleServer(),
+                    InactiveServer(), None] + [IdleServer() for i in range(10)]
+
+    with config_tempdir() as server_root:
+        process = _start_process(server_root)
+        assert process.min_spare_servers == 5, process.min_spare_servers
+        assert process.max_spare_servers == 10, process.max_spare_servers
+
+        process.servers = fake_servers
+        process.idle_maintenance()
+
+        # All of the inactive ones should be gone
+        for i, slot in enumerate(process.servers):
+            if i in (2, 3, 6, 7):
+                assert slot is None, (i, slot)
+            else:
+                assert slot is not None, (i, slot)
+        # The last one (an IdleServer) should be stopped
+        assert process.servers[-1].stopped
+        
+        msg = _get_log(server_root)
+        assert "Purging 2 unused servers" in msg, msg
+        
+
+def test_idle_spawn():
+    fake_servers = [None] * 50
+
+    with config_tempdir() as server_root:
+        process = _start_process(server_root,
+                                 MinSpareServers=3, MaxSpareServers=8, MaxServers=50)
+        assert process.min_spare_servers == 3
+        assert process.max_spare_servers == 8
+        assert process.max_servers == 50
+
+        process.servers = fake_servers
+        process.server_type = start_new_server
+        process._idle_spawn_rate = 1
+
+        process.idle_maintenance()
+        # Should have added 1 server
+        assert fake_servers[0] is not None
+        assert fake_servers[1:] == [None] * (len(fake_servers)-1)
+        assert process._idle_spawn_rate == 2
+
+        process.idle_maintenance()
+        # Should have added 2 servers
+        assert None not in fake_servers[:3]
+        assert fake_servers[3:] == [None] * (len(fake_servers)-3)
+        assert process._idle_spawn_rate == 4
+        msg = _get_log(server_root)
+        assert "Creating 2 new servers" in msg
+        assert "Server seems busy" not in msg
+
+        process.idle_maintenance()
+        # Should have added 4 servers
+        assert None not in fake_servers[:7]
+        assert fake_servers[7:] == [None] * (len(fake_servers)-7)
+        assert process._idle_spawn_rate == 8
+        msg = _get_log(server_root)
+        assert "Server seems busy" not in msg
+
+        process._idle_spawn_rate = 21
+        process.idle_maintenance()
+        # Should have added 21 servers
+        assert None not in fake_servers[:28]
+        assert fake_servers[28:] == [None] * (len(fake_servers)-28)
+        assert process._idle_spawn_rate == 32, process._idle_spawn_rate  # MAX_SPAWN_RATE
+        msg = _get_log(server_root)
+        assert "Reached MaxServers" not in msg
+        assert "Creating 22 new servers" not in msg
+        assert "Server seems busy" in msg
+        
+        process.idle_maintenance()
+        # Should have added 22 servers
+        msg = _get_log(server_root)
+        assert "Creating 22 new servers" in msg, msg
+
+        process.idle_maintenance()
+        # All slots full
+        assert None not in fake_servers
+        msg = _get_log(server_root)
+        assert "Reached MaxServers" in msg, msg
+        assert process._idle_spawn_rate == 1
+
+def test_idle_do_nothing():
+    fake_servers = [IdleServer() for i in range(10)]
+
+    with config_tempdir() as server_root:
+        process = _start_process(server_root,
+                                 MinSpareServers=3, MaxSpareServers=10, MaxServers=10)
+        process.servers = fake_servers
+        process.server_type = None
+        process._idle_spawn_rate = 4
+        process.idle_maintenance()
+        assert process._idle_spawn_rate == 1
