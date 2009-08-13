@@ -16,6 +16,9 @@ from akara.server import logger
 
 argv0 = sys.argv[0]
 
+def _get_log(server_root):
+    return open(os.path.join(server_root, "logs", "error.log")).read()
+
 def test_process_default():
     process = server.create_process([argv0])
     assert process.ident == 'akara'
@@ -32,13 +35,15 @@ def test_process_debug():
 @contextlib.contextmanager
 def config_tempdir():
     old_sys_stderr = sys.stderr
+    old_sys_stdout = sys.stdout
     server_root = tempfile.mkdtemp(prefix="test_akara_server_config")
     os.mkdir(os.path.join(server_root, "logs"))
     try:
         yield server_root
     finally:
-        # Restore any changes to sys.stderr
+        # Restore any changes to sys.{stdout,stderr}
         # (Might be done as part of process.read_config() )
+        sys.stdout = old_sys_stdout
         sys.stderr = old_sys_stderr
         shutil.rmtree(server_root)
 
@@ -55,7 +60,7 @@ def test_process_missing_config():
     with config_tempdir() as server_root:
         stderr = StringIO()
         with capturing_stderr(stderr):
-            process = server.create_process([argv0, "-f", "/does/not/exist", "-X"])
+            process = server.create_process([argv0, "-f", "/dev/null/does/not/exist", "-X"])
             try:
                 process.read_config()
             except SystemExit:
@@ -116,7 +121,8 @@ def test_process_no_error_log():
     stderr = StringIO()
     with capturing_stderr(stderr):
         with config_tempdir() as server_root:
-            config_filename = write_config(server_root, dict(Listen="1234", ErrorLog="/does/not/exist"))
+            config_filename = write_config(server_root, dict(
+                    Listen="1234", ErrorLog="/dev/null/does/not/exist"))
             process = server.create_process([argv0, "-f", config_filename])
             try:
                 process.read_config()
@@ -179,7 +185,120 @@ def test_process_bad_log_level():
     assert "emerg | alert | crit | error | warn | notice | info | debug" in msg, msg
     assert "LogLevel requires level" in msg, msg
 
+def _start_process(server_root, **kwargs):
+    d = dict(Listen="1234", LogLevel="debug")
+    d.update(kwargs)
+    config_filename = write_config(server_root, d)
+    process = server.create_process([argv0, "-f", config_filename])
+    process.read_config()
+    return process
+    
+
+def test_save_pid():
+    # Normal configuration
+    with config_tempdir() as server_root:
+        process = _start_process(server_root)
+        pid_filename = os.path.join(server_root, "logs", "akara.pid")
+        assert not os.path.exists(pid_filename)
+        process.save_pid()
+        assert os.path.exists(pid_filename)
+        msg = _get_log(server_root)
+        assert "PID file" not in msg.lower(), msg
+
+def test_save_pid_existing_file():
+    with config_tempdir() as server_root:
+        process = _start_process(server_root)
+        pid_filename = os.path.join(server_root, "logs", "akara.pid")
+        assert not os.path.exists(pid_filename)
+        open(pid_filename, "w").write("already exists!")
+        process.save_pid()
+        assert os.path.exists(pid_filename)
+        msg = _get_log(server_root)
+        assert "PID file" in msg, msg
         
+        s = open(pid_filename).read()
+        pid = int(s)
+        assert pid == os.getpid(), (pid, os.getpid())
+
+def test_save_pid_not_writeable():
+    with config_tempdir() as server_root:
+        process = _start_process(server_root, PidFile="/dev/null/does/not/exist")
+        try:
+            process.save_pid()
+            raise AssertionError("should have died")
+        except SystemExit:
+            pass
+        msg = _get_log(server_root)
+        assert "Unable to open PID file" in msg, msg
 
 
+# XXX testing the inability to "fd.write(str(pid))" and to
+# "fd.close()" requires enough work that I'll defer doing that now.
 
+def test_remove_pid():
+    with config_tempdir() as server_root:
+        process = _start_process(server_root)
+        process.save_pid()
+        pid_filename = os.path.join(server_root, "logs", "akara.pid")
+        assert os.path.exists(pid_filename)
+        process.remove_pid()
+        assert not os.path.exists(pid_filename)
+        msg = _get_log(server_root)
+        assert "Removed PID file" in msg, msg
+        process.remove_pid()
+        msg = _get_log(server_root)
+        assert "Unable to remove PID file" not in msg, msg
+
+        process.pid_file = os.path.join(server_root, "logs")
+        process.remove_pid()
+        msg = _get_log(server_root)
+        assert "Unable to remove PID file" in msg, msg
+
+
+def test_reclaim_servers():
+    action_log = []
+    class FakeServer(object):
+        def __init__(self, name, count):
+            self.name = name  # used in logging
+            self.count = count
+            self.active = True
+        def __nonzero__(self):
+            return bool(self.count)
+        def _check(self, event):
+            action_log.append( "%s %s %s" % (event, self.name, self.count))
+            if self.count:
+                self.count -= 1
+                self.active = (self.count > 0)
+        def stop(self):
+            self._check("stop")
+        def terminate(self):
+            self._check("terminate")
+        def kill(self):
+            self._check("kill")
+
+    with config_tempdir() as server_root:
+        process = _start_process(server_root)
+        process.listeners = []
+        process.servers = [FakeServer("spam", 1), FakeServer("eggs", 4),
+                           FakeServer("bacon", 7), FakeServer("ni", 200)]
+        # Use my own _sleep so I don't need to wait
+        process.reclaim_servers(_sleep = lambda t: 1)
+        msg = _get_log(server_root)
+
+    assert action_log == ['stop spam 1', 'stop eggs 4', 'stop bacon 7', 'stop ni 200',
+                                         'stop eggs 3', 'stop bacon 6', 'stop ni 199',
+                                         'stop eggs 2', 'stop bacon 5', 'stop ni 198',
+                                         'stop eggs 1', 'stop bacon 4', 'stop ni 197',
+                                                        'stop bacon 3', 'stop ni 196',
+                                                   'terminate bacon 2', 'terminate ni 195',
+                                                   'terminate bacon 1', 'terminate ni 194',
+                                                                        'kill ni 193'], action_log
+
+        
+    assert "Server 'spam' still did not exit" not in msg, msg
+    assert "Server 'eggs' still did not exit" not in msg, msg
+    assert "Server 'bacon' still did not exit, terminating" in msg, msg
+    assert "Server 'ni' still did not exit, terminating" in msg, msg
+    assert "Server 'bacon' still did not exit, killing" not in msg, msg
+    assert "Server 'ni' still did not exit, killing" in msg, msg
+    assert "Could not make server 'ni' exit" in msg, msg
