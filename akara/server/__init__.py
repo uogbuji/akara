@@ -121,7 +121,7 @@ class process(object):
         try:
             addr = config.get('global', 'Listen')
         except ConfigParser.NoOptionError:
-            self.log.alert("No listening sockets available, shutting down")
+            self.log.alert("Missing required 'Listen' setting in the configuration file")
             raise SystemExit(1)
 
         if ':' in addr:
@@ -168,8 +168,8 @@ class process(object):
         self.server_type = server.wsgi_server_process
         self.start_servers = config.getint('global', 'StartServers')
         self.max_servers = config.getint('global', 'MaxServers')
-        self.min_free_servers = config.getint('global', 'MinSpareServers')
-        self.max_free_servers = config.getint('global', 'MaxSpareServers')
+        self.min_spare_servers = config.getint('global', 'MinSpareServers')
+        self.max_spare_servers = config.getint('global', 'MaxSpareServers')
         self.max_requests = config.getint('global', 'MaxRequestsPerServer')
 
         return config
@@ -239,7 +239,7 @@ class process(object):
     def idle_maintenance(self):
         inactive, idle = [], []
         for slot, server in enumerate(self.servers):
-            if server:
+            if server is not None:
                 if not server.active:
                     inactive.append(slot)
                 elif server.ready:
@@ -252,7 +252,7 @@ class process(object):
                 self.servers[slot] = None
 
         idle_count = len(idle)
-        if idle_count > self.max_free_servers:
+        if idle_count > self.max_spare_servers:
             # kill off one child...let it die gracefully
             # always kill the highest numbered child if we have to...
             # no really well thought out reason ... other than observing
@@ -262,9 +262,9 @@ class process(object):
             idle[-1].stop()
             self._idle_spawn_rate = 1
 
-        elif idle_count < self.min_free_servers:
+        elif idle_count < self.min_spare_servers:
             free_slots = [ slot for slot, server in enumerate(self.servers)
-                           if not server ]
+                           if server is None]
             if not free_slots:
                 self.log.error('Reached MaxServers setting')
                 self._idle_spawn_rate = 1
@@ -279,11 +279,9 @@ class process(object):
                 self.spawn_servers(free_slots[:self._idle_spawn_rate])
                 # the next time around we want to spawn twice as many if this
                 # wasn't good enough
-                if self._idle_spawn_rate < MAX_SPAWN_RATE:
-                    self._idle_spawn_rate *= 2
+                self._idle_spawn_rate = min(2*self._idle_spawn_rate, MAX_SPAWN_RATE)
         else:
             self._idle_spawn_rate = 1
-        return
 
     def make_socket(self, host, port):
         """
@@ -365,8 +363,8 @@ class process(object):
 
 
         self.log.info('Waiting for servers to exit...')
-        # Begin with the set of active servers
-        servers = [ server for server in self.servers if server.active ]
+        # Begin with the set of working servers
+        servers = [ server for server in self.servers if server is not None ]
         # Try each 'action' and wait at least 'duration' seconds until the next action
         for action, duration in (
             (stop, 1./64), (stop, 1./16), (stop, 1./4), (stop, 1.0), (stop, 2.0),
