@@ -113,7 +113,7 @@ class process(object):
             for name, value in defaults.iteritems():
                 config.set(section, name, value)
         if not os.path.exists(self.config_file):
-            self.log.info('configuration file %r not found, using defaults',
+            self.log.info('Configuration file %r not found, using defaults',
                            self.config_file)
         else:
             config.read(self.config_file)
@@ -121,7 +121,7 @@ class process(object):
         try:
             addr = config.get('global', 'Listen')
         except ConfigParser.NoOptionError:
-            self.log.alert("no listening sockets available, shutting down")
+            self.log.alert("No listening sockets available, shutting down")
             raise SystemExit(1)
 
         if ':' in addr:
@@ -145,7 +145,7 @@ class process(object):
         try:
             logf = open(self.error_log, 'a+')
         except IOError, e:
-            self.log.alert("could not open error log file %r: %s\n",
+            self.log.alert("Could not open error log file %r: %s",
                            self.error_log, e)
             raise SystemExit(1)
         try:
@@ -201,25 +201,25 @@ class process(object):
         try:
             fd = open(self.pid_file, 'w')
         except Exception, error:
-            self.log.critical("Unable to open PID file %r: %s\n",
+            self.log.critical("Unable to open PID file %r: %s",
                               self.pid_file, error)
             sys.exit(1)
 
         try:
             fd.write(str(pid))
         except Exception, error:
-            self.log.critical("Unable to write to PID file '%s': %s\n",
+            self.log.critical("Unable to write to PID file '%s': %s",
                               self.pid_file, str(error))
             try:
                 fd.close()
             except:
-                self.log.error("Error closing file descriptor\n")
+                self.log.error("Error closing file descriptor")
             sys.exit(1)
 
         try:
             fd.close()
         except:
-            self.log.error("Error closing file descriptor\n")
+            self.log.error("Error closing file descriptor")
             sys.exit(1)
 
         self.current_pid = pid
@@ -229,10 +229,10 @@ class process(object):
             try:
                 os.remove(self.pid_file)
             except Exception, error:
-                self.log.debug("Unable to remove PID file %r: %s\n",
+                self.log.debug("Unable to remove PID file %r: %s",
                                self.pid_file, error)
             else:
-                self.log.info('Removed PID file %r\n', self.pid_file)
+                self.log.info('Removed PID file %r', self.pid_file)
 
     wait_or_timeout = functools.partial(time.sleep, MAINTENANCE_INTERVAL)
 
@@ -266,15 +266,15 @@ class process(object):
             free_slots = [ slot for slot, server in enumerate(self.servers)
                            if not server ]
             if not free_slots:
-                self.log.error('reached MaxServers setting')
+                self.log.error('Reached MaxServers setting')
                 self._idle_spawn_rate = 1
             else:
                 if self._idle_spawn_rate >= 8:
                     self.log.info(
-                        'server seems busy, (you may need to increase '
-                        'StartServers or Min/MaxSpareServers)')
+                        'Server seems busy. You may need to increase '
+                        'StartServers or Min/MaxSpareServers')
                 total_count = self.max_servers - len(free_slots)
-                self.log.notice('there are %d idle and %d total servers',
+                self.log.notice('There are %d idle and %d total servers',
                                 idle_count, total_count)
                 self.spawn_servers(free_slots[:self._idle_spawn_rate])
                 # the next time around we want to spawn twice as many if this
