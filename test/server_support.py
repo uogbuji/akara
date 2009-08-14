@@ -98,7 +98,7 @@ def start_server():
 
     port = python_support.find_unused_port()
     create_server_dir(port)
-    args = [sys.executable, "-m", "akara.server",
+    args = [sys.executable, "-m", "akara.server.run",
             "--config-file", config_filename]
     result = subprocess.call(args)
 

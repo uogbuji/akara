@@ -12,7 +12,7 @@ import contextlib
 import ConfigParser
 
 from akara import server
-from akara.server import logger
+from akara.server import logger, run
 
 argv0 = sys.argv[0]
 
@@ -20,14 +20,14 @@ def _get_log(server_root):
     return open(os.path.join(server_root, "logs", "error.log")).read()
 
 def test_process_default():
-    process = server.create_process([argv0])
+    process = run._create_process([argv0])
     assert process.ident == 'akara'
     assert process.config_file.startswith(os.path.expanduser("~"))
     # Check that it's at the default level
     assert process.log_level == logger.LOG_WARN
 
 def test_process_debug():
-    process = server.create_process([argv0, "-X"])
+    process = run._create_process([argv0, "-X"])
     assert process.log_level == logger.LOG_DEBUG
 
 
@@ -60,7 +60,7 @@ def test_process_missing_config():
     with config_tempdir() as server_root:
         stderr = StringIO()
         with capturing_stderr(stderr):
-            process = server.create_process([argv0, "-f", "/dev/null/does/not/exist", "-X"])
+            process = run._create_process([argv0, "-f", "/dev/null/does/not/exist", "-X"])
             try:
                 process.read_config()
                 raise AssertionError("Why didn't that fail?")
@@ -87,7 +87,7 @@ def write_config(server_root, params):
 def test_process_host():
     with config_tempdir() as server_root:
         config_filename = write_config(server_root, dict(Listen=":80"))
-        process = server.create_process([argv0, "-f", config_filename])
+        process = run._create_process([argv0, "-f", config_filename])
         process.read_config()
         assert process.server_addr == ("", 80)
 
@@ -100,19 +100,19 @@ def test_process_host():
 
     with config_tempdir() as server_root:
         config_filename = write_config(server_root, dict(Listen=":810"))
-        process = server.create_process([argv0, "-f", config_filename])
+        process = run._create_process([argv0, "-f", config_filename])
         process.read_config()
         assert process.server_addr == ("", 810)
 
     with config_tempdir() as server_root:
         config_filename = write_config(server_root, dict(Listen="localhost:8765"))
-        process = server.create_process([argv0, "-f", config_filename])
+        process = run._create_process([argv0, "-f", config_filename])
         process.read_config()
         assert process.server_addr == ("localhost", 8765)
 
     with config_tempdir() as server_root:
         config_filename = write_config(server_root, dict(Listen="1234"))
-        process = server.create_process([argv0, "-f", config_filename])
+        process = run._create_process([argv0, "-f", config_filename])
         process.read_config()
         assert process.server_addr == ("", 1234)
 
@@ -124,7 +124,7 @@ def test_process_no_error_log():
         with config_tempdir() as server_root:
             config_filename = write_config(server_root, dict(
                     Listen="1234", ErrorLog="/dev/null/does/not/exist"))
-            process = server.create_process([argv0, "-f", config_filename])
+            process = run._create_process([argv0, "-f", config_filename])
             try:
                 process.read_config()
                 raise AssertionError("but there was no error log!")
@@ -139,7 +139,7 @@ def test_process_log_levels():
     with config_tempdir() as server_root:
         config_filename = write_config(server_root, dict(Listen="1234", LogLevel="debug",
                                                          ErrorLog = "spam.log"))
-        process = server.create_process([argv0, "-f", config_filename])
+        process = run._create_process([argv0, "-f", config_filename])
         process.read_config()
         process.log.debug("Spam!")
         content = open(os.path.join(server_root, "spam.log")).read()
@@ -149,7 +149,7 @@ def test_process_log_levels():
     with config_tempdir() as server_root:
         config_filename = write_config(server_root, dict(Listen="1234", LogLevel="info",
                                                          ErrorLog = "spam.log"))
-        process = server.create_process([argv0, "-f", config_filename])
+        process = run._create_process([argv0, "-f", config_filename])
         process.read_config()
         assert process.debug == False
         process.log.debug("Spam!")
@@ -159,7 +159,7 @@ def test_process_log_levels():
     with config_tempdir() as server_root:
         config_filename = write_config(server_root, dict(Listen="1234", LogLevel="info",
                                                          ErrorLog = "spam.log"))
-        process = server.create_process([argv0, "-f", config_filename, "-X"])  # Added -X
+        process = run._create_process([argv0, "-f", config_filename, "-X"])  # Added -X
         # -X forces the level to debug and sends messages to stderr
         stderr = StringIO()
         with capturing_stderr(stderr):
@@ -176,7 +176,7 @@ def test_process_bad_log_level():
         with config_tempdir() as server_root:
             config_filename = write_config(server_root, dict(Listen="1234", LogLevel="timber!",
                                                              ErrorLog = "spam.log"))
-            process = server.create_process([argv0, "-f", config_filename])
+            process = run._create_process([argv0, "-f", config_filename])
             try:
                 process.read_config()
                 raise AssertionError("Did not catch the bad log level")
@@ -190,7 +190,7 @@ def _start_process(server_root, **kwargs):
     d = dict(Listen="1234", LogLevel="debug")
     d.update(kwargs)
     config_filename = write_config(server_root, d)
-    process = server.create_process([argv0, "-f", config_filename])
+    process = run._create_process([argv0, "-f", config_filename])
     process.read_config()
     return process
     
