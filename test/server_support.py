@@ -60,6 +60,12 @@ feed_envelope: <feed xmlns="http://www.w3.org/2005/Atom">
 resource: %(resource_dir)s
 static: %(resource_dir)s/static
 
+
+# Let the XSLT test reach directly into the filesystem
+[xslt]
+uri_space = file:///
+
+
 """ % dict(server_root = server_root,
            module_dir = MODULE_DIR,
            port = port,
