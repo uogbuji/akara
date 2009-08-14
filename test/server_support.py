@@ -143,7 +143,7 @@ def start_server():
 def check_that_server_is_available(port):
     old_timeout = socket.getdefaulttimeout()
     try:
-        socket.setdefaulttimeout(5.0)
+        socket.setdefaulttimeout(10.0)
         try:
             urllib2.urlopen("http://localhost:%d/" % port).read()
         except urllib2.URLError, err:
