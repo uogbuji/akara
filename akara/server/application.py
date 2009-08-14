@@ -2,6 +2,7 @@ from __future__ import with_statement
 
 import os
 import time
+import traceback
 from cStringIO import StringIO
 from contextlib import closing
 from email.utils import formatdate
@@ -95,8 +96,12 @@ class wsgi_application:
             for module_code, module_globals in self.modules:
                 self.log.debug("initializing module '%s'",
                             module_globals['__name__'])
-                exec module_code in module_globals
-        return
+                try:
+                    exec module_code in module_globals
+                except Exception, e:
+                    exc = ''.join(traceback.format_exc())
+                    self.log.error("Could not initialize module %r:\n%s" %
+                                   (module_globals["__name__"], exc))
 
     def _register_service(self, func, ident, path):
         self.log.debug('  registering %s using %s()', path, func.__name__)
