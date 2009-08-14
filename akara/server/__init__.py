@@ -371,10 +371,10 @@ class process(object):
             (terminate, 2.0), (terminate, 3.0),
             (kill, 0.5), (cont, 0.0)):
 
+            servers = [ server for server in servers if server.active ]
             for server in servers:
                 action(server)
 
-            servers = [ server for server in servers if server.active ]
             if not servers:
                 break
             _sleep(duration)
