@@ -60,7 +60,6 @@ class wsgi_server(object):
 
         # Initialize our scoreboard slot (indicate ready)
         self.scoreboard[slot] = '\1'
-        return
 
     @property
     def name(self):
