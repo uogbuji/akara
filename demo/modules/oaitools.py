@@ -118,11 +118,11 @@ def atomize_oai_record(endpoint=None, id=None):
     #maxarticles = DEFAULT_MAX_RESULTS
     maxarticles = 3
     for record in islice(doc.OAI_PMH, 0, maxarticles):
-        resource = resources[id]
+        resource = unicode(resources[id])
         print resource
-        authors = [ (a, None, None) for a in resource[u'creator'] ]
+        authors = [ (a, None, None) for a in unicode(resource[u'creator']) ]
         links = [
-            (resource['handle'], u'alternate'),
+            (unicode(resource['handle']), u'alternate'),
         ]
         #categories = [ (unicode(k), SD_NS+u'authorKeyword') for k in authkw(article) ]
         #elements = [
@@ -131,9 +131,9 @@ def atomize_oai_record(endpoint=None, id=None):
         #]
         f.append(
             id,
-            resource['title'][0],
-            updated=resource['date'][0],
-            summary=resource['description'][0],
+            unicode(resource['title'][0]),
+            updated=unicode(resource['date'][0]),
+            summary=unicode(resource['description'][0]),
             authors=authors,
             links=links,
             #categories=categories,
