@@ -45,7 +45,7 @@ from amara.bindery.util import dispatcher, node_handler, property_sequence_gette
 
 from akara.util import *
 from akara.util.moin import *
-from akara.services.moincms import *
+from akara.moincms import *
 from akara.services import *
 
 
