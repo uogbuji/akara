@@ -8,19 +8,18 @@ import getopt
 
 import socket
 
-import read_config
+from akara import read_config
 import logging
 
 from cStringIO import StringIO
 
 #from flup.server.preforkserver import PreforkServer
-from preforkserver import PreforkServer
+from akara.thirdparty.preforkserver import PreforkServer
 
-import loader
-from util import logger
-import util
+from akara.module_loader import load_modules
+from akara import logger_config, logger
 
-from multiprocess_http import AkaraManager
+from akara.multiprocess_http import AkaraManager
 
 
 def save_pid(pid_file):
@@ -139,12 +138,12 @@ def main(argv):
             logger.setLevel(settings["log_level"])
 
         # Open this now, so any errors can be reported
-        util.set_logfile(settings["error_log"])
+        logger_config.set_logfile(settings["error_log"])
 
         # Compile the modules before spawning the server process
         # If there are any problems, die
-        modules = loader.load_modules(settings["module_dir"],
-                                      settings["server_root"], config)
+        modules = load_modules(settings["module_dir"],
+                               settings["server_root"], config)
 
         # Hopefully helpful check.
         # XXX Should this die if it sees an existing pid?
@@ -214,7 +213,7 @@ def main(argv):
         # Close the standard file descriptors.
         # XXX Reroute sys.std* to the log file?
         if first_time and not debug:
-            util.remove_logging_to_stderr()
+            logger_config.remove_logging_to_stderr()
             for stream in (sys.stdin, sys.stdout, sys.stderr):
                 if stream.isatty():
                     #stream.close()

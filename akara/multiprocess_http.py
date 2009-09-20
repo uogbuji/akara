@@ -1,14 +1,15 @@
 """Interface to flup and paste.httpserver"""
 
+from cStringIO import StringIO
 import functools
 from wsgiref.util import shift_path_info
 import cgi
 
 from amara import tree, xml_print
 
-import httpserver
-import loader
-
+from akara.thirdparty import httpserver
+from akara import module_loader as loader
+from akara import logger
 
 # Why was this lower case?
 class Response(object):

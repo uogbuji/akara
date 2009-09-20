@@ -1,5 +1,7 @@
 import os
 
+from amara import tree
+
 # This variable is used as a way to get the current WSGI environ into
 # simple_service and related functions.
 #

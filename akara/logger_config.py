@@ -12,7 +12,9 @@ import logging
 
 __all__ = ("logger", "set_logfile", "remove_logging_to_stderr")
 
-logger = logging.getLogger('akara')
+# Create the logger here but mark it as private.
+# The other modules can access this as "akara.logger"
+_logger = logging.getLogger('akara')
 
 # Make the log messages look like:
 # Jul 21 01:39:03 akara[11754]: [error] Traceback (most recent call last):
@@ -28,20 +30,26 @@ _current_handler = None
 def set_logfile(f):
     """Direct (or redirect) error logging to a file handle"""
     global _current_handler
-    new_handler = logging.StreamHandler(f)
+    new_handler = logging.FileHandler(f)
     new_handler.setFormatter(_default_formatter)
-    logger.addHandler(new_handler)
+    _logger.addHandler(new_handler)
 
     if _current_handler is not None:
-        logger.removeHandler(_current_handler)
+        print _logger, _logger.__class__
+        print dir(_logger)
+        _logger.removeHandler(_current_handler)
     _current_handler = new_handler
 
 ## Part of initialization, to log to stderr
 # Set the default logger to stderr
-set_logfile(sys.stderr)
+def _init_stderr_handler():
+    new_handler = logging.StreamHandler(sys.stderr)
+    new_handler.setFormatter(_default_formatter)
+    _logger.addHandler(new_handler)
+    return new_handler
 
 # Save this so I can remove it for later, if requested
-_stderr_handler = _current_handler
+_stderr_handler = _init_stderr_handler()
 
 # Then forget about it. It's still registered in the error handler.
 _current_handler = None
@@ -53,5 +61,5 @@ _current_handler = None
 def remove_logging_to_stderr():
     global _stderr_handler
     if _stderr_handler is not None:
-        logger.removehander(_stderr_handler)
+        _logger.removehander(_stderr_handler)
         _stderr_handler = None
