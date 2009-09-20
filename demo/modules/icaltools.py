@@ -21,7 +21,7 @@ except ImportError, err:
 from akara.services import simple_service, response
 
 SERVICE_ID = 'http://purl.org/akara/services/builtin/ical.json'
-@simple_service('post', SERVICE_ID, 'ical.json', 'application/json')
+@simple_service('POST', SERVICE_ID, 'ical.json', 'application/json')
 def ical2json(body, ctype):
     '''
     Convert iCalendar info to Exhibit JSON
