@@ -12,7 +12,7 @@ from amara.lib.util import trim_word_count
 from akara.services import simple_service
 
 SERVICE_ID = 'http://purl.org/akara/services/builtin/trim-word-count'
-@simple_service('post', SERVICE_ID, 'akara.twc', 'application/xml')
+@simple_service('POST', SERVICE_ID, 'akara.twc', 'application/xml')
 def akara_twc(body, ctype, max=None, html='no'):
     '''
     Take some POSTed markup and return a version with words trimmed, but intelligently,
