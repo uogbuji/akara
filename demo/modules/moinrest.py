@@ -251,6 +251,7 @@ def _head_page(environ, start_response):
 
 def fill_page_edit_form(page, wiki_id, base, opener):
     url = absolutize(page, base)
+    print >> sys.stderr, 'GRIPPO: ', (page, base, url)
     with closing(opener.open(urllib2.Request(url + '?action=edit&editor=text'))) as resp:
         doc = htmlparse(resp)
     form = doc.html.body.xml_select(u'.//*[@id="editor"]')[0]

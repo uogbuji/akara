@@ -151,6 +151,7 @@ def copy_auth(environ, top, realm=None):
     #auth, host, port = split_authority(authority)
     #auth_top_url = (host + ':' + port if port else host) + path
     #print >> sys.stderr, 'Auth creds: %s:%s (%s)'%(username, password, auth_top_url)
+    print >> sys.stderr, 'Auth creds: %s:%s (%s)'%(username, password, top)
     
     # Not setting the realm for now, so use None
     #password_mgr.add_password(None, auth_top_url, username, password)

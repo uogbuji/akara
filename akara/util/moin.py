@@ -39,7 +39,7 @@ ORIG_BASE_HEADER = 'x-akara-wrapped-moin'
 # XML models
 
 ATTACHMENTS_MODEL_XML = '''<?xml version="1.0" encoding="UTF-8"?>
-<attachments xmlns:eg="http://examplotron.org/0/" xmlns:ak="http://purl.org/dc/org/xml3k/akara">
+<attachments xmlns:eg="http://examplotron.org/0/" xmlns:ak="http://purl.org/xml3k/akara/xmlmodel">
   <attachment href="" ak:rel="name()" ak:value="@href"/>
 </attachments>
 '''
@@ -47,8 +47,9 @@ ATTACHMENTS_MODEL_XML = '''<?xml version="1.0" encoding="UTF-8"?>
 ATTACHMENTS_MODEL = examplotron_model(ATTACHMENTS_MODEL_XML)
 
 MOIN_DOCBOOK_MODEL_XML = '''<?xml version="1.0" encoding="UTF-8"?>
-<article xmlns:eg="http://examplotron.org/0/" xmlns:ak="http://purl.org/dc/org/xml3k/akara" ak:resource="">
-  <ak:rel name="'ak-type'" ak:value="glosslist[1]/glossentry[glossterm='akara:type']/glossdef//ulink/@url"/>
+<article xmlns:eg="http://examplotron.org/0/" xmlns:ak="http://purl.org/xml3k/akara/xmlmodel" ak:resource="">
+  <ak:rel name="'ak-old-type'" ak:value="glosslist[1]/glossentry[glossterm='akara:type']/glossdef//ulink/@url"/>
+  <ak:rel name="'ak-type'" ak:value="section[title='akara:metadata']/glosslist/glossentry[glossterm='akara:type']/glossdef//ulink/@url"/>
   <ak:rel name="'ak-updated'" ak:value="articleinfo/revhistory/revision[1]/date"/>
   <articleinfo>
     <title ak:rel="name()" ak:value=".">FrontPage</title>

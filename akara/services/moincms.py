@@ -5,6 +5,8 @@ moincms.py (Akara demo)
 
 Accesses a Moin wiki (via akara.restwrap.moin) to use as a source for a Web feed
 
+See: http://wiki.xml3k.org/Akara/Services/MoinCMS
+
 Copyright 2009 Uche Ogbuji
 This file is part of the open source Akara project,
 provided under the Apache 2.0 license.
@@ -20,7 +22,6 @@ Can be launched from the command line, e.g.:
 #
 #Detailed license and copyright information: http://4suite.org/COPYRIGHT
 
-from __future__ import with_statement
 import os
 import stat  # index constants for os.stat()
 import re
@@ -35,7 +36,6 @@ from functools import partial
 from itertools import *
 from operator import *
 from collections import defaultdict
-from contextlib import closing
 
 from dateutil.parser import parse as dateparse
 import pytz
@@ -65,28 +65,83 @@ CMS_BASE = AKARA_NS + u'/cms'
 
 class node(object):
     '''
+    Akara Moin/CMS node, a Moin wiki page that follows a template to direct workflow
+    activity, including metadata extraction
+    '''
+    AKARA_TYPE = u'http://purl.org/xml3k/akara/cms/resource-type'
+    NODES = {}
+    #Processing priority
+    PRIORITY = 0
+    @staticmethod
+    def factory(rest_uri, opener=None):
+        import sys; print >> sys.stderr, 'rest_uri: ', rest_uri
+        req = urllib2.Request(rest_uri, headers={'Accept': DOCBOOK_IMT})
+        resp = urllib2.urlopen(req)
+        doc = bindery.parse(resp, standalone=True, model=MOIN_DOCBOOK_MODEL)
+        original_wiki_base = dict(resp.info())[ORIG_BASE_HEADER]
+        #self.original_wiki_base = dict(resp.info())[ORIG_BASE_HEADER]
+        #amara.xml_print(self.content_cache)
+        metadata, first_id = metadata_dict(generate_metadata(doc))
+        metadata = metadata[first_id]
+        akara_type = first_item(first_item(metadata[u'ak-type']))
+        import sys; print >> sys.stderr, 'GRIPPO', akara_type.xml_value
+        cls = node.NODES[akara_type.xml_value]
+        instance = cls(rest_uri, opener, cache=(doc, metadata, original_wiki_base))
+        return instance
+
+    def __init__(self, rest_uri, opener=None, cache=None):
+        '''
+        rest_uri - the full URI to the Moin/REST wrapper for this page
+        relative - the URI of this page relative to the Wiki base
+        '''
+        self.rest_uri = rest_uri
+        self.opener = opener
+        self.cache = cache #(doc, metadata, original_wiki_base)
+        return
+
+    def load(self):
+        return
+
+    def render(self):
+        return None
+    
+    def up_to_date(self, force_update=False):
+        '''
+        Checks whether there needs to be an update of the CMS output file or folder
+        '''
+        #By default just always update
+        return False
+
+node.NODES[node.AKARA_TYPE] = node
+
+
+#XXX: do we really need this function indirection for simple global dict assignment?
+def register_node_type(type_id, nclass):
+    node.NODES[type_id] = nclass
+
+
+#
+# This part is partly obsolete, and is used to handle the Web/CMS component.
+# It needs a bit of update for the more general Moin/CMS framework
+# FIXME: It should actually probably go in a different file
+#
+
+class webcms_node(node):
+    '''
     Akara CMS node, a Moin wiki page in a lightly specialized format
     from which semi-structured information can be extracted
     '''
     NODES = {}
     #Processing priority
     PRIORITY = 0
-    def __init__(self, rest_uri, relative, outputdir, cache=None):
-        self.relative = relative
-        self.rest_uri = rest_uri
-        self.output = os.path.join(outputdir, relative)
-        self.outputdir = outputdir
-        self.cache = cache#(doc, metadata)
-        return
-
     @staticmethod
     def factory(rest_uri, relative, outputdir):
         req = urllib2.Request(rest_uri, headers={'Accept': DOCBOOK_IMT})
-        with closing(urllib2.urlopen(req)) as resp:
-            doc = bindery.parse(resp, standalone=True, model=MOIN_DOCBOOK_MODEL)
-            original_wiki_base = dict(resp.info())[ORIG_BASE_HEADER]
-            #self.original_wiki_base = dict(resp.info())[ORIG_BASE_HEADER]
-            #amara.xml_print(self.content_cache)
+        resp = urllib2.urlopen(req)
+        doc = bindery.parse(resp, standalone=True, model=MOIN_DOCBOOK_MODEL)
+        original_wiki_base = dict(resp.info())[ORIG_BASE_HEADER]
+        #self.original_wiki_base = dict(resp.info())[ORIG_BASE_HEADER]
+        #amara.xml_print(self.content_cache)
         output = os.path.join(outputdir, relative)
         parent_dir = os.path.split(output)[0]
         try:
@@ -95,10 +150,23 @@ class node(object):
             pass
         metadata, first_id = metadata_dict(generate_metadata(doc))
         metadata = metadata[first_id]
-        akara_type = first_item(metadata[u'ak-type'])
-        cls = node.NODES[akara_type]
+        akara_type = first_item(first_item(metadata[u'ak-type']))
+        import sys; print >> sys.stderr, 'GRIPPO', akara_type.xml_value
+        cls = node.NODES[akara_type.xml_value]
         instance = cls(rest_uri, relative, outputdir, cache=(doc, metadata, original_wiki_base))
         return instance
+
+    def __init__(self, rest_uri, relative, outputdir, cache=None):
+        '''
+        rest_uri - the full URI to the Moin/REST wrapper for this page
+        relative - the URI of this page relative to the Wiki base
+        '''
+        self.relative = relative
+        self.rest_uri = rest_uri
+        self.output = os.path.join(outputdir, relative)
+        self.outputdir = outputdir
+        self.cache = cache#(doc, metadata)
+        return
 
     def load(self):
         return
@@ -127,14 +195,14 @@ class node(object):
         return True
 
 
-class folder(node):
+class folder(webcms_node):
     AKARA_TYPE = CMS_BASE + u'/folder'
     PRIORITY = 1000
     def render(self):
         #Copy attachments to dir
         req = urllib2.Request(self.rest_uri, headers={'Accept': ATTACHMENTS_IMT})
-        with closing(urllib2.urlopen(req)) as resp:
-            doc = bindery.parse(resp, model=ATTACHMENTS_MODEL)
+        resp = urllib2.urlopen(req)
+        doc = bindery.parse(resp, model=ATTACHMENTS_MODEL)
         for attachment in (doc.attachments.attachment or ()):
             print attachment
         return
@@ -142,7 +210,7 @@ class folder(node):
 node.NODES[folder.AKARA_TYPE] = folder
 
 
-class page(node):
+class page(webcms_node):
     AKARA_TYPE = CMS_BASE + u'/page'
     def up_to_date(self, force_update=False):
         '''
@@ -241,10 +309,6 @@ node.NODES[page.AKARA_TYPE] = page
 #AKARA_TYPES = [page, folder]
 
 
-def register_node_type(type_id, nclass):
-    node.NODES[type_id] = nclass
-
-
 class content_handlers(dispatcher):
     def __init__(self, orig_wikibase):
         dispatcher.__init__(self)
@@ -339,13 +403,14 @@ class content_handlers(dispatcher):
     #@node_handler(u'*', priority=-1)
     #def etc(self, node):
 
+
 def moincms(wikibase, outputdir, pattern):
     if pattern: pattern = re.compile(pattern)
     #print (wikibase, outputdir, rewrite)
     req = urllib2.Request(wikibase, headers={'Accept': RDF_IMT})
-    with closing(urllib2.urlopen(req)) as resp:
-        original_wiki_base = dict(resp.info())[ORIG_BASE_HEADER]
-        feed = bindery.parse(resp)
+    resp = urllib2.urlopen(req)
+    original_wiki_base = dict(resp.info())[ORIG_BASE_HEADER]
+    feed = bindery.parse(resp)
     process_list = []
     for item in feed.RDF.channel.items.Seq.li:
         uri = split_fragment(item.resource)[0]

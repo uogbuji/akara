@@ -39,7 +39,7 @@ def atom_json(url=None):
     # From http://code.google.com/p/simplejson/
     import simplejson
     url = url[0]
-    feed, entries = atomtools.parse(url)
+    feed, entries = atomtools.ejsonize(url)
     return simplejson.dumps({'items': entries}, indent=4)
 
 
