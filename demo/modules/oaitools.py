@@ -9,7 +9,6 @@ import sys, time
 import datetime
 import urllib, urlparse
 from cgi import parse_qs
-from cStringIO import StringIO
 from itertools import *
 
 import simplejson
@@ -140,7 +139,5 @@ def atomize_oai_record(endpoint=None, id=None):
             #elements=elements,
         )
 
-    buf = StringIO()
-    amara.xml_print(f.source, stream=buf, indent=True)
-    return buf.getvalue()
+    return f.source.xml_encode('xml-indent')
 

@@ -3,7 +3,6 @@ from __future__ import with_statement
 import os
 import time
 import traceback
-from cStringIO import StringIO
 from contextlib import closing
 from email.utils import formatdate
 from wsgiref.util import shift_path_info
@@ -109,7 +108,7 @@ class wsgi_application:
         return
 
     def _list_services(self, environ, start_response):
-        from amara import tree, xml_print
+        from amara import tree
         document = tree.entity()
         services = document.xml_append(tree.element(None, 'services'))
         for path, func in self.services.iteritems():
@@ -125,9 +124,7 @@ class wsgi_application:
                                   ('Last-Modified', last_modified),
                                   ('Expires', expires),
                                   ])
-        io = StringIO()
-        xml_print(document, io, indent=True)
-        return [io.getvalue()]
+        return [document.xml_encode('xml-indent')]
 
     def __call__(self, environ, start_response):
         """WSGI handler"""
