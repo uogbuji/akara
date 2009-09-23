@@ -3,13 +3,14 @@
 from cStringIO import StringIO
 import functools
 from wsgiref.util import shift_path_info
-import cgi
+from wsgiref.simple_server import WSGIRequestHandler
 
 from amara import tree, xml_print
 
+from akara import logger
 from akara.thirdparty import httpserver
 from akara import module_loader as loader
-from akara import logger
+from akara import registry
 
 # Why was this lower case?
 class Response(object):
@@ -98,104 +99,6 @@ def _convert_body(body):
     return body
 
 
-
-####
-
-def simple_service(method, service_id, mount_point=None, content_type=None,
-                   **kwds):
-    if method in ("get", "post"):
-        warnings.warn('Lowercase HTTP methods deprecated',
-                      DeprecationWarning, 2)
-        method = method.upper()
-        raise NotImplementedError, XXX
-    elif method not in ("GET", "POST"):
-        raise ValueError(
-            "simple_service only supports GET and POST methods, not %s" %
-            (method,))
-
-    service_content_type = content_type
-    service_kwargs = kwds
-
-    def service_wrapper(func):
-        # The registry function was inserted into the functions globals.
-        #register_service = func.func_globals["__AKARA_REGISTER_SERVICE__"]
-        # Uss the one in this module, which is also available from globals
-
-        @functools.wraps(func)
-        def wrapper(environ, start_response):
-            request_method = environ.get("REQUEST_METHOD")
-            if request_method not in ("GET", "POST", "HEAD"):
-                http_response = environ["akara.http_response"]  # XXX where is this set?
-                raise http_response(httplib.METHOD_NOT_ALLOWED)
-
-            if method == "POST":
-                try:
-                    request_length = int(environ["CONTENT_LENGTH"])
-                except (KeyError, ValueError):
-                    http_response = environ["akara.http_response"]
-                    raise http_response(httplib.LENGTH_REQUIRED)
-                request_bytes = environ["wsgi.input"].read(request_length)
-                try:
-                    request_content_type = environ["CONTENT_TYPE"]
-                except KeyError:
-                    request_content_type = "application/unknown"
-                args = (request_bytes, request_content_type)
-            else:
-                args = ()
-
-            # Build up the keyword parameters from the query string
-            query_string = environ["QUERY_STRING"]
-            if query_string:
-                # Is this order correct? 
-                kwargs = cgi.parse_qs(query_string)
-                kwargs.update(service_kwargs)
-            else:
-                kwargs = service_kwargs
-
-            # For when you really need access to the environ.
-            # XXX I don't like this, btw, because it goes
-            # through a global namespace and because it reduces
-            # the ability to componentize.
-            
-            loader._set_environ(environ)
-            try:
-                result = func(*args, **kwargs)
-            finally:
-                loader._set_environ(None)
-
-            if isinstance(result, Response):
-                _send_response_headers(results, start_response)
-                #return _convert_body(result.body)
-                return result.body
-            else:
-                # XXX What should the default content-type be?
-                start_response("200 OK", [("Content-Type", service_content_type or "text/plain")])
-                #return _convert_body(result)
-                return result
-
-        m_point = mount_point  # Get from the outer scope
-        if m_point is None:
-            m_point = func.__name__
-        loader.register_service(wrapper, service_id, m_point) 
-        return wrapper
-    return service_wrapper
-
-@simple_service("GET", "http://dalkescientific.com/hello", "dalke.hello")
-def hello():
-    return "Hello!"
-
-@simple_service("GET", "http://dalkescientific.com/sleep", "dalke.sleep")
-def sleep():
-    import time
-    time.sleep(5)
-    return str(os.getpid())
-
-@simple_service("GET", "http://dalkescientific.com/name", "dalke.name")
-def hello_name(name="Andrew"):
-    yield "Hello "
-    yield name
-    yield "!\n"
-
 #####
 
 
@@ -208,7 +111,7 @@ class ServerConfig(object):
         name = shift_path_info(environ)
         try:
             try:
-                func = loader.get_service(name)
+                func = registry.get_service(name)
             except KeyError:
                 raise wsgi_error(404)
             result = func(environ, start_response)
