@@ -17,7 +17,7 @@ from cStringIO import StringIO
 from akara.thirdparty.preforkserver import PreforkServer
 
 from akara.module_loader import load_modules
-from akara import logger_config, logger
+from akara import logger, logger_config
 
 from akara.multiprocess_http import AkaraManager
 
