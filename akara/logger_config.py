@@ -61,5 +61,5 @@ _current_handler = None
 def remove_logging_to_stderr():
     global _stderr_handler
     if _stderr_handler is not None:
-        _logger.removehander(_stderr_handler)
+        _logger.removeHandler(_stderr_handler)
         _stderr_handler = None
