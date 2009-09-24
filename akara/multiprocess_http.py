@@ -8,9 +8,11 @@ from wsgiref.simple_server import WSGIRequestHandler
 from amara import tree, xml_print
 
 from akara import logger
-from akara.thirdparty import httpserver
+from akara.thirdparty import httpserver, preforkserver
 from akara import module_loader as loader
 from akara import registry
+
+from akara.thirdparty.preforkserver import PreforkServer
 
 # Why was this lower case?
 class Response(object):
@@ -47,7 +49,7 @@ class wsgi_exception(Exception):
     def get_response(self):
         raise NotImplementedError
 
-class wsgi_error(Exception):
+class wsgi_error(wsgi_exception):
     def __init__(self, status):
         self.status = status
         self.reason, self.message = WSGIRequestHandler.responses[status]
@@ -76,7 +78,9 @@ def _send_response_headers(result, start_response, content_type):
 
 
 def _convert_body(body):
-    # Simple string
+    # Simple string. Convert to chunked form.
+    # (Code inspection suggests that returning a simple string
+    # incurs a character-by-character iterator overhead.)
     if isinstance(body, str):
         return [body]
 
@@ -87,11 +91,9 @@ def _convert_body(body):
         io.seek(0)
         return io
 
-    # Akara response
-    if isinstance(body, Response):
-        return _convert_body(result.body)
-
-    # If Unicode, you'll need to specify the encoding!
+    # Don't return a Unicode string directly. You need
+    # to specify the encoding in the HTTP header, and
+    # encode the string correctly.
     if isinstance(body, unicode):
         raise TypeError("Unencoded Unicode response")
 
@@ -107,68 +109,73 @@ def _convert_body(body):
 class ServerConfig(object):
     def __init__(self, settings, config):
         self.server_address = settings["server_address"]
+
     def wsgi_application(self, environ, start_response):
         name = shift_path_info(environ)
+
         try:
-            try:
-                func = registry.get_service(name)
-            except KeyError:
-                raise wsgi_error(404)
-            result = func(environ, start_response)
-            # The result should meet the WSGI spec.
-            # XXX It's so tempting to do
-            return _convert_body(result)
-            # here and allow other return types
-            #return result
+            func = registry.get_service(name)
+        except KeyError:
+            # Not found. Report something semi-nice to the user
+            start_response("404 Not Found", [("Content-Type", "text/xml")])
+            reason, message = WSGIRequestHandler.responses[404]
+            return ERROR_DOCUMENT_TEMPLATE % dict(status = "404",
+                                                  reason = reason,
+                                                  message = message)
+        # The handler is in charge of doing its own error catching.
+        # There is one higher-level handler which will catch errors.
+        # If/when that happens it creates a new Akara job handler.
+        result = func(environ, start_response)
+        # XXX The result should meet the WSGI spec. ???
+        return _convert_body(result)
 
-        except wsgi_exception, err:
-            # An exception must not set the headers.
-            # Do it here then return the response as the body
-            response = err.get_response()
-            _send_response_headers(response, start_response)
-            # XXX Again, should I do this here?
-            return _convert_body(response.body)
+# Akara byte-compiles the extension modules during server startup as a
+# sanity check that they make sense. However, Akara does NOT exec the
+# byte code. That is done by each child. Why? It means extension
+# modules cannot affect anything in the main process (other than
+# knowing that the child is responding or not). 
+
+# I want the modules to be exec'ed once in the child. PreforkServer
+# has no defined hook for doing that. The jobClass is init'ed once for
+# each request. By inspection I found that 'self._child()' is an
+# internal method that I can use to sneak in my exec.
 
 
-
-# Store a bit of information needed the respond to the HTTP request.
-# This was made a bit more complicated because the compiled extension
-# modules aren't actually compiled until the HTTP children are spawned
-# off. There's no hook for that (XXX verify that) in flup, so I
-# actually defer until the first request is done (XXX fix that so exec
-# is done earlier? No. This lets us have clean restarts.)
-
-class AkaraManager(object):
-    def __init__(self, settings, conf, modules):
-        self.settings = settings
-        self.conf = conf
+class AkaraPreforkServer(preforkserver.PreforkServer):
+    def __init__(self, settings, config, modules,
+                 minSpare=1, maxSpare=5, maxChildren=50,
+                 maxRequests=0, ):
+        preforkserver.PreforkServer.__init__(self,
+                                             minSpare=minSpare, maxSpare=maxSpare,
+                                             maxChildren=maxChildren, maxRequests=maxRequests,
+                                             jobClass=AkaraJob,
+                                             jobArgs=(settings, config))
         self.modules = modules
-        self._inited_modules = False
 
-    def _init_modules(self):
-        # The master node parsed the modules but did not exec them.
-        # Do that now, but only once. This will register the functions.
-        if not self._inited_modules:
-            for code, global_dict in self.modules:
-                name = global_dict["__name__"]
-                # XXX I don't like this. It means that each spawned
-                # listener will re-exec the already parsed code.
-                # If there are warnings/errors, they will generated
-                # once per process.
-                try:
-                    exec code in global_dict, global_dict
-                except:
-                    logger.error("Unable to initialize module %r" % (name,),
-                                 exc_info = True)
-                    
-            self._inited_modules = True
+    def _child(self, sock, parent):
+        _init_modules(self.modules)
+        preforkserver.PreforkServer._child(self, sock, parent)
 
-    def __call__(self, sock, addr):
-        self._init_modules()
-        return AkaraJob(sock, addr, self.settings, self.conf, )
+def _init_modules(modules):
+    # The master node parsed the modules but did not exec them.
+    # Do that now, but only once. This will register the functions.
+    for code, global_dict in modules:
+        name = global_dict["__name__"]
+        # NOTE: each child execs this code, so any warning and
+        # errors will be repeated for each newly spawned process,
+        # including child restarts.
+        try:
+            exec code in global_dict, global_dict
+        except:
+            logger.error("Unable to initialize module %r" % (name,),
+                         exc_info = True)
 
+class AkaraWSGIHandler(httpserver.WSGIHandler):
+    sys_version = None  # Disable including the Python version number
+    server_version = "Akara/2.0"
+    protocol_version = "HTTP/1.1"
 
-# This is called by ... XXX
+# This is called by the flup PreforkServer
 class AkaraJob(object):
     def __init__(self, sock, addr, settings, config):
         self._sock = sock
@@ -179,7 +186,7 @@ class AkaraJob(object):
         print "Starting"
         self._sock.setblocking(1)
         c = ServerConfig(self.settings, self.config)
-        self.handler = httpserver.WSGIHandler(self._sock, self._addr, c)
+        self.handler = AkaraWSGIHandler(self._sock, self._addr, c)
         print "Ending"
         self._sock.close()
 

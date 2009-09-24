@@ -14,12 +14,15 @@ import logging
 from cStringIO import StringIO
 
 #from flup.server.preforkserver import PreforkServer
-from akara.thirdparty.preforkserver import PreforkServer
+#from akara.thirdparty.preforkserver import PreforkServer
 
 from akara.module_loader import load_modules
 from akara import logger, logger_config
 
-from akara.multiprocess_http import AkaraManager
+#from akara.multiprocess_http import AkaraManager
+from akara.multiprocess_http import AkaraPreforkServer
+
+        
 
 
 def save_pid(pid_file):
@@ -191,12 +194,15 @@ def main(argv):
                 old_server_address = server_address
 
             # NOTE: StartServers not currently supported
-            server = PreforkServer(minSpare = settings["min_spare_servers"],
-                                   maxSpare = settings["max_spare_servers"],
-                                   maxChildren = settings["max_servers"],
-                                   maxRequests = settings["max_requests_per_server"],
-                                   jobClass = AkaraManager(settings, config, modules)
-                                   )
+            server = AkaraPreforkServer(
+                minSpare = settings["min_spare_servers"],
+                maxSpare = settings["max_spare_servers"],
+                maxChildren = settings["max_servers"],
+                maxRequests = settings["max_requests_per_server"],
+                settings = settings,
+                config = config,
+                modules = modules,
+                )
 
             # Everything is ready to go, except for saving the PID file
             if first_time:

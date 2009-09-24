@@ -11,7 +11,6 @@ class Registry(object):
         self.register_service(self.list_services,
                               "http://purl.org/xml3k/akara/services/builtin/registry", "")
     def register_service(self, function, ident, path):
-        print "Added", ident, path, function
         assert ident is not None, "even though it is not used yet"
         self._registered_services[path] = function
 

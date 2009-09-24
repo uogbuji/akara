@@ -105,7 +105,8 @@ class PreforkServer(object):
         if minSpare < 1:
             raise ValueError("minSpare must be at least 1!")
         if maxSpare < minSpare:
-            raise ValueError("maxSpare must be greater than, or equal to, minSpare!")
+            raise ValueError("maxSpare (%r) must be greater than, or equal to, minSpare (%r)!"
+                             % (minSpare, maxSpare))
 
     def run(self, sock):
         """

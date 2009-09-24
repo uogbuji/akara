@@ -21,13 +21,13 @@ from akara import registry, module_loader
 
 response = None
 
-def _get_function_args(environ):
+def _get_function_args(environ, default_kwargs = {}):
     request_method = environ.get("REQUEST_METHOD")
     if request_method not in ("GET", "POST", "HEAD"):
         http_response = environ["akara.http_response"]  # XXX where is this set?
         raise http_response(httplib.METHOD_NOT_ALLOWED)
 
-    if method == "POST":
+    if request_method == "POST":
         try:
             request_length = int(environ["CONTENT_LENGTH"])
         except (KeyError, ValueError):
@@ -44,12 +44,10 @@ def _get_function_args(environ):
 
     # Build up the keyword parameters from the query string
     query_string = environ["QUERY_STRING"]
+    kwargs = default_kwargs.copy()
     if query_string:
         # Is this order correct? 
-        kwargs = cgi.parse_qs(query_string)
-        kwargs.update(service_kwargs)
-    else:
-        kwargs = service_kwargs
+        kwargs.update(cgi.parse_qs(query_string))
     return args, kwargs
 
 def simple_service(method, service_id, mount_point=None, content_type=None,
@@ -73,7 +71,7 @@ def simple_service(method, service_id, mount_point=None, content_type=None,
 
         @functools.wraps(func)
         def wrapper(environ, start_response):
-            args, kwargs = _get_function_args(environ)
+            args, kwargs = _get_function_args(environ, service_kwargs)
 
             # For when you really need access to the environ.
             # XXX I don't like this, btw, because it goes
