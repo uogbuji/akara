@@ -159,13 +159,13 @@ class AkaraPreforkServer(preforkserver.PreforkServer):
 def _init_modules(modules):
     # The master node parsed the modules but did not exec them.
     # Do that now, but only once. This will register the functions.
-    for code, global_dict in modules:
-        name = global_dict["__name__"]
+    for code, module_globals in modules:
+        name = module_globals["__name__"]
         # NOTE: each child execs this code, so any warning and
         # errors will be repeated for each newly spawned process,
         # including child restarts.
         try:
-            exec code in global_dict, global_dict
+            exec code in module_globals, module_globals
         except:
             logger.error("Unable to initialize module %r" % (name,),
                          exc_info = True)

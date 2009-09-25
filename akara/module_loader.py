@@ -55,6 +55,7 @@ def load_modules(module_dir, server_root, config):
 
             # Backwards compatibility
             "AKARA_MODULE_CONFIG": module_config,
+            "__AKARA_REGISTER_SERVICE__": akara.register_service,
             }
         f = open(full_path, "rU")
         # XXX Put some logging here about modules which cannot be parsed

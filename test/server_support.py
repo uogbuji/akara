@@ -86,8 +86,8 @@ def remove_server_dir():
         server_pid = None
 
     if server_root is not None:
-        #print server_root
-        shutil.rmtree(server_root)
+        print "Test server configuration and log files are in", server_root
+        #shutil.rmtree(server_root)
         server_root = None
 
 atexit.register(remove_server_dir)
@@ -98,7 +98,7 @@ def start_server():
 
     port = python_support.find_unused_port()
     create_server_dir(port)
-    args = [sys.executable, "-m", "akara.server.run",
+    args = [sys.executable, "-m", "akara.run",
             "--config-file", config_filename]
     result = subprocess.call(args)
 
@@ -109,27 +109,12 @@ def start_server():
         err_text = f.read()
         raise AssertionError("Could not start %r:\n%s" % (args, err_text))
 
-    # Akara started, but perhaps it didn't get that far.
-    # Check that by fetching the pid from the pid log file.
-    # However, the pid file is created after the process
-    # detactes from the controlling process, so there's a
-    # timing problem. (ticket #9). The file might not yet
-    # exist, or not yet be populated with the pid information.
-    # Try getting it a few times
-    REPEAT = 40
-    for i in range(REPEAT):
-        try:
-            f = open(os.path.join(server_root, "logs", "akara.pid"))
-            line = f.readline()
-            f.close()
-            # Make sure it's an integer (I've seen it be a blank line)
-            int(line)
-        except (IOError, ValueError):
-            if i == REPEAT-1:
-                raise
-        else:
-            break
-        time.sleep(0.25)
+    # Akara server started in the background. The main
+    # process will only exit with a success (0) if the
+    # pid file has been created.
+    f = open(os.path.join(server_root, "logs", "akara.pid"))
+    line = f.readline()
+    f.close()
 
     # Save the pid information now so the server will be shut down
     # if there are any problems.

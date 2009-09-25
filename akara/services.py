@@ -16,10 +16,14 @@ import cgi
 
 
 from akara import logger
-#from akara.multiprocess_http import simple_service
 from akara import registry, module_loader
 
-response = None
+class SimpleResponse(object):
+    def __init__(self, body, content_type):
+        self.body = body
+        self.content_type = content_type
+
+response = SimpleResponse
 
 def _get_function_args(environ, default_kwargs = {}):
     request_method = environ.get("REQUEST_METHOD")
@@ -49,6 +53,12 @@ def _get_function_args(environ, default_kwargs = {}):
         # Is this order correct? 
         kwargs.update(cgi.parse_qs(query_string))
     return args, kwargs
+
+def service(*args, **kwargs):
+    def do_nothing(func):
+        return func
+    return do_nothing
+method_handler = service
 
 def simple_service(method, service_id, mount_point=None, content_type=None,
                    **kwds):
@@ -85,16 +95,14 @@ def simple_service(method, service_id, mount_point=None, content_type=None,
             finally:
                 module_loader._set_environ(None)
 
-#            if isinstance(result, Response):
-#                _send_response_headers(results, start_response)
-#                #return _convert_body(result.body)
-#                return result.body
-#            else:
-            if 1:
+            if isinstance(result, SimpleResponse):
+                start_response("200 OK", [("Content-Type", result.content_type)])
+                result = result.body
+            else:
                 # XXX What should the default content-type be?
                 start_response("200 OK", [("Content-Type", service_content_type or "text/plain")])
-                #return _convert_body(result)
-                return result
+            #return _convert_body(result)  # XXX support this?
+            return result
 
         m_point = mount_point  # Get from the outer scope
         if m_point is None:
