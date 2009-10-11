@@ -349,9 +349,10 @@ def method_handler(request_method, service_id):
     return deco
 """
 # Install some built-in services
-@simple_service("GET", "http://purl.org/xml3k/akara/services/builtin/registry", "")
+@simple_service("GET", "http://purl.org/xml3k/akara/services/builtin/registry",
+                "", "text/xml")
 def list_services(service=None):
     if service is not None:
         service = service[0]  # XXX check for multiple parameters
-    return registry.describe_services(ident=service) # XXX 'ident' or 'service' ?
+    return registry.list_services(ident=service) # XXX 'ident' or 'service' ?
 
