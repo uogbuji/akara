@@ -142,6 +142,7 @@ def simple_service(method, service_id, mount_point=None, content_type=None,
                 result = result.body
             else:
                 # XXX What should the default content-type be?
+                # XXX If the handler returns an Amara tree, can I just say it's text/xml?
                 start_response("200 OK", [("Content-Type", service_content_type or "text/plain")])
             #return _convert_body(result)  # XXX support this?
             return result
