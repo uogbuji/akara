@@ -9,10 +9,16 @@ import socket
 import subprocess
 import sys
 import tempfile
-import time
 import urllib2
 
+# XXX I only use one function from here. Bring it into this file?
 import python_support
+
+######
+
+# Set 'False' to keep the temporary directory used for the server tests
+DELETE_TEMPORARY_SERVER_DIRECTORY = True
+
 
 ######
 MODULE_DIR = os.path.join(dirname(dirname(abspath(__file__))), "demo", "modules")
@@ -87,11 +93,12 @@ def remove_server_dir():
         server_pid = None
 
     if server_root is not None:
-        ## Can change the commenting here to save the output directory.
         # Very useful when doing development and testing.
-        # Would like this as a configuration option some how.
-        #print "Test server configuration and log files are in", server_root
-        shutil.rmtree(server_root)
+        # Would like this as a command-line option somehow.
+        if DELETE_TEMPORARY_SERVER_DIRECTORY:
+            shutil.rmtree(server_root)
+        else:
+            print "Test server configuration and log files are in", server_root
         server_root = None
 
 atexit.register(remove_server_dir)
