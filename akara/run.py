@@ -106,6 +106,18 @@ def demonize():
         raise
     return notify_parent
 
+def usage(output):
+    W = output.write
+    W("%s [options]\n" % sys.argv[0])
+    W("""\
+Options:
+ -h, --help     Show this help message and exit
+ -f FILE, --config-file=FILE
+                Read configuration from FILE
+ -X             Start Akara in debug mode and in the foreground
+""")
+
+
 def main(argv):
     debug = False
     config_filename = None
