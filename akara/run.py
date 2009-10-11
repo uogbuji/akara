@@ -13,27 +13,38 @@ import logging
 
 from cStringIO import StringIO
 
-#from flup.server.preforkserver import PreforkServer
-#from akara.thirdparty.preforkserver import PreforkServer
-
-from akara.module_loader import load_modules
 from akara import logger, logger_config
-
-#from akara.multiprocess_http import AkaraManager
+from akara.module_loader import load_modules
 from akara.multiprocess_http import AkaraPreforkServer
 
-        
+
+# This is a simple redirector.
+# It fails if all your prints are of the form:
+#   print "Hello\nThere",
+# Don't do that. ;)
+class WriteToLogger(object):
+    def __init__(self, name, log_method):
+        self.name = name
+        self.log_method = log_method
+        self._name = name + "> "
+        self.chunks = []
+    def write(self, s):
+        if s.endswith("\n"):
+            text = "".join(self.chunks) + s[:-1]
+            self.log_method(self._name + text)
+        else:
+            self.chunks.append(s)
 
 
 def save_pid(pid_file):
-    pid_s = str(os.getpid())
+    # Newline terminated
+    pid_s = str(os.getpid()) + "\n"
 
     try:
         f = open(pid_file, "w")
     except Exception, error:
         raise Exception("Unable to open PID file: %s" %
                         (error,))
-    # XXX NOT newline terminated
     try:
         try:
             f.write(pid_s)
@@ -213,7 +224,10 @@ def main(argv):
                 sock.listen(socket.SOMAXCONN)
                 old_server_address = server_address
 
-            # NOTE: StartServers not currently supported
+            # NOTE: StartServers not currently supported and likely won't be.
+            # Why? Because the old algorithm would add/cull the server count
+            # within a few check intervals (each about 1 second), so it
+            # didn't have much long-term effect.
             server = AkaraPreforkServer(
                 minSpare = settings["min_spare_servers"],
                 maxSpare = settings["max_spare_servers"],
@@ -244,9 +258,10 @@ def main(argv):
                 if stream.isatty():
                     #stream.close()
                     pass
-            sys.stdin = StringIO("") # XXX Hack. Send to log file?
-            sys.stdout = StringIO()
-            sys.stderr = StringIO()
+            sys.stdin = StringIO("")
+            sys.stdout = WriteToLogger("stdout", logger.info)
+            sys.stderr = WriteToLogger("stderr", logger.info)
+            print "This is a test"
 
         try:
             hupReceived = server.run(sock)
@@ -267,6 +282,37 @@ def main(argv):
         logger.info("Restarting")
         first_time = False
     remove_pid(pid_file)
+
+# This is debugging code I used when with a bug during
+# demonization with redirecting stdout/stderr to the logger.
+# When enabled, wrap 'main' and dump any exceptions to
+# a log file. Defaults to the current terminal.
+# NOTE: in normal operation there will be MULTIPLE exits.
+#  - one for the command-line program, which forks to
+#  - the master process manager, which forks to
+#  - each spawned HTTP listener/worker process
+if 0:
+    def _get_exception_filename():
+        # return "/dev/ttyp2"  # Replace this if you want a particular file
+        return os.popen("tty").readline().rstrip()
+
+    # Get a useful filename
+    _exception_filename = _get_exception_filename()
+
+    # Use a new name for the existing 'main'
+    _main = main
+
+    def main(argv):
+        try:
+            _main(argv)
+        except:
+            import traceback
+            f = open(_exception_filename, "a")
+            f.write("Exception trace from %s\n" % (os.getpid(),))
+            traceback.print_exc(file=f)
+            f.close()
+            raise
+
 
 if __name__ == "__main__":
     main(sys.argv)
