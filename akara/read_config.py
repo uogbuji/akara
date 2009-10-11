@@ -64,28 +64,19 @@ def _init_config_defaults():
             config.set(section, name, value)
     return config
 
-def _update_from_config_file(config, config_file):
-    # Akara allows only a single filename, which ConfigParser.read aso supports.
-    # But 'read' also supports a list of filenames, and I don't want to handle
-    # that case when checking that if 'read' was successful.
-    if not isinstance(config_file, basestring):
-        raise AssertionError("config_file must be a filename, not: %r" % config_file)
-    
-    # Either returns an empty list (failure) or a list with one item (success)
-    read_files = config.read(config_file)
-    if not read_files:
-        log.info('Configuration file %r not found, using defaults', config_file)
-
-
 def read_config(config_file=None):
     if config_file is None:
         config_file = DEFAULT_SERVER_CONFIG_FILE
     config = _init_config_defaults()
     try:
-        _update_from_config_file(config, config_file)
+        f = open(config_file)
+    except IOError, err:
+        raise Error("Could not open Akara configuration file: %s" % (err,))
+    try:
+        config.readfp(f)
         settings = _extract_settings(config)
     except (Error, ConfigParser.Error), err:
-        raise Error("Could not read from configuration file %r: %s" %
+        raise Error("Could not read from Akara configuration file %r: %s" %
                     (config_file, err))
     return settings, config
         
