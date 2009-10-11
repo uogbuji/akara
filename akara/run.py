@@ -119,6 +119,13 @@ Options:
 
 
 def main(argv):
+    # Akara used to use OptionParser but changeset 54:0cc733983ad4
+    # moved that to use getopt because of some interaction between
+    # _locale and CoreFoundation on Mac OSX 10.5.
+    # I don't have any more details than that. A Google search
+    # says that _locale imports CoreFoundation, which must be
+    # imported in the main thread ... but Akara doesn't use threads.
+
     debug = False
     config_filename = None
     try:
@@ -139,6 +146,8 @@ def main(argv):
         else:
             raise AssertionError(opt)
 
+    ####
+
     first_time = True
     old_server_address = None
     sock = None
@@ -146,7 +155,6 @@ def main(argv):
         settings, config = read_config.read_config(config_filename)
 
         # For now, keep with the old Akara mechanism.
-        # XXX What about using Python's full logging configuration system
         if debug:
             logger.setLevel(logging.DEBUG)
         else:
