@@ -36,6 +36,7 @@ SERVER_URI = _override_server_uri()
 server_root = None
 config_filename = None
 server_pid = None
+server_did_not_start = False
 
 # Create a temporary directory structure for Akara.
 # Needs a configuration .ini file and the logs subdirectory.
@@ -86,15 +87,24 @@ def remove_server_dir():
         server_pid = None
 
     if server_root is not None:
-        print "Test server configuration and log files are in", server_root
-        #shutil.rmtree(server_root)
+        ## Can change the commenting here to save the output directory.
+        # Very useful when doing development and testing.
+        # Would like this as a configuration option some how.
+        #print "Test server configuration and log files are in", server_root
+        shutil.rmtree(server_root)
         server_root = None
 
 atexit.register(remove_server_dir)
 
 # Start a new Akara server in server mode.
 def start_server():
-    global server_pid
+    global server_pid, server_did_not_start
+    # There's a PID if the spawning worked
+    assert server_pid is None
+    # Can only tell if the server starts by doing a request
+    # If the request failed, don't try to restart.
+    if server_did_not_start:
+        raise AssertionError("Already tried once to start the server")
 
     port = python_support.find_unused_port()
     create_server_dir(port)
@@ -118,14 +128,18 @@ def start_server():
 
     # Save the pid information now so the server will be shut down
     # if there are any problems.
-    server_pid = int(line)
+    temp_server_pid = int(line)
 
     # Check to see that the server process really exists.
     # (Is this overkill? Is this portable for Windows?)
-    os.kill(server_pid, 0)  # Did Akara really start?
+    os.kill(temp_server_pid, 0)  # Did Akara really start?
 
+    server_did_not_start = True
     check_that_server_is_available(port)
+    server_did_not_start = False
 
+    # Looks like it's legit!
+    server_pid = temp_server_pid
     return port
 
 # It takes the server a little while to get started.
@@ -134,7 +148,8 @@ def start_server():
 def check_that_server_is_available(port):
     old_timeout = socket.getdefaulttimeout()
     try:
-        socket.setdefaulttimeout(10.0)
+        # How long do you want to wait?
+        socket.setdefaulttimeout(20.0)
         try:
             urllib2.urlopen("http://localhost:%d/" % port).read()
         except urllib2.URLError, err:
