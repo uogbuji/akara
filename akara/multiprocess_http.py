@@ -62,21 +62,6 @@ class wsgi_error(wsgi_exception):
         return Response(body, "text/xml", "%s %s" % (self.status, self.reason))
 
 
-
-def _send_response_headers(result, start_response, content_type):
-    headers = result.headers[:]
-    for k,v in headers:
-        # See if the Content-Type is already present
-        if k.lower() == "content-type":
-            break
-    else:
-        # What should the default content-type be?
-        content_type = result.content_type or content_type or "text/plain"
-        headers.append( ("Content-Type", content_type) )
-
-    start_response(result.status, headers)
-
-
 def _convert_body(body):
     # Simple string. Convert to chunked form.
     # (Code inspection suggests that returning a simple string
@@ -114,7 +99,7 @@ class ServerConfig(object):
         name = shift_path_info(environ)
 
         try:
-            func = registry.get_service(name)
+            service = registry.get_service(name)
         except KeyError:
             # Not found. Report something semi-nice to the user
             start_response("404 Not Found", [("Content-Type", "text/xml")])
@@ -122,10 +107,11 @@ class ServerConfig(object):
             return ERROR_DOCUMENT_TEMPLATE % dict(status = "404",
                                                   reason = reason,
                                                   message = message)
+        handler = service.handler
         # The handler is in charge of doing its own error catching.
         # There is one higher-level handler which will catch errors.
         # If/when that happens it creates a new Akara job handler.
-        result = func(environ, start_response)
+        result = handler(environ, start_response)
         # XXX The result should meet the WSGI spec. ???
         return _convert_body(result)
 
@@ -170,10 +156,11 @@ def _init_modules(modules):
             logger.error("Unable to initialize module %r" % (name,),
                          exc_info = True)
 
+# Override a few of the default settings
 class AkaraWSGIHandler(httpserver.WSGIHandler):
     sys_version = None  # Disable including the Python version number
-    server_version = "Akara/2.0"
-    protocol_version = "HTTP/1.1"
+    server_version = "Akara/2.0"  # Declare that we are an Akara server
+    protocol_version = "HTTP/1.1" # Support (for the most part) HTTP/1.1 semantics
 
 # This is called by the flup PreforkServer
 class AkaraJob(object):
@@ -183,10 +170,12 @@ class AkaraJob(object):
         self.settings = settings  # parsed settings as a dict
         self.config = config      # a ConfigParser
     def run(self):
-        print "Starting"
         self._sock.setblocking(1)
+        logger.debug("Start request from address %r, local socket %r" %
+                     (self._addr, self._sock.getsockname()))
         c = ServerConfig(self.settings, self.config)
         self.handler = AkaraWSGIHandler(self._sock, self._addr, c)
-        print "Ending"
+        logger.debug("End request from address %r, local socket %r" %
+                     (self._addr, self._sock.getsockname()))
         self._sock.close()
 
