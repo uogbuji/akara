@@ -18,11 +18,50 @@ import cgi
 from akara import logger
 from akara import registry, module_loader
 
+# 
 class SimpleResponse(object):
     def __init__(self, body, content_type):
         self.body = body
         self.content_type = content_type
 
+ERROR_DOCUMENT_TEMPLATE = """<?xml version="1.0" encoding="ISO-8859-1"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<hmtl xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <title>%(reason)s</title>
+</head>
+<body>
+  <h1>%(reason)s</h1>
+  <p>
+  %(message)s
+  </p>
+  <h2>Error %(status)s</h2>
+</body>
+</html>
+"""
+
+class SimpleError(Exception):
+    def __init__(self, status, body=None, content_type="text/xml"):
+        assert isinstance(status, int)
+        self.status = status
+        self.body = body
+        self.content_type = content_type
+    def respond(self, environ, start_response):
+        reason, message = WSGIRequestHandler.responses.get(status, ("Unknown", "Unknown"))
+        start_response("%s %s" % (self.code, reason),
+                       [("Content-Type", self.content_type)])
+        if self.body is not None:
+            return self.body
+        message = ERROR_DOCUMENT_TEMPLATE % dict(status=status,
+                                                 reason=reason,
+                                                 message=message)
+        return message
+
+
+
+
+# Backwards compatibility
 response = SimpleResponse
 
 def _get_function_args(environ, default_kwargs = {}):
@@ -91,7 +130,10 @@ def simple_service(method, service_id, mount_point=None, content_type=None,
             module_loader._set_environ(environ)
             try:
                 # XXX make this be a context?
-                result = func(*args, **kwargs)
+                try:
+                    result = func(*args, **kwargs)
+                except SimpleError, error:
+                    return error.respond(environ, start_response)
             finally:
                 module_loader._set_environ(None)
 
@@ -306,3 +348,10 @@ def method_handler(request_method, service_id):
         return wrapper
     return deco
 """
+# Install some built-in services
+@simple_service("GET", "http://purl.org/xml3k/akara/services/builtin/registry", "")
+def list_services(service=None):
+    if service is not None:
+        service = service[0]  # XXX check for multiple parameters
+    return registry.describe_services(ident=service) # XXX 'ident' or 'service' ?
+
