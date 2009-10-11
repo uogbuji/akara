@@ -1,3 +1,7 @@
+# This tests Akara through a running web server, started on an unused port.
+# Some of the tests will require Akara to connect to other machines, which
+# means this must be run with a working network.
+
 # NOTE: you can test against a running server by setting AKARA_TEST_SERVER
 # Here's one way to use a server on a different port on localhost:
 #   env AKARA_TEST_SERVER=localhost:49658 nosetests test_demo_modules.py
