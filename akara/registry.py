@@ -9,15 +9,12 @@ from akara import logger
 
 #### Simple registry of services
 # This completely ignores the HTTP method (GET, PUT, POST, etc.)
-# during dispatch. Akara currently has fixed mount points, so
-# doing a PUT of a resource to a collection won't work - there's
-# no pre-defined handler for an arbitrary name.
+# during dispatch.
 
 
 class Service(object):
-    def __init__(self, handler, name, path, ident, doc):
+    def __init__(self, handler, path, ident, doc):
         self.handler = handler # most important - the function to call
-        self.name = name  # mostly useless
         self.path = path  # location on the local service
         self.ident = ident  # URN which identifies this uniquely
         self.doc = doc  # description to use when listing the service
@@ -31,12 +28,11 @@ class Registry(object):
     def register_service(self, handler, ident, path, doc=None):
         if doc is None:
             doc = inspect.getdoc(handler) or ""
-        name = handler.__name__ # XXX Why is this useful?
         if ident in self._registered_services:
             logger.warn("Replacing mount point %r (%r)" % (path, ident))
         else:
             logger.debug("Created new mount point %r (%r)" % (path, ident))
-        self._registered_services[path] = Service(handler, name, path, ident, doc)
+        self._registered_services[path] = Service(handler, path, ident, doc)
 
     def get_service(self, path):
         return self._registered_services[path]
@@ -48,7 +44,6 @@ class Registry(object):
             if ident is not None and service.ident != ident:
                 continue
             service_node = services.xml_append(tree.element(None, 'service'))
-            service_node.xml_attributes['name'] = service.name
             service_node.xml_attributes['ident'] = service.ident
             E = service_node.xml_append(tree.element(None, 'path'))
             E.xml_append(tree.text(path))
