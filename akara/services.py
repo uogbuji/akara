@@ -9,6 +9,7 @@ import httplib
 import warnings
 import functools
 import cgi
+import inspect
 
 #__all__ = ['simple_service', 'service', 'response', 'rest_dispatch',
 #    'method_handler'
@@ -16,7 +17,7 @@ import cgi
 
 
 from akara import logger
-from akara import registry, module_loader
+from akara import registry, module_loader, multiprocess_http
 
 # 
 class SimpleResponse(object):
@@ -154,33 +155,14 @@ def simple_service(method, service_id, mount_point=None, content_type=None,
         return wrapper
     return service_wrapper
 
-# This is a conversion of the old code. I don't like it though.
-# XXX Who is in charge of 'content_type'? Old code didn't support it at all.
-# XXX Why is akara.service_id added to the environ? Ahh, because of moin.
-#      I posted an alternative to the list, so commenting this out for now.
-"""
-def service(methods, service_id, mount_point=None, content_type=None):
-    if isinstance(methods, basestring):
-        methods = (methods,)
-    for method in methods:
-        if method != method.upper():
-            raise TypeError("AKARA HTTP method name for %r must be in uppercase, not %r" %
-                            (service_id, method))
-    
-    def service_wrapper(func):
-        @functools.wraps(func)
-        def wrapper(environ, start_response):
-            ## This was in the old code
-            # environ["akara.service_id"] = service_id
-            request_method = environ.get("REQUEST_METHOD")
-            if request_method not in methods:
-                return error_response("METHOD_NOT_ALLOWED", environ, start_response)
-"""
-# @dispatcher(SERVICE_ID, DEFAULT_MOUNT)
+## Use for services which dispatch based in HTTP method type (GET, POST, ...)
+
+# # Example of use:
+# @method_dispatcher(SERVICE_ID, DEFAULT_MOUNT)
 # def something():
 #   "docstring for the service"
 # 
-# @something.simple_method("GET", "text/plain")
+# @something.simple_method(method="GET", content_type="text/http")
 # def something_get(names=[]):
 #   return "Hi " + ", ".join(names) + "!\n"
 # 
@@ -188,36 +170,56 @@ def service(methods, service_id, mount_point=None, content_type=None):
 # def something_post(environ, start_response):
 #   start_response("200 OK", [("Content-Type", "image/gif")])
 #   return okay_image
-"""
-class dispatcher(object):
+
+class method_dispatcher(object):
     def __init__(self, service_id, mount_point):
         self.service_id = service_id
         self.mount_point = mount_point
     def __call__(self, func):
-        return method_dispatcher(service_id, mount_point, func.__doc__)
+        doc = inspect.getdoc(func)
+        dispatcher = service_method_dispatcher()
+        registry.register_service(dispatcher, self.service_id, self.mount_point, doc)
+        return service_dispatcher_decorator(dispatcher)
+
+class service_method_dispatcher(object):
+    def __init__(self):
+        self.method_table = {}
+    def add_handler(self, method, handler):
+        if method in self.method_table:
+            logger.warn("Replaced method")
+        else:
+            logger.info("New method")
+        self.method_table[method] = handler
+    def __call__(self, environ, start_response):
+        method = environ.get("REQUEST_METHOD")
+        handler = self.method_table.get(method, None)
+        if handler is not None:
+            return handler(environ, start_response)
+        # XXX generate error here
+        raise NotImplementedError
 
 
-class method_dispatcher(object):
-    def __init__(self, service_id, mount_point, doc):
-        self.service_id = service_id
-        self.mount_point = mount_point
-        self.doc = doc
+
+class service_dispatcher_decorator(object):
+    def __init__(self, dispatcher):
+        self.dispatcher = dispatcher
 
     def method(self, method):
         if method != method.upper():
             raise AssertionError, "Method name must be upper case" # XXX
-        @functools.wraps(func)
-        def method_wrapper(environ, start_response):
-            _set_environ(environ)
-            try:
-                result = func(environ, start_response)
-            finally:
-                _set_environ(None)
-            if isinstance(result, tree):
-                raise AssertionError, "not implemented"
-            return result
-        register(method_wrapper, self.service_id, self.mount_point, self.doc)
-        return method_wrapper
+        def service_dispatch_decorator_method_wrapper(func):
+            @functools.wraps(func)
+            def method_wrapper(environ, start_response):
+                module_loader._set_environ(environ)
+                try:
+                    result = func(environ, start_response)
+                finally:
+                    module_loader._set_environ(None)
+                return multiprocess_http._convert_body(result)
+
+            self.dispatcher.add_handler(method, method_wrapper)
+            return method_wrapper
+        return service_dispatch_decorator_method_wrapper
 
     def simple_method(self, method, content_type=None):
         if method != method.upper():
@@ -227,128 +229,25 @@ class method_dispatcher(object):
                 "simple_method only supports GET and POST methods, not %s" %
                 (method,))
         
-        @functools.wraps(func)
-        def simple_method_wrapper(environ, start_response):
-            args, kwargs = _get_function_args(environ)
-            module_loader._set_environ(environ)
-            try:
-                result = func(*args, **kwargs)
-            finally:
-                module_loader._set_environ(None)
-            start_response("200 OK", [("Content-Type", content_type or "text/plain")])
-            return _convert_body(result)
+        def service_dispatch_decorator_simple_method_wrapper(func):
+            @functools.wraps(func)
+            def simple_method_wrapper(environ, start_response):
+                args, kwargs = _get_function_args(environ)
+                module_loader._set_environ(environ)
+                try:
+                    result = func(*args, **kwargs)
+                finally:
+                    module_loader._set_environ(None)
+                start_response("200 OK", [("Content-Type", content_type or "text/plain")])
+                #return _convert_body(result)
+                return result
 
-        register_service(simple_method_wrapper, service_id, mount_point, doc)
-        return simple_method_wrapper
-
-
-@dispatcher("spam", "eggs")
-def vikings():
-    "Sing the Viking song"
-
-@vikings.simple_method("GET", "text/plain")
-def vikings_get(word):
-    word = words[0]
-    yield "%s, %s, %s, %s" % (word, word, word, word)
-    yield "%s, %s, %s, %s" % (word, word, word, word)
-    yield "%s-itty %s!" % (word, word)
-
-@vikings.method("POST")
-def vikings_post(environ, start_response):
-    start_response("200 OK", [("Content-Type", "text/plain")])
-    return "That was interesting."
-"""
-
-# Old code         
-"""
-class service(object):
-    '''
-    A generic REST wrapper
-    '''
-    def __init__(self, methods, service_id, mount_point=None, content_type=None):
-        if isinstance(methods, basestring):
-            methods = (methods,)
-        self.methods = methods
-        self.service_id = service_id
-        self.mount_point = mount_point
-        self.content_type = content_type
-
-    def __call__(self, func):
-        try:
-            register = func.func_globals['__AKARA_REGISTER_SERVICE__']
-        except KeyError:
-            return func
-
-        @functools.wraps(func)
-        def wrapper(environ, start_response, service=self):
-            environ['akara.service_id'] = self.service_id
-            request_method = environ.get('REQUEST_METHOD')
-            if request_method not in self.methods:
-                http_response = environ['akara.http_response']
-                raise http_response(httplib.METHOD_NOT_ALLOWED)
-            response_obj = func(environ, start_response)
-            if not isinstance(response_obj, response):
-                content_type = service.content_type
-                if content_type is None:
-                    raise RuntimeError(
-                        'service %r must provide content_type' % service)
-                response_obj = response(response_obj, content_type, status=httplib.OK)
-            if response_obj.headers is None:
-                response_obj.headers = [
-                    ('Content-Type', content_type),
-                    ('Content-Length', str(len(body))),
-                    ]
-            #FIXME: Breaks if func also calls start_response.  Should we allow that?
-            start_response(status_response(response_obj.status), response_obj.headers)
-            return [response_obj.body]
-
-        mount_point = self.mount_point
-        if mount_point is None:
-            mount_point = func.__name__
-        register(wrapper, self.service_id, mount_point)
-        return wrapper
+            self.dispatcher.add_handler(method, simple_method_wrapper)
+            return simple_method_wrapper
+        return service_dispatch_decorator_simple_method_wrapper
 
 
-def status_response(code):
-    return '%i %s'%(code, httplib.responses[code])
 
-
-class response(object):
-    __slots__ = ('body', 'content_type', 'headers', 'status')
-    #Considered compat with webob.Response, but a bit too much baggage in those waters
-    #Also consider forwards-compat support for OrderedDict: http://www.python.org/dev/peps/pep-0372/
-    def __init__(self, body='', content_type=None, status=None, headers=None):
-        self.body = body
-        self.content_type = content_type
-        self.headers = headers
-        self.status = status
-
-
-def rest_dispatch(environ, start_response, service_id, search_space):
-    #search_space - usually
-    request_method = environ.get('REQUEST_METHOD')
-    if 'REST_DISPATCH' not in search_space:
-        rest_dispatch = {}
-        for objname in search_space:
-            obj = search_space[objname]
-            if hasattr(obj, 'service_id') and obj.service_id == service_id:
-                rest_dispatch[obj.service_id, obj.request_method] = obj
-        search_space['REST_DISPATCH'] = rest_dispatch
-        #import sys; print >> sys.stderr, rest_dispatch
-    func = search_space['REST_DISPATCH'][service_id, request_method]
-    return func(environ, start_response)
-
-
-def method_handler(request_method, service_id):
-    def deco(func):
-        @functools.wraps(func)
-        def wrapper(environ, start_response):
-            return func(environ, start_response)
-        wrapper.request_method = request_method
-        wrapper.service_id = service_id
-        return wrapper
-    return deco
-"""
 # Install some built-in services
 @simple_service("GET", "http://purl.org/xml3k/akara/services/builtin/registry",
                 "", "text/xml")
