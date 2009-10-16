@@ -1,6 +1,6 @@
-from akara.services import service_dispatcher
+from akara.services import method_dispatcher
 
-@service_dispatcher("http://purl.org/spam", "eggs")
+@method_dispatcher("http://purl.org/spam", "vikings")
 def vikings():
     """Sing the Viking song
 
