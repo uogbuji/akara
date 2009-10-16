@@ -99,10 +99,8 @@ def test_akara_twc():
 <?xml version="1.0" encoding="UTF-8"?>
 <html><head/><body><a>one two <b>three four </b><c>five </c></a></body></html>""", repr(result)
 
-# NOTE: the underlying trim code is NOT correct. This checks the invalid output
-# for consistency. See trac #11.
 def test_akara_twc_html():
-    url = server() + "akara.twc?html=yes" # max 500 words
+    url = server() + "akara.twc?html=yes&max=10" # max 500 words
 
     req = urllib2.Request(url)
     req.add_header('Content-Type', 'application/xml')
