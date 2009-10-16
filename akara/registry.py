@@ -53,8 +53,8 @@ class Registry(object):
 
 _current_registry = Registry()
 
-def register_service(function, ident, path):
-    _current_registry.register_service(function, ident, path)
+def register_service(function, ident, path, doc=None):
+    _current_registry.register_service(function, ident, path, doc)
 
 def get_service(path):
     return _current_registry.get_service(path)
