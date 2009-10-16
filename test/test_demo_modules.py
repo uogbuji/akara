@@ -97,7 +97,7 @@ def test_akara_twc():
     result = urllib2.urlopen(req, data).read()
     assert result == """\
 <?xml version="1.0" encoding="UTF-8"?>
-<html><head/><body><a>one two <b>three four </b><c>five </c></a></body></html>""", repr(result)
+<html><head/><body><a>one two <b>three four </b><c>five</c></a></body></html>""", repr(result)
 
 def test_akara_twc_html():
     url = server() + "akara.twc?html=yes&max=10" # max 500 words
