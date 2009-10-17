@@ -1,0 +1,9 @@
+#!/usr/bin/env python
+
+# Command-line program to manage an Akara server.
+# Use "--help" to get usage information.
+
+import sys
+from akara import commandline
+
+commandline.main(sys.argv)
