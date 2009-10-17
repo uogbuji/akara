@@ -117,52 +117,16 @@ def demonize():
         raise
     return notify_parent
 
-def usage(output):
-    W = output.write
-    W("%s [options]\n" % sys.argv[0])
-    W("""\
-Options:
- -h, --help     Show this help message and exit
- -f FILE, --config-file=FILE
-                Read configuration from FILE
- -X             Start Akara in debug mode and in the foreground
-""")
 
-
-def main(argv):
-    # Akara used to use OptionParser but changeset 54:0cc733983ad4
-    # moved that to use getopt because of some interaction between
-    # _locale and CoreFoundation on Mac OSX 10.5.
-    # I don't have any more details than that. A Google search
-    # says that _locale imports CoreFoundation, which must be
-    # imported in the main thread ... but Akara doesn't use threads.
-
-    debug = False
-    config_filename = None
-    try:
-        options, args = getopt.getopt(argv[1:], "hf:X",
-                                      ("help", "config-file="))
-    except getopt.GetoptError, e:
-        print >>sys.stderr, e.msg
-        raise SystemExit(2)
-
-    for opt, val in options:
-        if opt in ("-h", "--help"):
-            usage(sys.stdout)
-            return
-        elif opt in ("-f", "--config-file"):
-            config_filename = val
-        elif opt == "-X":
-            debug = True
-        else:
-            raise AssertionError(opt)
-
-    ####
+def main(args):
+    config_filename = args.config_filename
+    debug = args.debug
 
     first_time = True
     old_server_address = None
     sock = None
     while 1:
+        # XXX comment here
         settings, config = read_config.read_config(config_filename)
 
         # For now, keep with the old Akara mechanism.
@@ -196,6 +160,7 @@ def main(argv):
             try:
                 notify_parent = demonize()
             except Exception, err:
+                # XXX more comments
                 # This can come from the parent or the child.
                 logger.critical("Cannot spawn HTTP server", exc_info=True)
                 raise SystemExit("Exiting - check the log file for details")
@@ -312,7 +277,3 @@ if 0:
             traceback.print_exc(file=f)
             f.close()
             raise
-
-
-if __name__ == "__main__":
-    main(sys.argv)
