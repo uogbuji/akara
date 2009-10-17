@@ -1,25 +1,19 @@
-#akara.services
-"""
+"""akara.services - adapters to simplify using Python functions as WSGI/HTTP handlers
 
 
 """
-#self.policy - instance of L{akara.policy.manager}
-
 import httplib
 import warnings
 import functools
 import cgi
 import inspect
 
-#__all__ = ['simple_service', 'service', 'response', 'rest_dispatch',
-#    'method_handler'
-#]
-
+from wsgiref.simple_server import WSGIRequestHandler
 
 from akara import logger
 from akara import registry, module_loader, multiprocess_http
 
-# 
+# XXX This is backwards-compatible code. Remove it?
 class SimpleResponse(object):
     def __init__(self, body, content_type):
         self.body = body
@@ -42,6 +36,12 @@ ERROR_DOCUMENT_TEMPLATE = """<?xml version="1.0" encoding="ISO-8859-1"?>
 </html>
 """
 
+# XXX The thought here is to have a way for the simple* services to
+# signal a specific error. For example:
+#  @simple_service("http://example.com/whatever", "whatever")
+#  def whatever():
+#      raise amara.services.SimpleError(402, "You don't have enough money!")
+
 class SimpleError(Exception):
     def __init__(self, status, body=None, content_type="text/xml"):
         assert isinstance(status, int)
@@ -62,9 +62,11 @@ class SimpleError(Exception):
 
 
 
-# Backwards compatibility
+# Backwards compatibility (older modules expect 'response')
+# XXX update those modules
 response = SimpleResponse
 
+# Pull out any query arguments and set up input from any POST request
 def _get_function_args(environ, default_kwargs = {}):
     request_method = environ.get("REQUEST_METHOD")
     if request_method not in ("GET", "POST", "HEAD"):
@@ -94,6 +96,8 @@ def _get_function_args(environ, default_kwargs = {}):
         kwargs.update(cgi.parse_qs(query_string))
     return args, kwargs
 
+# XXX Hack to get the moin modules to run without complaints.
+# XXX Fix to use the method
 def service(*args, **kwargs):
     def do_nothing(func):
         return func
@@ -155,7 +159,22 @@ def simple_service(method, service_id, mount_point=None, content_type=None,
         return wrapper
     return service_wrapper
 
+# XXX idea for the majority of services which deal with XML
+# @xml_service("http://example.com/cool_xml", "cool")
+# def cool(xml_tree, param1):
+#   ...
+#   return xml_tree
+
+#def xml_service()
+
+
 ## Use for services which dispatch based in HTTP method type (GET, POST, ...)
+
+# Nomenclature: the service is identified by its service id.
+# All handlers for a given service id implement a given protocol.
+# Use a method_dispatcher when a service does different things
+# based on the HTTP method (GET, POST, ...) and you want a
+# different Python function to handle each method.
 
 # # Example of use:
 # @method_dispatcher(SERVICE_ID, DEFAULT_MOUNT)
@@ -171,33 +190,31 @@ def simple_service(method, service_id, mount_point=None, content_type=None,
 #   start_response("200 OK", [("Content-Type", "image/gif")])
 #   return okay_image
 
-class method_dispatcher(object):
-    def __init__(self, service_id, mount_point):
-        self.service_id = service_id
-        self.mount_point = mount_point
-    def __call__(self, func):
-        doc = inspect.getdoc(func)
-        dispatcher = service_method_dispatcher()
-        registry.register_service(dispatcher, self.service_id, self.mount_point, doc)
-        return service_dispatcher_decorator(dispatcher)
-
 class service_method_dispatcher(object):
+    "WSGI dispatcher based on request HTTP method"
     def __init__(self):
         self.method_table = {}
     def add_handler(self, method, handler):
         if method in self.method_table:
-            logger.warn("Replaced method")
+            logger.warn("Replaced method") # XXX improve
         else:
-            logger.info("New method")
+            logger.info("New method") # XXX improve
         self.method_table[method] = handler
     def __call__(self, environ, start_response):
         method = environ.get("REQUEST_METHOD")
         handler = self.method_table.get(method, None)
         if handler is not None:
             return handler(environ, start_response)
-        # XXX generate error here
+        # XXX generate correct HTTP error here
         raise NotImplementedError
 
+def method_dispatcher(service_id, mount_point):
+    def method_dispatcher_wrapper(func):
+        doc = inspect.getdoc(func)
+        dispatcher = service_method_dispatcher()
+        registry.register_service(dispatcher, self.service_id, self.mount_point, doc)
+        return service_dispatcher_decorator(dispatcher)
+    return method_dispatcher_wrapper
 
 
 class service_dispatcher_decorator(object):
@@ -246,7 +263,9 @@ class service_dispatcher_decorator(object):
             return simple_method_wrapper
         return service_dispatch_decorator_simple_method_wrapper
 
-
+    # XXX Idea
+    #def xml_method(self, method="POST", content_type="text/xml"):
+    # ...
 
 # Install some built-in services
 @simple_service("GET", "http://purl.org/xml3k/akara/services/builtin/registry",

@@ -1,65 +1,16 @@
 """Interface to flup and paste.httpserver"""
 
-from cStringIO import StringIO
-import functools
 from wsgiref.util import shift_path_info
 from wsgiref.simple_server import WSGIRequestHandler
 
+# for xml_print
+from cStringIO import StringIO
 from amara import tree, xml_print
 
 from akara import logger
-from akara.thirdparty import httpserver, preforkserver
-from akara import module_loader as loader
 from akara import registry
 
-from akara.thirdparty.preforkserver import PreforkServer
-
-# Why was this lower case?
-class Response(object):
-    # Why did the original have __slots__ here?
-    #__slots__ = ("body", "content_type", "headers", "status")
-    def __init__(self, body="", content_type="", status=None, headers=None):
-        self.body = body
-        self.content_type = content_type
-        self.status = status
-        if headers is None:
-            headers = []
-        self.headers = headers
-
-
-ERROR_DOCUMENT_TEMPLATE = """<?xml version="1.0" encoding="ISO-8859-1"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
-  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<hmtl xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
-<head>
-  <title>%(reason)s</title>
-</head>
-<body>
-  <h1>%(reason)s</h1>
-  <p>
-  %(message)s
-  </p>
-  <h2>Error %(status)s</h2>
-</body>
-</html>
-"""
-
-
-class wsgi_exception(Exception):
-    def get_response(self):
-        raise NotImplementedError
-
-class wsgi_error(wsgi_exception):
-    def __init__(self, status):
-        self.status = status
-        self.reason, self.message = WSGIRequestHandler.responses[status]
-        Exception.__init__(self, status, self.reason, self.message)
-
-    def get_response(self):
-        body = ERROR_DOCUMENT_TEMPLATE % dict(status=self.status,
-                                              reason=self.reason,
-                                              message=self.message)
-        return Response(body, "text/xml", "%s %s" % (self.status, self.reason))
+from akara.thirdparty import httpserver, preforkserver
 
 
 def _convert_body(body):
@@ -70,6 +21,9 @@ def _convert_body(body):
         return [body]
 
     # Amara XML tree
+    # XXX Update to amk's code. But doesn't that need a 'writer' and 'encoding'?
+    # XXX What about the idea I talked about with Uche - have an 'xml_service'
+    #  with these as parameters? That's probably a lot better.
     if isinstance(body, tree.entity):
         io = StringIO()
         xml_print(body, io, indent=True)
@@ -79,7 +33,10 @@ def _convert_body(body):
     # Don't return a Unicode string directly. You need
     # to specify the encoding in the HTTP header, and
     # encode the string correctly.
+    # XXX What if "simple_service" etc. took an 'encoding' parameter for
+    # this case so that people could return Unicode directly? Useful?
     if isinstance(body, unicode):
+        # Helps identify why there was an ASCII encoding error.
         raise TypeError("Unencoded Unicode response")
 
     # Probably one of the normal WSGI responses
@@ -112,8 +69,11 @@ class ServerConfig(object):
         # There is one higher-level handler which will catch errors.
         # If/when that happens it creates a new Akara job handler.
         result = handler(environ, start_response)
-        # XXX The result should meet the WSGI spec. ???
+        # XXX The above result should always meet the WSGI spec. ???
+        # Not sure about that. For now, allow Amara trees and make
+        # strings a bit more efficient
         return _convert_body(result)
+
 
 # Akara byte-compiles the extension modules during server startup as a
 # sanity check that they make sense. However, Akara does NOT exec the
@@ -125,7 +85,6 @@ class ServerConfig(object):
 # has no defined hook for doing that. The jobClass is init'ed once for
 # each request. By inspection I found that 'self._child()' is an
 # internal method that I can use to sneak in my exec.
-
 
 class AkaraPreforkServer(preforkserver.PreforkServer):
     def __init__(self, settings, config, modules,
@@ -178,4 +137,3 @@ class AkaraJob(object):
         logger.debug("End request from address %r, local socket %r" %
                      (self._addr, self._sock.getsockname()))
         self._sock.close()
-

@@ -1,14 +1,27 @@
-"""Define the Akara logger and ways to configure it"""
+"""Define the Akara logger and ways to configure it
 
-# Akara is designed as a server and not a library.
-# Create the logger, set up a default handler for it to stderr.
-# API users have a way to add logging to a file, or to replace that file.
-# The log file is IN ADDITION to the stderr logger.
-# Once the real logging system is in place, remove the stderr logger.
+Akara's logging system is built around its use as a server and not as
+a library. It logs everything to a single log file, specified in a
+configuration file.
+
+When Akara starts it doesn't know the logging destination. During this
+bootstrap phase, any errors (like errors in reading the configuration
+file) are sent to sys.stderr. Once the logging file is known, use
+set_logfile(f) to start sending log messages to that file _in_
+_addition_ to the messages to stderr.
+
+Why? Because the server might be in debug mode, where the messages are
+both displayed to stderr and logged to the log file. If this is not
+the case then call remove_logging_to_stderr() which does just what it
+says it does.
+
+At any time you can call set_logfile(f) again to log the messages to a
+different file.
+
+"""
 
 import sys
 import logging
-
 
 __all__ = ("logger", "set_logfile", "remove_logging_to_stderr")
 
@@ -35,8 +48,6 @@ def set_logfile(f):
     _logger.addHandler(new_handler)
 
     if _current_handler is not None:
-        print _logger, _logger.__class__
-        print dir(_logger)
         _logger.removeHandler(_current_handler)
     _current_handler = new_handler
 
@@ -59,6 +70,7 @@ _current_handler = None
 
 # Later on it is possible to remove the stderr handler
 def remove_logging_to_stderr():
+    "Disable logging to stderr. This cannot be re-enabled."
     global _stderr_handler
     if _stderr_handler is not None:
         _logger.removeHandler(_stderr_handler)
