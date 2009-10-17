@@ -42,6 +42,7 @@ ERROR_DOCUMENT_TEMPLATE = """<?xml version="1.0" encoding="ISO-8859-1"?>
 #  def whatever():
 #      raise amara.services.SimpleError(402, "You don't have enough money!")
 
+# XXX Handle "I am a teapot", which is not in WSGIRequestHandler
 class SimpleError(Exception):
     def __init__(self, status, body=None, content_type="text/xml"):
         assert isinstance(status, int)
