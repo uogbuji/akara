@@ -167,7 +167,6 @@ def _extract_settings(config):
                 (option, section, item))
         return value
 
-    settings["start_servers"] = getpositive('global', 'StartServers')
     settings["max_servers"] = getpositive('global', 'MaxServers')
     settings["min_spare_servers"] = getnonnegative('global', 'MinSpareServers')
     settings["max_spare_servers"] = getnonnegative('global', 'MaxSpareServers')
