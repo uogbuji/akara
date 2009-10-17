@@ -34,6 +34,9 @@ SERVER_CONFIG_DEFAULTS = {
 #   emerg, alert, crit, error, warn, notice, info, debug
 # but these did not have any real definition. I'll map these
 # to the Python logging levels as:
+
+
+# XXX Do not need backwards compatibility here
 _backwards_compatible_levels = {
     "emerg": "CRITICAL",
     "alert": "CRITICAL",
@@ -56,24 +59,31 @@ _valid_log_levels = {
 
 log = logging.getLogger("akara.server")
 
-def _init_config_defaults():
-    config = ConfigParser.ConfigParser()
+def _add_config_defaults(config):
     for section, defaults in SERVER_CONFIG_DEFAULTS.iteritems():
-        config.add_section(section)
+        if not config.has_section(section):
+            config.add_section(section)
         for name, value in defaults.iteritems():
-            config.set(section, name, value)
+            if not config.has_option(section, name):
+                config.set(section, name, value)
     return config
 
 def read_config(config_file=None):
     if config_file is None:
         config_file = DEFAULT_SERVER_CONFIG_FILE
-    config = _init_config_defaults()
+    config = ConfigParser.ConfigParser()
     try:
         f = open(config_file)
     except IOError, err:
         raise Error("Could not open Akara configuration file: %s" % (err,))
+
     try:
         config.readfp(f)
+        if not config.sections():
+            raise Error("Configuration file is empty")
+        if not config.has_section("global"):
+            raise Error("Configuration file missing required 'global' section")
+        _add_config_defaults(config)
         settings = _extract_settings(config)
     except (Error, ConfigParser.Error), err:
         raise Error("Could not read from Akara configuration file %r: %s" %
