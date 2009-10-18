@@ -112,6 +112,28 @@ def test_akara_twc_html():
 <?xml version="1.0" encoding="UTF-8"?>
 <html><head/><body>0 1 2 3 4 5 6 7 8 9</body></html>""", repr(result)
 
+# method_dispatcher.py
+
+def test_method_dispatcher_get():
+    url = server() + "vikings?word=spam"
+    response = urlopen(url)
+    s = response.read()
+    assert "spam-itty spam" in s, s
+
+def test_method_dispatcher_get2():
+    url = server() + "vikings?word=Spam"
+    response = urlopen(url)
+    s = response.read()
+    assert "Spam-itty Spam" in s, s
+
+def test_method_dispatcher_post():
+    url = server() + "vikings"
+    response = urlopen(url, "")
+    s = response.read()
+    assert s == "That was interesting.\n", s
+
+
+
 # moin2atomentries.py - incomplete? Couldn't figure out what to test.
 
 # moincms.py - the commented example fails, couldn't figure out what to test.
