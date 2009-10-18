@@ -213,7 +213,7 @@ def method_dispatcher(service_id, mount_point):
     def method_dispatcher_wrapper(func):
         doc = inspect.getdoc(func)
         dispatcher = service_method_dispatcher()
-        registry.register_service(dispatcher, self.service_id, self.mount_point, doc)
+        registry.register_service(dispatcher, service_id, mount_point, doc)
         return service_dispatcher_decorator(dispatcher)
     return method_dispatcher_wrapper
 
