@@ -115,9 +115,12 @@ def start_server():
 
     port = python_support.find_unused_port()
     create_server_dir(port)
-    args = [sys.executable, "-m", "akara.run",
-            "--config-file", config_filename]
-    result = subprocess.call(args)
+    args = ['akara', "--config-file", config_filename, "start"]
+    try:
+        result = subprocess.call(args)
+    except:
+        print "Failed to start", args
+        raise
 
     # Akara started, but it might have failed during startup.
     # Report errors by reading the error log
