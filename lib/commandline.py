@@ -35,7 +35,7 @@ def restart(args):
 
 
 
-parser = argparse.ArgumentParser(prog="akaractl", add_help=False)
+parser = argparse.ArgumentParser(prog="akara", add_help=False)
 
 parser.add_argument("-f", "--config-file", metavar="FILE", dest="config_filename",
                     help="read configuration data from FILE")
