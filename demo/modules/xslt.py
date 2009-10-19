@@ -64,7 +64,7 @@ def akara_xslt(body, ctype, **params):
     akaraxslttransform = inputsource(akaraxslttransform, resolver=restricted_resolver)
     result = transform(body, akaraxslttransform)
 
-    response.headers.append( ("Content-Type", result.parameters.media_type) )
+    response.add_header("Content-Type", result.parameters.media_type)
     return result 
 
 
