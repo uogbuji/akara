@@ -33,8 +33,7 @@ def load_modules(module_dir, server_root, config):
         full_path = os.path.join(module_dir, filename)
         module_config = {}
         if config.has_section(name):
-            for k,v in config.items(name):
-                module_config[k] = v
+            module_config.update(config.items(name))
 
         module_globals = {
             "__name__": name,
