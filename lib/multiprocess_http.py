@@ -138,47 +138,7 @@ class AkaraWSGIDispatcher(object):
             return ERROR_DOCUMENT_TEMPLATE % dict(status = "404",
                                                   reason = reason,
                                                   message = message)
-        handler = service.handler
         # The handler is in charge of doing its own error catching.
         # There is one higher-level handler which will catch errors.
         # If/when that happens it creates a new Akara job handler.
-        result = handler(environ, start_response)
-        # XXX The above result should always meet the WSGI spec. ???
-        # Not sure about that. For now, allow Amara trees and make
-        # strings a bit more efficient
-        return _convert_body(result)
-
-
-# A utility function to convert the response from the WSGI handler to
-# something the rest of the WSGI world understands.
-# XXX This will be doing away.
-
-def _convert_body(body):
-    # Simple string. Convert to chunked form.
-    # (Code inspection suggests that returning a simple string
-    # incurs a character-by-character iterator overhead.)
-    if isinstance(body, str):
-        return [body]
-
-    # Amara XML tree
-    # XXX Update to amk's code. But doesn't that need a 'writer' and 'encoding'?
-    # XXX What about the idea I talked about with Uche - have an 'xml_service'
-    #  with these as parameters? That's probably a lot better.
-    if isinstance(body, tree.entity):
-        io = StringIO()
-        xml_print(body, io, indent=True)
-        io.seek(0)
-        return io
-
-    # Don't return a Unicode string directly. You need
-    # to specify the encoding in the HTTP header, and
-    # encode the string correctly.
-    # XXX What if "simple_service" etc. took an 'encoding' parameter for
-    # this case so that people could return Unicode directly? Useful?
-    if isinstance(body, unicode):
-        # Helps identify why there was an ASCII encoding error.
-        raise TypeError("Unencoded Unicode response")
-
-    # Probably one of the normal WSGI responses
-    return body
-
+        return service.handler(environ, start_response)
