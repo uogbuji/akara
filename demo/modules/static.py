@@ -15,6 +15,8 @@ import mimetypes
 from email.utils import formatdate
 import warnings
 
+from akara import registry
+
 SERVICE_ID = 'http://purl.org/akara/services/builtin/static'
 
 class MediaHandler(object):
@@ -72,14 +74,13 @@ class MediaHandler(object):
         return output
 
 try:
-    paths = list(AKARA_MODULE_CONFIG)
+    paths = list(AKARA.module_config)
 except NameError:
     warnings.warn("Missing module configuration - is this running in Akara?")
 else:
     if not paths:
         warnings.warn("No path information found. Missing [static] configuration section?")
     for path in paths:
-        root = AKARA_MODULE_CONFIG[path]
+        root = AKARA.module_config[path]
         handler = MediaHandler(root)
-        __AKARA_REGISTER_SERVICE__(handler, SERVICE_ID, path)
-
+        registry.register_service(handler, SERVICE_ID, path)

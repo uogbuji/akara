@@ -18,10 +18,11 @@ from akara.util import copy_auth
 from akara.services import simple_service, response
 
 Q_REQUIRED = _("The 'Q' POST parameter is mandatory.")
-SVN_COMMIT_CMD = AKARA_MODULE_CONFIG.get('svn_commit', 'svn commit -m "%(msg)s" %(fpath)s')
-SVN_ADD_CMD = AKARA_MODULE_CONFIG.get('svn_add', 'svn add %(fpath)s')
+SVN_COMMIT_CMD = AKARA.module_config.get('svn_commit', 'svn commit -m "%(msg)s" %(fpath)s')
+SVN_ADD_CMD = AKARA.module_config.get('svn_add', 'svn add %(fpath)s')
 
-TARGET_SVNS = dict(( (k.split('-', 1)[1], AKARA_MODULE_CONFIG[k].rstrip('/') + '/') for k in AKARA_MODULE_CONFIG if k.startswith('svn-')))
+TARGET_SVNS = dict(( (k.split('-', 1)[1], AKARA.module_config[k].rstrip('/') + '/')
+                     for k in AKARA.module_config if k.startswith('svn-')))
 
 SERVICE_ID = 'http://purl.org/akara/services/builtin/svncommit'
 @simple_service('POST', SERVICE_ID, 'akara.svncommit', 'text/plain')

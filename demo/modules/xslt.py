@@ -24,9 +24,9 @@ from akara.services import simple_service, response
 XSLT_SERVICE_ID = 'http://purl.org/akara/services/builtin/xslt'
 XPATH_SERVICE_ID = 'http://purl.org/akara/services/builtin/xpath'
 
-#AKARA_MODULE_CONFIG is automatically defined at global scope for a module running within Akara
-DEFAULT_TRANSFORM = AKARA_MODULE_CONFIG.get('default_transform')
-URI_SPACE = AKARA_MODULE_CONFIG.get('uri_space', 'http://hg.akara.info/').split()
+#AKARA is automatically defined at global scope for a module running within Akara
+DEFAULT_TRANSFORM = AKARA.module_config.get('default_transform')
+URI_SPACE = AKARA.module_config.get('uri_space', 'http://hg.akara.info/').split()
 #print DEFAULT_TRANSFORM
 
 #FIXME! The core URI auth code is tested, but not the use in this module
