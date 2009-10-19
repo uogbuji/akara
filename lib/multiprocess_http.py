@@ -35,6 +35,7 @@ from amara import tree, xml_print
 
 from akara import logger
 from akara import registry
+from akara import module_loader
 
 from akara.thirdparty import preforkserver, httpserver
 
@@ -81,22 +82,8 @@ class AkaraPreforkServer(preforkserver.PreforkServer):
         self.modules = modules
 
     def _child(self, sock, parent):
-        _init_modules(self.modules)
+        module_loader._init_modules(self.modules)
         preforkserver.PreforkServer._child(self, sock, parent)
-
-def _init_modules(modules):
-    # The master node parsed the modules but did not exec them.
-    # Do that now, but only once. This will register the functions.
-    for code, module_globals in modules:
-        name = module_globals["__name__"]
-        # NOTE: each child execs this code, so any warning and
-        # errors will be repeated for each newly spawned process,
-        # including child restarts.
-        try:
-            exec code in module_globals, module_globals
-        except:
-            logger.error("Unable to initialize module %r" % (name,),
-                         exc_info = True)
 
 
 # Once the flup PreforkServer has a request, it starts up an AkaraJob.

@@ -44,8 +44,8 @@ def atom_json(url=None):
 
 
 # These come from the "[atomtools]" section of the Akara configuration file
-ENTRIES = AKARA_MODULE_CONFIG.get('entries')
-FEED_ENVELOPE = AKARA_MODULE_CONFIG.get('feed_envelope')
+ENTRIES = AKARA.module_config.get('entries')
+FEED_ENVELOPE = AKARA.module_config.get('feed_envelope')
 
 #print >> sys.stderr, "Entries:", ENTRIES
 #print >> sys.stderr, "Feed envelope:", FEED_ENVELOPE

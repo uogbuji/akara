@@ -2,13 +2,17 @@
 
 
 """
+
 import httplib
 import warnings
 import functools
 import cgi
 import inspect
 
-from wsgiref.simple_server import WSGIRequestHandler
+import BaseHTTPServer
+
+from amara import tree
+from amara import writers
 
 from akara import logger
 from akara import registry, module_loader, multiprocess_http
@@ -35,31 +39,6 @@ ERROR_DOCUMENT_TEMPLATE = """<?xml version="1.0" encoding="ISO-8859-1"?>
 </body>
 </html>
 """
-
-# XXX The thought here is to have a way for the simple* services to
-# signal a specific error. For example:
-#  @simple_service("http://example.com/whatever", "whatever")
-#  def whatever():
-#      raise amara.services.SimpleError(402, "You don't have enough money!")
-
-# XXX Handle "I am a teapot", which is not in WSGIRequestHandler
-class SimpleError(Exception):
-    def __init__(self, status, body=None, content_type="text/xml"):
-        assert isinstance(status, int)
-        self.status = status
-        self.body = body
-        self.content_type = content_type
-    def respond(self, environ, start_response):
-        reason, message = WSGIRequestHandler.responses.get(status, ("Unknown", "Unknown"))
-        start_response("%s %s" % (self.code, reason),
-                       [("Content-Type", self.content_type)])
-        if self.body is not None:
-            return self.body
-        message = ERROR_DOCUMENT_TEMPLATE % dict(status=status,
-                                                 reason=reason,
-                                                 message=message)
-        return message
-
 
 
 
@@ -105,8 +84,71 @@ def service(*args, **kwargs):
     return do_nothing
 method_handler = service
 
-def simple_service(method, service_id, mount_point=None, content_type=None,
-                   **kwds):
+def new_request(environ):
+    from akara import request, response
+    request.environ = environ
+    response.code = "200 OK"
+    response.headers = []
+
+def clear_request():
+    from akara import request, response
+    request.environ = None
+    response.code = None
+    response.headers = None
+
+def send_headers(start_response, default_content_type):
+    from akara import response
+    code = response.code
+    if isinstance(code, int):
+        code = BaseHTTPServer.responses[code][0]
+    for k, v in response.headers:
+        if k.lower() == "content-type":
+            break
+    else:
+        response.headers.append( ("Content-Type", default_content_type) )
+
+    start_response(code, response.headers)
+
+
+def convert_body(body, content_type, encoding, writer):
+    if isinstance(body, str):
+        body = [body]
+        if content_type is None:
+            content_type = "text/plain"
+        return body, content_type
+
+    if isinstance(body, tree.entity):
+        if "html" in writer.lower():
+            w = writers.lookup(writer)
+            body = body.xml_encode(w, encoding)
+            if content_type is None:
+                content_type = "text/html" # XXX include the encoding here?
+            return body, content_type
+
+        w = writers.lookup(writer)
+        body = body.xml_encode(w, encoding)
+        if content_type is None:
+            content_type = "text/xml" # XXX include the encoding here?
+        return body, content_type
+
+    if isinstance(body, unicode):
+        body = body.encode(encoding)
+        if content_type is None:
+            # XXX Check if this is valid.
+            content_type = "text/plain; charset=%s" % (encoding,)
+        return body, content_type
+
+    # Probably one of the normal WSGI responses
+    if content_type is None:
+        content_type = "text/plain"
+    return body, content_type
+
+
+######
+
+def simple_service(method, service_id, mount_point=None,
+                   content_type=None, encoding="utf-8", writer="xml",
+                   **service_kwargs):
     if method in ("get", "post"):
         logger.warn('Lowercase HTTP methods deprecated')
         method = method.upper()
@@ -116,41 +158,21 @@ def simple_service(method, service_id, mount_point=None, content_type=None,
             "simple_service only supports GET and POST methods, not %s" %
             (method,))
 
-    service_content_type = content_type
-    service_kwargs = kwds
-
     def service_wrapper(func):
-        # The registry function was inserted into the functions globals.
-        #register_service = func.func_globals["__AKARA_REGISTER_SERVICE__"]
-        # Use the one in this module, which is also available from globals
-
         @functools.wraps(func)
         def wrapper(environ, start_response):
             args, kwargs = _get_function_args(environ, service_kwargs)
 
-            # For when you really need access to the environ.
-            # XXX I don't like this, btw, because it goes
-            # through a global namespace and because it reduces
-            # the ability to componentize.
-            
-            module_loader._set_environ(environ)
+            new_request(environ)
             try:
-                # XXX make this be a context?
-                try:
-                    result = func(*args, **kwargs)
-                except SimpleError, error:
-                    return error.respond(environ, start_response)
-            finally:
-                module_loader._set_environ(None)
+                result = func(*args, **kwargs)
+            except:
+                clear_request()
+                raise
 
-            if isinstance(result, SimpleResponse):
-                start_response("200 OK", [("Content-Type", result.content_type)])
-                result = result.body
-            else:
-                # XXX What should the default content-type be?
-                # XXX If the handler returns an Amara tree, can I just say it's text/xml?
-                start_response("200 OK", [("Content-Type", service_content_type or "text/plain")])
-            #return _convert_body(result)  # XXX support this?
+            result, ctype = convert_body(result, content_type, encoding, writer)
+            send_headers(start_response, ctype)
+            clear_request()
             return result
 
         m_point = mount_point  # Get from the outer scope
@@ -209,6 +231,7 @@ class service_method_dispatcher(object):
         # XXX generate correct HTTP error here
         raise NotImplementedError
 
+# This is the top-level decorator
 def method_dispatcher(service_id, mount_point):
     def method_dispatcher_wrapper(func):
         doc = inspect.getdoc(func)
@@ -222,24 +245,29 @@ class service_dispatcher_decorator(object):
     def __init__(self, dispatcher):
         self.dispatcher = dispatcher
 
-    def method(self, method):
+    def method(self, method, content_type=None, encoding="utf-8", writer="xml"):
         if method != method.upper():
             raise AssertionError, "Method name must be upper case" # XXX
         def service_dispatch_decorator_method_wrapper(func):
             @functools.wraps(func)
             def method_wrapper(environ, start_response):
-                module_loader._set_environ(environ)
+                new_request(environ)
                 try:
                     result = func(environ, start_response)
-                finally:
-                    module_loader._set_environ(None)
-                return multiprocess_http._convert_body(result)
+                except:
+                    clear_request()
+                    raise
+                
+                result, ctype = convert_body(result, content_type, encoding, writer)
+                send_headers(start_response, ctype)
+                clear_request()
+                return result
 
             self.dispatcher.add_handler(method, method_wrapper)
             return method_wrapper
         return service_dispatch_decorator_method_wrapper
 
-    def simple_method(self, method, content_type=None):
+    def simple_method(self, method, content_type=None, encoding="utf-8", writer="xml"):
         if method != method.upper():
             raise AssertionError, "Method name must be upper case" # XXX
         if method not in ("GET", "POST"):
@@ -251,13 +279,15 @@ class service_dispatcher_decorator(object):
             @functools.wraps(func)
             def simple_method_wrapper(environ, start_response):
                 args, kwargs = _get_function_args(environ)
-                module_loader._set_environ(environ)
+                new_request(environ)
                 try:
                     result = func(*args, **kwargs)
-                finally:
-                    module_loader._set_environ(None)
-                start_response("200 OK", [("Content-Type", content_type or "text/plain")])
-                #return _convert_body(result)
+                except:
+                    clear_request()
+                    raise
+                result, ctype = convert_body(result, content_type, encoding, writer)
+                send_headers(start_response, ctype)
+                clear_request()
                 return result
 
             self.dispatcher.add_handler(method, simple_method_wrapper)
@@ -269,8 +299,7 @@ class service_dispatcher_decorator(object):
     # ...
 
 # Install some built-in services
-@simple_service("GET", "http://purl.org/xml3k/akara/services/builtin/registry",
-                "", "text/xml")
+@simple_service("GET", "http://purl.org/xml3k/akara/services/builtin/registry", "")
 def list_services(service=None):
     if service is not None:
         service = service[0]  # XXX check for multiple parameters
