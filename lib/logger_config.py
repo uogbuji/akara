@@ -106,4 +106,3 @@ def redirect_stdio():
     sys.stdin = StringIO("")
     sys.stdout = WriteToLogger(STDOUT)
     sys.stderr = WriteToLogger(STDERR)
-    print "This is a test"
