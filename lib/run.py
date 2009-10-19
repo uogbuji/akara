@@ -10,29 +10,9 @@ import socket
 from akara import read_config
 import logging
 
-from cStringIO import StringIO
-
 from akara import logger, logger_config
 from akara.module_loader import load_modules
 from akara.multiprocess_http import AkaraPreforkServer
-
-
-# This is a simple redirector.
-# It fails if all your prints are of the form:
-#   print "Hello\nThere",
-# Don't do that. ;)
-class WriteToLogger(object):
-    def __init__(self, name, log_method):
-        self.name = name
-        self.log_method = log_method
-        self._name = name + "> "
-        self.chunks = []
-    def write(self, s):
-        if s.endswith("\n"):
-            text = "".join(self.chunks) + s[:-1]
-            self.log_method(self._name + text)
-        else:
-            self.chunks.append(s)
 
 
 def save_pid(pid_file):
@@ -218,14 +198,7 @@ def main(args):
         # XXX Reroute sys.std* to the log file?
         if first_time and not debug:
             logger_config.remove_logging_to_stderr()
-            for stream in (sys.stdin, sys.stdout, sys.stderr):
-                if stream.isatty():
-                    #stream.close()
-                    pass
-            sys.stdin = StringIO("")
-            sys.stdout = WriteToLogger("stdout", logger.info)
-            sys.stderr = WriteToLogger("stderr", logger.info)
-            print "This is a test"
+            logger_config.redirect_stdio()
 
         try:
             hupReceived = server.run(sock)

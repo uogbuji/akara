@@ -23,6 +23,8 @@ different file.
 import sys
 import logging
 
+from cStringIO import StringIO
+
 __all__ = ("logger", "set_logfile", "remove_logging_to_stderr")
 
 # Create the logger here but mark it as private.
@@ -34,6 +36,14 @@ _logger = logging.getLogger('akara')
 _default_formatter = logging.Formatter(
     "%(asctime)s %(name)s[%(process)s]: [%(levelname)s] %(message)s",
     "%b %d %H:%M:%S")
+
+# Make special log levels for stdout and stderr.
+# Makes the logging messages easier to read.
+STDOUT, STDERR = 22, 21
+logging.addLevelName(STDERR, "stderr")
+logging.addLevelName(STDOUT, "stdout")
+
+
 
 # The current output stream for the Akara server.
 # Gets initialized in a bit.
@@ -75,3 +85,25 @@ def remove_logging_to_stderr():
     if _stderr_handler is not None:
         _logger.removeHandler(_stderr_handler)
         _stderr_handler = None
+
+
+# This is a simple redirector.
+# It fails if none of your prints end with a "\n".
+# Don't do that. ;)
+class WriteToLogger(object):
+    def __init__(self, loglevel):
+        self.loglevel = loglevel
+        self.chunks = []
+    def write(self, s):
+        if s.endswith("\n"):
+            text = "".join(self.chunks) + s[:-1]
+            _logger.log(self.loglevel, text)
+        else:
+            self.chunks.append(s)
+
+
+def redirect_stdio():
+    sys.stdin = StringIO("")
+    sys.stdout = WriteToLogger(STDOUT)
+    sys.stderr = WriteToLogger(STDERR)
+    print "This is a test"
