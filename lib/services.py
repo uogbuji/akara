@@ -35,7 +35,7 @@ ERROR_DOCUMENT_TEMPLATE = """<?xml version="1.0" encoding="ISO-8859-1"?>
 
 
 # Pull out any query arguments and set up input from any POST request
-def _get_function_args(environ, default_kwargs = {}):
+def _get_function_args(environ, default_kwargs, allow_repeated_args):
     request_method = environ.get("REQUEST_METHOD")
     if request_method not in ("GET", "POST", "HEAD"):
         http_response = environ["akara.http_response"]  # XXX where is this set?
@@ -61,16 +61,17 @@ def _get_function_args(environ, default_kwargs = {}):
     kwargs = default_kwargs.copy()
     if query_string:
         # Is this order correct? 
-        kwargs.update(cgi.parse_qs(query_string))
+        qs_dict = cgi.parse_qs(query_string)
+        if allow_repeated_args:
+            kwargs.update(qs_dict)
+        else:
+            for k, v in qs_dict.iteritems():
+                if len(v) != 1:
+                    XXX.raise_error()
+                else:
+                    kwargs[k] = v[0]
+            
     return args, kwargs
-
-# XXX Hack to get the moin modules to run without complaints.
-# XXX Fix to use the method
-def service(*args, **kwargs):
-    def do_nothing(func):
-        return func
-    return do_nothing
-method_handler = service
 
 def new_request(environ):
     from akara import request, response
@@ -84,6 +85,7 @@ def clear_request():
     response.code = None
     response.headers = None
 
+## Since this can contain arbitrary data, what if it throws an exception?
 def send_headers(start_response, default_content_type):
     from akara import response
     code = response.code
@@ -134,8 +136,37 @@ def convert_body(body, content_type, encoding, writer):
 
 ######
 
+def service(method, service_id, mount_point=None,
+            encoding="utf-8", writer="xml"):
+    def service_wrapper(func):
+        @functools.wraps(func)
+        def wrapper(environ, start_response):
+            # 'service' passes the WSGI request straight through
+            # to the handler so there's almost no point in
+            # setting up the environment. However, I can conceive
+            # of tools which might access 'environ' directly, and
+            # I want to be consistent with the simple* interfaces.
+            new_request(environ)
+            try:
+                result = func(environ, start_response)
+            finally:
+                clear_request()
+
+            # You need to make sure you sent the correct content-type!
+            result, ctype = convert_body(result, None, encoding, writer)
+            return result
+
+        m_point = mount_pount
+        if m_point is None:
+            m_point = func.__name__
+        registry.register_service(wrapper, service_id, m_point)
+        return wrapper
+    return service_wrapper
+
+
 def simple_service(method, service_id, mount_point=None,
                    content_type=None, encoding="utf-8", writer="xml",
+                   allow_repeated_args=True,
                    **service_kwargs):
     if method in ("get", "post"):
         logger.warn('Lowercase HTTP methods deprecated')
@@ -149,8 +180,7 @@ def simple_service(method, service_id, mount_point=None,
     def service_wrapper(func):
         @functools.wraps(func)
         def wrapper(environ, start_response):
-            args, kwargs = _get_function_args(environ, service_kwargs)
-
+            args, kwargs = _get_function_args(environ, service_kwargs, allow_repeated_args)
             new_request(environ)
             try:
                 result = func(*args, **kwargs)
@@ -233,31 +263,36 @@ class service_dispatcher_decorator(object):
     def __init__(self, dispatcher):
         self.dispatcher = dispatcher
 
-    def method(self, method, content_type=None, encoding="utf-8", writer="xml"):
+    def method(self, method, encoding="utf-8", writer="xml"):
         if method != method.upper():
             raise AssertionError, "Method name must be upper case" # XXX
         def service_dispatch_decorator_method_wrapper(func):
             @functools.wraps(func)
             def method_wrapper(environ, start_response):
+                # 'method' passes the WSGI request straight through
+                # to the handler so there's almost no point in
+                # setting up the environment. However, I can conceive
+                # of tools which might access 'environ' directly, and
+                # I want to be consistent with the simple* interfaces.
                 new_request(environ)
                 try:
                     result = func(environ, start_response)
-                except:
+                finally:
                     clear_request()
-                    raise
                 
-                result, ctype = convert_body(result, content_type, encoding, writer)
-                send_headers(start_response, ctype)
-                clear_request()
+                # You need to make sure you sent the correct content-type!
+                result, ctype = convert_body(result, None, encoding, writer)
                 return result
 
             self.dispatcher.add_handler(method, method_wrapper)
             return method_wrapper
         return service_dispatch_decorator_method_wrapper
 
-    def simple_method(self, method, content_type=None, encoding="utf-8", writer="xml"):
+    def simple_method(self, method, content_type=None,
+                      encoding="utf-8", writer="xml", allow_repeated_args=True,
+                      **service_kwargs):
         if method != method.upper():
-            raise AssertionError, "Method name must be upper case" # XXX
+            raise AssertionError, "Method name must be upper case" # XXX Why is this here?
         if method not in ("GET", "POST"):
             raise ValueError(
                 "simple_method only supports GET and POST methods, not %s" %
@@ -266,7 +301,7 @@ class service_dispatcher_decorator(object):
         def service_dispatch_decorator_simple_method_wrapper(func):
             @functools.wraps(func)
             def simple_method_wrapper(environ, start_response):
-                args, kwargs = _get_function_args(environ)
+                args, kwargs = _get_function_args(environ, service_kwargs, allow_repeated_args)
                 new_request(environ)
                 try:
                     result = func(*args, **kwargs)
