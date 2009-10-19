@@ -155,15 +155,16 @@ def main(args):
                 sock = socket.socket()
                 # XXX SO_REUSEADDR should be a setting
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                host, port = settings["server_address"]
+                if host:
+                    description = "interface %r port %r" % (host, port)
+                else:
+                    description = "port %r" % (port,)
                 try:
                     sock.bind(settings["server_address"])
                 except socket.error, error:
-                    host, port = settings["server_address"]
-                    if not host:
-                        raise SystemExit("Can not bind to port %r: %s" % (port, error))
-                    else:
-                        raise SystemExit("Can not bind to interface %r port %r : %s" %
-                                         (host, port, error))
+                    raise SystemExit("Can not bind to " + description)
+                logger.info("Listening to " + description)
                                       
                 sock.listen(socket.SOMAXCONN)
                 old_server_address = server_address
