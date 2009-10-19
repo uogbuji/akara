@@ -59,7 +59,6 @@ class MediaHandler(object):
         # (assuming the browser/client supports conditional GET).
         mtime = formatdate(os.stat(filename).st_mtime, usegmt=True)
         headers = [('Last-Modified', mtime)]
-        print environ
         if environ.get('HTTP_IF_MODIFIED_SINCE', None) == mtime:
             status = '304 Not Modified'
             output = ()
