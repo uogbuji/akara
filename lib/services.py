@@ -11,17 +11,10 @@ import inspect
 
 import BaseHTTPServer
 
-from amara import tree
-from amara import writers
+from amara import tree, writers
 
-from akara import logger
-from akara import registry, module_loader, multiprocess_http
+from akara import logger, registry
 
-# XXX This is backwards-compatible code. Remove it?
-class SimpleResponse(object):
-    def __init__(self, body, content_type):
-        self.body = body
-        self.content_type = content_type
 
 ERROR_DOCUMENT_TEMPLATE = """<?xml version="1.0" encoding="ISO-8859-1"?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
@@ -40,11 +33,6 @@ ERROR_DOCUMENT_TEMPLATE = """<?xml version="1.0" encoding="ISO-8859-1"?>
 </html>
 """
 
-
-
-# Backwards compatibility (older modules expect 'response')
-# XXX update those modules
-response = SimpleResponse
 
 # Pull out any query arguments and set up input from any POST request
 def _get_function_args(environ, default_kwargs = {}):

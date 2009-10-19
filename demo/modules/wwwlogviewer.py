@@ -9,8 +9,6 @@ import sys, time, re
 import urllib2
 import httplib
 import datetime
-#from cgi import parse_qs
-#from cStringIO import StringIO
 from itertools import *
 
 # http://pypi.python.org/pypi/simplejson
@@ -19,7 +17,7 @@ import simplejson
 #from amara.tools.atomtools import feed
 from amara.tools import rdfascrape
 
-from akara.services import simple_service, response
+from akara.services import simple_service
 
 #def rdfa2json(url=None):
 #Support POST body as well

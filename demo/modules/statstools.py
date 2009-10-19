@@ -23,7 +23,7 @@ from amara.xpath.util import simplify
 from amara.bindery import html
 from amara.lib.util import *
 
-from akara.services import simple_service, response
+from akara.services import simple_service
 
 VAR_PAT = re.compile('VARIABLE\s+LABELS\s+(((\w+)\s+"([^"]+)"\s*)+)\.')
 VAR_DEF_PAT = re.compile('(\w+)\s+"([^"]+)"')

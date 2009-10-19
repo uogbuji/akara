@@ -62,7 +62,10 @@ def akara_xslt(body, ctype, **params):
     body = inputsource(body, resolver=restricted_resolver)
     akaraxslttransform = inputsource(akaraxslttransform, resolver=restricted_resolver)
     result = transform(body, akaraxslttransform)
-    return response(str(result), result.parameters.media_type)
+
+    import akara.response
+    akara.response.headers.append( ("Content-Type", result.parameters.media_type) )
+    return result 
 
 
 @simple_service('POST', XPATH_SERVICE_ID, 'akara.xpath', 'text/xml')
