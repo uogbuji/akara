@@ -20,7 +20,7 @@ import amara
 from amara import bindery
 from amara.tools import atomtools
 
-from akara.services import simple_service, response
+from akara.services import simple_service
 
 
 #text/uri-list from RFC 2483

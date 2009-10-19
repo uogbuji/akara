@@ -15,7 +15,7 @@ from dateutil.parser import parse
 
 import amara
 
-from akara.services import simple_service, response
+from akara.services import simple_service
 
 from string import Template
 

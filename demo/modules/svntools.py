@@ -15,7 +15,7 @@ from amara import _
 from amara.lib.util import *
 
 from akara.util import copy_auth
-from akara.services import simple_service, response
+from akara.services import simple_service
 
 Q_REQUIRED = _("The 'Q' POST parameter is mandatory.")
 SVN_COMMIT_CMD = AKARA.module_config.get('svn_commit', 'svn commit -m "%(msg)s" %(fpath)s')

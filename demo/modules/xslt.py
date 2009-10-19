@@ -19,7 +19,8 @@ from amara.xpath.util import simplify
 from amara.bindery import html
 from amara.lib import irihelpers, inputsource
 
-from akara.services import simple_service, response
+from akara.services import simple_service
+from akara import response
 
 XSLT_SERVICE_ID = 'http://purl.org/akara/services/builtin/xslt'
 XPATH_SERVICE_ID = 'http://purl.org/akara/services/builtin/xpath'
@@ -63,8 +64,7 @@ def akara_xslt(body, ctype, **params):
     akaraxslttransform = inputsource(akaraxslttransform, resolver=restricted_resolver)
     result = transform(body, akaraxslttransform)
 
-    import akara.response
-    akara.response.headers.append( ("Content-Type", result.parameters.media_type) )
+    response.headers.append( ("Content-Type", result.parameters.media_type) )
     return result 
 
 

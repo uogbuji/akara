@@ -18,7 +18,7 @@ except ImportError, err:
     warnings.warn("Cannot import 'icalendar': %s" % (err,))
     Calendar = Event = NotImplementedError
 
-from akara.services import simple_service, response
+from akara.services import simple_service
 
 SERVICE_ID = 'http://purl.org/akara/services/builtin/ical.json'
 @simple_service('POST', SERVICE_ID, 'ical.json', 'application/json')

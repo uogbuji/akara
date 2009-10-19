@@ -13,7 +13,7 @@ from unicodedata import *
 from amara.bindery import html
 #from amara.lib.util import *
 
-from akara.services import simple_service, response
+from akara.services import simple_service
 from amara.writers.struct import *
 
 NAME_REQUIRED = _("The 'name' query parameter is mandatory.")

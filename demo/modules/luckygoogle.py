@@ -17,7 +17,7 @@ except ImportError:
     simplejson = None
 
 from amara.lib.util import first_item, assert_not_equal
-from akara.services import simple_service, response
+from akara.services import simple_service
 
 Q_REQUIRED = _("The 'q' query parameter is mandatory.")
 

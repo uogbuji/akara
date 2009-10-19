@@ -11,7 +11,7 @@ import simplejson
 from amara.lib.util import *
 from amara.tools import rdfascrape
 
-from akara.services import simple_service, response
+from akara.services import simple_service
 
 URL_REQUIRED = _("The 'url' query parameter is mandatory.")
 

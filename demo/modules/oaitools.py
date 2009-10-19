@@ -22,7 +22,7 @@ from amara.bindery.model import *
 
 from amara.tools.atomtools import feed
 
-from akara.services import simple_service, response
+from akara.services import simple_service
 
 OAI_NAMESPACE = u"http://www.openarchives.org/OAI/2.0/"
 
