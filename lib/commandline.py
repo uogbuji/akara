@@ -19,9 +19,14 @@ def get_pid(args):
         f = open(pid_file)
     except IOError, err:
         raise SystemExit("Could not open Akara pid file: %s" % (err,))
-    # XXX Perhaps a bit more verbose about error reporting?
     pid = f.readline()
-    return int(pid) 
+    if not pid:
+        raise SystemExit("No pid found in Akara pid file %r" % (pid_file,))
+    try:
+        return int(pid) 
+    except ValueError:
+        raise SystemExit("Akara pid file %r does not contain a PID (%r)" %
+                         (pid_file, pid))
 
 def start(args):
     run.main(args)
