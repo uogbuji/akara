@@ -111,7 +111,7 @@ def clear_request():
     response.headers = None
 
 def send_headers(start_response, default_content_type):
-    "Send the WSGI headers, using values from use akara.request.*"
+    "Send the WSGI headers, using values from akara.request.*"
     from akara import response
     code = response.code
     if isinstance(code, int):
@@ -158,7 +158,24 @@ def convert_body(body, content_type, encoding, writer):
     return body, content_type
 
 
-######
+# The HTTP spec says a method can be and 1*CHAR, where CHAR is a
+# US-ASCII character excepting control characters and "punctuation".
+# (like '(){}' and even ' '). We're a bit more strict than that
+# because we haven't seen people use words like "get".
+def check_is_valid_method(method):
+    min_c = min(method)
+    max_c = max(method)
+    if min_c < 'A' or max_c > 'Z':
+        raise ValueError("Method %r may only contain uppercase ASCII letters" % (method,))
+
+
+###### public decorators
+
+## Guide to make things easier
+# @service(*args) -> returns a service_wrapper
+#
+# @service(*args)  
+# def func(): pass  -> returns a wrapper() which calls func
 
 def service(service_id, mount_point=None,
             encoding="utf-8", writer="xml"):
@@ -188,12 +205,11 @@ def service(service_id, mount_point=None,
     return service_wrapper
 
 
-def check_is_valid_method(method):
-    min_c = min(method)
-    max_c = max(method)
-    if min_c < 'A' or max_c > 'Z':
-        raise ValueError("Method %r may only contain uppercase ASCII letters" % (method,))
-
+## Guide to make things easier
+# @simple_service(*args) -> returns a service_wrapper
+#
+# @simple_service(*args)  
+# def func(): pass  -> returns a wrapper() which calls func
 
 def simple_service(method, service_id, mount_point=None,
                    content_type=None, encoding="utf-8", writer="xml",
@@ -315,6 +331,21 @@ class service_method_dispatcher(object):
             return handler(environ, start_response)
         err = _HTTP405(sorted(self.method_table.keys()))
         return err.make_wsgi_response(environ, start_response)
+
+## Guide to make things easier
+# @method_dispatcher(*args) -> returns a method_dispatcher_wrapper
+#
+# @method_dispatcher(*args)
+# def func(): pass  -> returns a service_dispatcher_decorator
+
+# service_dispatcher_decorator.method(*args) -> returns 
+#    a service_dispatch_decorator_method_wrapper
+#
+# service_dispatcher_decorator.method(*args)
+# def method_func(): pass --> returns a method_wrapper which calls method_func
+#
+# service_dispatcher_decorator.simple_method(*args)
+# def method_func(): pass --> returns a method_wrapper which calls method_func
 
 # This is the top-level decorator
 def method_dispatcher(service_id, mount_point=None):
