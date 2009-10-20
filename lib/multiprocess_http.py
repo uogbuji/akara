@@ -187,14 +187,12 @@ def load_modules(module_dir, server_root, config):
             "AKARA": AKARA(config, name, module_config)
             }
         f = open(full_path, "rU")
-        # XXX Put some logging here about modules which cannot be parsed
         try:
             try:
                 module_code = compile(f.read(), full_path, 'exec')
             except:
                 logger.exception(
                     "Unable to byte-compile %r - skipping module" % (full_path,))
-                
         finally:
             f.close()
         modules.append( (name, module_code, module_globals) )
