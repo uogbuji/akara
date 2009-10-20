@@ -8,8 +8,11 @@ import warnings
 import functools
 import cgi
 import inspect
+from xml.sax.saxutils import escape as xml_escape
 
-import BaseHTTPServer
+from BaseHTTPServer import BaseHTTPRequestHandler
+http_responses = BaseHTTPRequestHandler.responses
+del BaseHTTPRequestHandler
 
 from amara import tree, writers
 
@@ -28,25 +31,47 @@ ERROR_DOCUMENT_TEMPLATE = """<?xml version="1.0" encoding="ISO-8859-1"?>
   <p>
   %(message)s
   </p>
-  <h2>Error %(status)s</h2>
+  <h2>Error %(code)s</h2>
 </body>
 </html>
 """
 
+class _HTTPError(Exception):
+    "Internal class."
+    # I don't think the API is quite right.
+    # Should code be a number or include the reason in a string, like "200 OK"?
+    def __init__(self, code, message=None):
+        assert isinstance(code, int) # Being a bit paranoid about the API
+        self.code = code
+        self.reason, self.message = http_responses[code]
+        if message is not None:
+            self.message = message
+        self.text = ERROR_DOCUMENT_TEMPLATE % dict(code=self.code,
+                                                   reason=xml_escape(self.reason),
+                                                   message=xml_escape(self.message))
+        self.headers = [("Content-Type", "text/xml")]
+    def make_wsgi_response(self, environ, start_response):
+        start_response("%s %s" % (self.code, self.reason), self.headers)
+        return [self.text]
+
+class _HTTP405(_HTTPError):
+    def __init__(self, methods):
+        _HTTPError.__init__(self, 405)
+        self.headers.append( ("Allow", ", ".join(methods)) )
+
 
 # Pull out any query arguments and set up input from any POST request
+_allowed_simple_methods = ("GET", "POST", "HEAD")
 def _get_function_args(environ, default_kwargs, allow_repeated_args):
     request_method = environ.get("REQUEST_METHOD")
-    if request_method not in ("GET", "POST", "HEAD"):
-        http_response = environ["akara.http_response"]  # XXX where is this set?
-        raise http_response(httplib.METHOD_NOT_ALLOWED)
+    if request_method not in _allowed_simple_methods:
+        raise _HTTP405(_allowed_simple_methods)
 
     if request_method == "POST":
         try:
             request_length = int(environ["CONTENT_LENGTH"])
         except (KeyError, ValueError):
-            http_response = environ["akara.http_response"]
-            raise http_response(httplib.LENGTH_REQUIRED)
+            raise _HTTPError(httplib.LENGTH_REQUIRED)
         request_bytes = environ["wsgi.input"].read(request_length)
         try:
             request_content_type = environ["CONTENT_TYPE"]
@@ -67,7 +92,8 @@ def _get_function_args(environ, default_kwargs, allow_repeated_args):
         else:
             for k, v in qs_dict.iteritems():
                 if len(v) != 1:
-                    XXX.raise_error()
+                    raise _HTTPError(400, 
+   message="Using the %r query parameter multiple times is not supported" % (k,))
                 else:
                     kwargs[k] = v[0]
             
@@ -85,12 +111,12 @@ def clear_request():
     response.code = None
     response.headers = None
 
-## Since this can contain arbitrary data, what if it throws an exception?
 def send_headers(start_response, default_content_type):
     from akara import response
     code = response.code
     if isinstance(code, int):
-        code = BaseHTTPServer.responses[code][0]
+        reason = http_responses[code][0]
+        code = "%d %s" % (code, reason)
     for k, v in response.headers:
         if k.lower() == "content-type":
             break
@@ -136,7 +162,7 @@ def convert_body(body, content_type, encoding, writer):
 
 ######
 
-def service(method, service_id, mount_point=None,
+def service(service_id, mount_point=None,
             encoding="utf-8", writer="xml"):
     def service_wrapper(func):
         @functools.wraps(func)
@@ -164,23 +190,28 @@ def service(method, service_id, mount_point=None,
     return service_wrapper
 
 
+def check_is_valid_method(method):
+    min_c = min(method)
+    max_c = max(method)
+    if min_c < 'A' or max_c > 'Z':
+        raise ValueError("Method %r may only contain uppercase ASCII letters" % (method,))
+
 def simple_service(method, service_id, mount_point=None,
                    content_type=None, encoding="utf-8", writer="xml",
                    allow_repeated_args=True,
                    **service_kwargs):
-    if method in ("get", "post"):
-        logger.warn('Lowercase HTTP methods deprecated')
-        method = method.upper()
-        raise NotImplementedError, "don't use that method" # XXX fixme
-    elif method not in ("GET", "POST"):
+    check_is_valid_method(method)
+    if method not in ("GET", "POST"):
         raise ValueError(
-            "simple_service only supports GET and POST methods, not %s" %
-            (method,))
+            "simple_service only supports GET and POST methods, not %s" % (method,))
 
     def service_wrapper(func):
         @functools.wraps(func)
         def wrapper(environ, start_response):
-            args, kwargs = _get_function_args(environ, service_kwargs, allow_repeated_args)
+            try:
+                args, kwargs = _get_function_args(environ, service_kwargs, allow_repeated_args)
+            except _HTTPError, err:
+                return err.make_wsgi_response(environ, start_response)
             new_request(environ)
             try:
                 result = func(*args, **kwargs)
@@ -246,8 +277,8 @@ class service_method_dispatcher(object):
         handler = self.method_table.get(method, None)
         if handler is not None:
             return handler(environ, start_response)
-        # XXX generate correct HTTP error here
-        raise NotImplementedError
+        err = _HTTP405(sorted(self.method_table.keys()))
+        return err.make_wsgi_response(environ, start_response)
 
 # This is the top-level decorator
 def method_dispatcher(service_id, mount_point):
@@ -264,8 +295,7 @@ class service_dispatcher_decorator(object):
         self.dispatcher = dispatcher
 
     def method(self, method, encoding="utf-8", writer="xml"):
-        if method != method.upper():
-            raise AssertionError, "Method name must be upper case" # XXX
+        check_is_valid_method(method)
         def service_dispatch_decorator_method_wrapper(func):
             @functools.wraps(func)
             def method_wrapper(environ, start_response):
@@ -291,8 +321,7 @@ class service_dispatcher_decorator(object):
     def simple_method(self, method, content_type=None,
                       encoding="utf-8", writer="xml", allow_repeated_args=True,
                       **service_kwargs):
-        if method != method.upper():
-            raise AssertionError, "Method name must be upper case" # XXX Why is this here?
+        check_is_valid_method(method)
         if method not in ("GET", "POST"):
             raise ValueError(
                 "simple_method only supports GET and POST methods, not %s" %
@@ -301,7 +330,10 @@ class service_dispatcher_decorator(object):
         def service_dispatch_decorator_simple_method_wrapper(func):
             @functools.wraps(func)
             def simple_method_wrapper(environ, start_response):
-                args, kwargs = _get_function_args(environ, service_kwargs, allow_repeated_args)
+                try:
+                    args, kwargs = _get_function_args(environ, service_kwargs, allow_repeated_args)
+                except _HTTPError, err:
+                    return err.make_wsgi_response(environ, start_response)
                 new_request(environ)
                 try:
                     result = func(*args, **kwargs)
@@ -322,7 +354,8 @@ class service_dispatcher_decorator(object):
     # ...
 
 # Install some built-in services
-@simple_service("GET", "http://purl.org/xml3k/akara/services/builtin/registry", "")
+@simple_service("GET", "http://purl.org/xml3k/akara/services/builtin/registry", "",
+                allow_repeated_args=False)
 def list_services(service=None):
     if service is not None:
         service = service[0]  # XXX check for multiple parameters
