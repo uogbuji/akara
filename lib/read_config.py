@@ -1,3 +1,8 @@
+"""Parse the Akara config file (in .ini format) and get system settings from it
+
+This is an internal module and should not be used by other libraries.
+
+"""
 import os
 import logging
 import ConfigParser
@@ -9,9 +14,9 @@ DEFAULT_SERVER_CONFIG_FILE = os.path.expanduser('~/.config/akara.conf')
 
 SERVER_CONFIG_DEFAULTS = {
     'global': {
-        # 'Listen': passed in
-        'ServerRoot': '~/.local/lib/akara', # must be present
-        'PidFile': 'logs/akara.pid',  # must be present
+        # 'Listen': must be present in the config
+        'ServerRoot': '~/.local/lib/akara',
+        'PidFile': 'logs/akara.pid',
 
         'StartServers': '5',
         'MinSpareServers': '5',
@@ -20,8 +25,8 @@ SERVER_CONFIG_DEFAULTS = {
         'MaxRequestsPerServer': '10000',
 
         'ModuleDir': 'modules',
-        'ErrorLog': 'logs/error.log',  # must be present
-        'LogLevel': 'notice',  # must be present
+        'ErrorLog': 'logs/error.log',
+        'LogLevel': 'INFO',
         'AccessLog': '',
         },
     'akara.cache': {
@@ -30,23 +35,7 @@ SERVER_CONFIG_DEFAULTS = {
         },
     }
 
-# The Akara levels were:
-#   emerg, alert, crit, error, warn, notice, info, debug
-# but these did not have any real definition. I'll map these
-# to the Python logging levels as:
 
-
-# XXX Do not need backwards compatibility here
-_backwards_compatible_levels = {
-    "emerg": "CRITICAL",
-    "alert": "CRITICAL",
-    "crit": "CRITICAL",
-    "error": "ERROR",
-    "warn": "WARN",
-    "notice": "INFO",
-    "info": "INFO",
-    "debug": "DEBUG",
-    }
 _valid_log_levels = {
     "CRITICAL": logging.CRITICAL,
     "ERROR": logging.ERROR,
@@ -60,6 +49,7 @@ _valid_log_levels = {
 log = logging.getLogger("akara.server")
 
 def _add_config_defaults(config):
+    # in-place modify the config
     for section, defaults in SERVER_CONFIG_DEFAULTS.iteritems():
         if not config.has_section(section):
             config.add_section(section)
@@ -69,6 +59,7 @@ def _add_config_defaults(config):
     return config
 
 def read_config(config_file=None):
+    "Read an Akara .ini config file and return the parsed settings and the ConfigParser"""
     if config_file is None:
         config_file = DEFAULT_SERVER_CONFIG_FILE
     config = ConfigParser.ConfigParser()
@@ -79,6 +70,8 @@ def read_config(config_file=None):
 
     try:
         config.readfp(f)
+        # Do some sanity checks. It's best to do these tests now because
+        # doing them downstream leads to more confusing error messages.
         if not config.sections():
             raise Error("Configuration file is empty")
         if not config.has_section("global"):
@@ -92,6 +85,12 @@ def read_config(config_file=None):
         
 
 def _extract_settings(config):
+    """Get parsed setting information from a config object
+
+    This does sanity checking on the input (like that port numbers
+    must be positive integers) and converts things into the
+    appropriate data type (like integers).
+    """
     settings = {}
 
     # The value for 'Listen' can be:
@@ -130,14 +129,9 @@ def _extract_settings(config):
     if log_level_s in _valid_log_levels:
         log_level = _valid_log_levels[log_level_s]
     else:
-        # Perhaps one of the backwards compatible levels?
-        log_level_s = log_level_orig.lower()
-        if log_level_s in _backwards_compatible_levels:
-            log_level = _valid_log_levels[_backwards_compatible_levels[log_level_s]]
-        else:
-            raise Error(
-                "global setting 'LogLevel' is %r but must be one of: %s" %
-                (log_level, ", ".join(map(repr, _valid_log_levels))))
+        raise Error(
+            "global setting 'LogLevel' is %r but must be one of: %s" %
+            (log_level_s, ", ".join(map(repr, _valid_log_levels))))
                     
     settings["log_level"] = log_level
 
