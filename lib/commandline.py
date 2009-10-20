@@ -30,6 +30,43 @@ def restart(args):
     pid = get_pid(args)
     os.kill(pid, signal.SIGHUP)
 
+def status(args):
+    config_filename = read_config.DEFAULT_SERVER_CONFIG_FILE
+    if args.config_filename is not None:
+        config_filename = args.config_filename
+
+    print "  == Akara status =="
+    print "Configuration file:", repr(config_filename)
+    try:
+        settings, config = read_config.read_config(config_filename)
+    except read_config.Error, err:
+        print "** ERROR **:", str(error)
+        raise SystemExit(1)
+    print "Error log file:", repr(settings["error_log"])
+
+    pid_file = settings["pid_file"]
+    print "PID file:", repr(pid_file)
+    try:
+        line = open(pid_file).readline()
+    except IOError, err:
+        # It's fine if the PID file isn't there
+        if not os.path.exists(pid_file):
+            print "PID file does not exist"
+        else:
+            print "*** Cannot open PID file:", err
+    else:
+        try:
+            pid = int(line)
+        except ValueError, err:
+            print "***  Unable to parse the PID from the PID file:", err
+            raise SystemExit(1)
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            print "Process", pid, "does not exist"
+        else:
+            print "Process", pid, "is running"
+    
 
 ######################################################################
 
@@ -65,6 +102,9 @@ parser_stop.set_defaults(func=stop)
 
 parser_restart = subparsers.add_parser("restart", help="restart an Akara server")
 parser_restart.set_defaults(func=restart)
+
+parser_status = subparsers.add_parser("status", help="display a status report")
+parser_status.set_defaults(func=status)
 
 def main(argv):
     args = parser.parse_args()
