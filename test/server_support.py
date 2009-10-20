@@ -55,18 +55,18 @@ def create_server_dir(port):
 
     f = open(config_filename, "w")
     f.write("""[global]
-ServerRoot: %(server_root)s
-ModuleDir: %(module_dir)s
-Listen: localhost:%(port)s
+ServerRoot = %(server_root)s
+ModuleDir = %(module_dir)s
+Listen = localhost:%(port)s
 
 [atomtools]
-entries: %(atom_entries)s
-feed_envelope: <feed xmlns="http://www.w3.org/2005/Atom">
+entries = %(atom_entries)s
+feed_envelope = <feed xmlns="http://www.w3.org/2005/Atom">
     <title>Feed me!</title><id>http://example.com/myfeed</id></feed>
 
 [static]
-resource: %(resource_dir)s
-static: %(resource_dir)s/static
+resource = %(resource_dir)s
+static = %(resource_dir)s/static
 
 
 # Let the XSLT test reach directly into the filesystem
