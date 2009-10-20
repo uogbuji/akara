@@ -1,5 +1,7 @@
-"""akara.services - adapters to simplify using Python functions as WSGI/HTTP handlers
+"""akara.services - adapters to use Python functions as WSGI handlers
 
+This module is meant to be used by functions in an Akara extension
+module.
 
 """
 
@@ -18,6 +20,7 @@ from amara import tree, writers
 
 from akara import logger, registry
 
+__all__ = ("service", "simple_service", "method_dispatcher")
 
 ERROR_DOCUMENT_TEMPLATE = """<?xml version="1.0" encoding="ISO-8859-1"?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
@@ -49,7 +52,7 @@ class _HTTPError(Exception):
         self.text = ERROR_DOCUMENT_TEMPLATE % dict(code=self.code,
                                                    reason=xml_escape(self.reason),
                                                    message=xml_escape(self.message))
-        self.headers = [("Content-Type", "text/xml")]
+        self.headers = [("Content-Type", "application/xml")]
     def make_wsgi_response(self, environ, start_response):
         start_response("%s %s" % (self.code, self.reason), self.headers)
         return [self.text]
@@ -61,57 +64,54 @@ class _HTTP405(_HTTPError):
 
 
 # Pull out any query arguments and set up input from any POST request
-_allowed_simple_methods = ("GET", "POST", "HEAD")
-def _get_function_args(environ, default_kwargs, allow_repeated_args):
+def _get_function_args(environ, allow_repeated_args):
     request_method = environ.get("REQUEST_METHOD")
-    if request_method not in _allowed_simple_methods:
-        raise _HTTP405(_allowed_simple_methods)
-
     if request_method == "POST":
         try:
             request_length = int(environ["CONTENT_LENGTH"])
         except (KeyError, ValueError):
             raise _HTTPError(httplib.LENGTH_REQUIRED)
         request_bytes = environ["wsgi.input"].read(request_length)
-        try:
-            request_content_type = environ["CONTENT_TYPE"]
-        except KeyError:
-            request_content_type = "application/unknown"
+        request_content_type = environ.get("CONTENT_TYPE", None)
         args = (request_bytes, request_content_type)
     else:
         args = ()
 
     # Build up the keyword parameters from the query string
     query_string = environ["QUERY_STRING"]
-    kwargs = default_kwargs.copy()
+    kwargs = {}
     if query_string:
-        # Is this order correct? 
         qs_dict = cgi.parse_qs(query_string)
         if allow_repeated_args:
-            kwargs.update(qs_dict)
+            kwargs = qs_dict
         else:
             for k, v in qs_dict.iteritems():
-                if len(v) != 1:
+                if len(v) == 1:
+                    kwargs[k] = v[0]
+                else:
                     raise _HTTPError(400, 
    message="Using the %r query parameter multiple times is not supported" % (k,))
-                else:
-                    kwargs[k] = v[0]
             
     return args, kwargs
 
+######
+
 def new_request(environ):
+    "prepare the akara.request and akara.response environment for a new request"
     from akara import request, response
     request.environ = environ
     response.code = "200 OK"
     response.headers = []
 
 def clear_request():
+    "reset the akara.request and akara.response environment"
     from akara import request, response
     request.environ = None
     response.code = None
     response.headers = None
 
 def send_headers(start_response, default_content_type):
+    "Send the WSGI headers, using values from use akara.request.*"
     from akara import response
     code = response.code
     if isinstance(code, int):
@@ -134,17 +134,15 @@ def convert_body(body, content_type, encoding, writer):
         return body, content_type
 
     if isinstance(body, tree.entity):
-        if "html" in writer.lower():
-            w = writers.lookup(writer)
-            body = body.xml_encode(w, encoding)
-            if content_type is None:
-                content_type = "text/html" # XXX include the encoding here?
-            return body, content_type
-
+        # XXX have Amara tell me the content type (with encoding)
+        # XXX put that into trac
+        if content_type is None:
+            if "html" in writer.lower():
+                content_type = "text/html"
+            else:
+                content_type = "application/xml"
         w = writers.lookup(writer)
         body = body.xml_encode(w, encoding)
-        if content_type is None:
-            content_type = "text/xml" # XXX include the encoding here?
         return body, content_type
 
     if isinstance(body, unicode):
@@ -196,10 +194,55 @@ def check_is_valid_method(method):
     if min_c < 'A' or max_c > 'Z':
         raise ValueError("Method %r may only contain uppercase ASCII letters" % (method,))
 
+
 def simple_service(method, service_id, mount_point=None,
                    content_type=None, encoding="utf-8", writer="xml",
-                   allow_repeated_args=True,
-                   **service_kwargs):
+                   allow_repeated_args=True):
+    """Add the function as an Akara resource
+
+    These affect how the resource is registered in Akara
+      method - the supported HTTP method (either "GET" or "POST")
+      service_id - a string which identifies this service; should be a URL
+      mount_point - the local URL path to the resource (must not at present
+           contain a '/') If None, use the function's name as the mount point.
+
+    These control how to turn the return value into an HTTP response
+      content_type - the response content-type. If not specified, and if
+          "Content-Type" is not listed in akara.response.headers then infer
+          the content-type based on what the decorated function returns.
+          (See akara.services.convert_body for details)
+      encoding - Used to convert a returned Unicode string or an Amara tree
+          to the bytes used in the HTTP response
+      writer - Used to serialize the Amara tree for the HTTP response.
+          This must be a name which can be used as an Amara.writer.lookup.
+
+    This affects how to convert the QUERY_STRING into function call parameters
+      allow_repeated_args - The query string may have multiple items with the
+          same name, as in "?a=x&a=y&a=z&b=w". If True, this is converted into
+          a function call parameter like "f(a=['x','y','z'], b=['w'])". If
+          False then this is treated as an error. Suppose the query string
+          contains no repeated arguments, as in "?a=x&b=w". If
+          allow_repeated_args is True then the function is called as
+          as "f(a=['x'], b=['w'])" and if False, like "f(a='x', b='w')".
+    
+    A simple_service decorated function can get request information from
+    akara.request and use akara.response to set the HTTP reponse code
+    and the HTTP response headers.
+
+    Here is an example of use:
+
+      @simple_service("GET", "http://example.com/get_date")
+      def date(format="%Y-%m-%d %H:%M:%S"):
+          '''get the current date'''
+          import datetime
+          return datetime.datetime.now().strftime(format)
+
+    which can be called with URLs like:
+
+      http://localhost:8880/date
+      http://localhost:8880/date?format=%25m-%25d-%25Y
+
+"""
     check_is_valid_method(method)
     if method not in ("GET", "POST"):
         raise ValueError(
@@ -209,7 +252,9 @@ def simple_service(method, service_id, mount_point=None,
         @functools.wraps(func)
         def wrapper(environ, start_response):
             try:
-                args, kwargs = _get_function_args(environ, service_kwargs, allow_repeated_args)
+                if environ.get("REQUEST_METHOD") != method:
+                    raise _HTTP405([method])
+                args, kwargs = _get_function_args(environ, allow_repeated_args)
             except _HTTPError, err:
                 return err.make_wsgi_response(environ, start_response)
             new_request(environ)
@@ -224,7 +269,7 @@ def simple_service(method, service_id, mount_point=None,
             clear_request()
             return result
 
-        m_point = mount_point  # Get from the outer scope
+        m_point = mount_point
         if m_point is None:
             m_point = func.__name__
         registry.register_service(wrapper, service_id, m_point) 
@@ -249,21 +294,12 @@ def simple_service(method, service_id, mount_point=None,
 # different Python function to handle each method.
 
 # # Example of use:
-# @method_dispatcher(SERVICE_ID, DEFAULT_MOUNT)
-# def something():
-#   "docstring for the service"
-# 
-# @something.simple_method(method="GET", content_type="text/http")
-# def something_get(names=[]):
-#   return "Hi " + ", ".join(names) + "!\n"
-# 
-# @something.method("POST")
-# def something_post(environ, start_response):
-#   start_response("200 OK", [("Content-Type", "image/gif")])
-#   return okay_image
 
 class service_method_dispatcher(object):
-    "WSGI dispatcher based on request HTTP method"
+    """WSGI dispatcher based on request HTTP method
+
+    This is an internal class. You should not need to use it.
+    """
     def __init__(self):
         self.method_table = {}
     def add_handler(self, method, handler):
@@ -281,20 +317,72 @@ class service_method_dispatcher(object):
         return err.make_wsgi_response(environ, start_response)
 
 # This is the top-level decorator
-def method_dispatcher(service_id, mount_point):
+def method_dispatcher(service_id, mount_point=None):
+    """Add an Akara resource which dispatches to other functions based on the HTTP method
+    
+    Used for resources which handle, say, both GET and POST requests.
+
+      service_id - a string which identifies this service; should be a URL
+      mount_point - the local URL path to the resource (must not at present
+           contain a '/') If None, use the function's name as the mount point.
+
+    Example of use:
+
+      @method_dispatcher("http://example.com/example_service")
+      def something():
+          '''docstring used for the service'''
+
+      @something.simple_method(method="GET", content_type="text/plain",
+                               allow_repeated_args=True)
+      def something_get(names=[]):
+          return "Hi " + ", ".join(names) + "!\n"
+
+      @something.method("POST")
+      def something_post(environ, start_response):
+          start_response("200 OK", [("Content-Type", "image/gif")])
+          return image_bytes
+
+    If you have curl installed then you could access the GET option as:
+        curl http://localhost:8880/something?name=Andrew&name=Sara+Marie
+    and access the POST option as:
+        curl --data "" http://localhost:8880/something
+
+    """
     def method_dispatcher_wrapper(func):
         doc = inspect.getdoc(func)
         dispatcher = service_method_dispatcher()
-        registry.register_service(dispatcher, service_id, mount_point, doc)
+        m_point = mount_point
+        if m_point is None:
+            m_point = func.__name__
+        registry.register_service(dispatcher, service_id, m_point, doc)
         return service_dispatcher_decorator(dispatcher)
     return method_dispatcher_wrapper
 
 
 class service_dispatcher_decorator(object):
+    """Helper class used by method_dispatcher to add new handlers to the given resource
+
+    You should not need to create this directly. Instead, use 'method_dispatcher'
+    """
     def __init__(self, dispatcher):
         self.dispatcher = dispatcher
 
     def method(self, method, encoding="utf-8", writer="xml"):
+        """Register a function as a resource handler for a given HTTP method
+
+          method - the relevant HTTP method
+          encoding - Used to convert a returned Unicode string or an Amara tree
+              to the bytes used in the HTTP response
+          writer - Used to serialize the Amara tree for the HTTP response.
+              This must be a name which can be used as an Amara.writer.lookup.
+
+        The decorated function must take the normal WSGI parameters
+        (environ, start_response) and it must call start_response with
+        all the needed headers, including Content-Type.  The function
+        may return an Akara tree or a Unicode string, in which case it
+        it serialized and converted to bytes based in the 'writer' and
+        'encoding' options.
+        """
         check_is_valid_method(method)
         def service_dispatch_decorator_method_wrapper(func):
             @functools.wraps(func)
@@ -319,8 +407,7 @@ class service_dispatcher_decorator(object):
         return service_dispatch_decorator_method_wrapper
 
     def simple_method(self, method, content_type=None,
-                      encoding="utf-8", writer="xml", allow_repeated_args=True,
-                      **service_kwargs):
+                      encoding="utf-8", writer="xml", allow_repeated_args=True):
         check_is_valid_method(method)
         if method not in ("GET", "POST"):
             raise ValueError(
@@ -331,7 +418,7 @@ class service_dispatcher_decorator(object):
             @functools.wraps(func)
             def simple_method_wrapper(environ, start_response):
                 try:
-                    args, kwargs = _get_function_args(environ, service_kwargs, allow_repeated_args)
+                    args, kwargs = _get_function_args(environ, allow_repeated_args)
                 except _HTTPError, err:
                     return err.make_wsgi_response(environ, start_response)
                 new_request(environ)
