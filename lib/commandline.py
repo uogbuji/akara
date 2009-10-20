@@ -1,4 +1,8 @@
-"Deal with the command-line interface"
+"""Deal with the command-line interface
+
+This is an internal module and should not be called from other libraries.
+
+"""
 
 import sys
 import os
@@ -70,7 +74,7 @@ def status(args):
 
 ######################################################################
 
-
+# Handle the command-line arguments
 
 parser = argparse.ArgumentParser(prog="akara", add_help=False)
 
