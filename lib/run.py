@@ -11,8 +11,7 @@ from akara import read_config
 import logging
 
 from akara import logger, logger_config
-from akara.module_loader import load_modules
-from akara.multiprocess_http import AkaraPreforkServer
+from akara.multiprocess_http import AkaraPreforkServer, load_modules
 
 
 def save_pid(pid_file):

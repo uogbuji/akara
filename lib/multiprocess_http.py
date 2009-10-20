@@ -3,6 +3,7 @@
 This module ties together the multi-process socket listening
 capabilities of flup (see akara.thirdparty.preforkserver) with the
 HTTP-to-WSGI capabilities of paste (see akara.thirdparty.httpserver).
+It also handles the Akara extension modules.
 
 Flup implements the Apache multi-processing module algorithm, which is
 a non-threaded, pre-forking web server. The master process starts up
@@ -24,18 +25,21 @@ AkaraWSGIDispatcher uses the registry to look up a WSGI handler for
 the requested mount-point (the /first/word/in/the/path) and call it,
 or report an error.
 
+This module also contains code to read a set of Akara extension
+modules. Each module is read and byte-compiled with an environment
+which includes the special module variable "AKARA" which contains
+configuration information for the module. The byte-code is exec'ed in
+each HTTP listener subprocesses, which is also when module resource
+registration occurs.
+
 """
+import os
 
 from wsgiref.util import shift_path_info
 from wsgiref.simple_server import WSGIRequestHandler
 
-# for xml_print
-from cStringIO import StringIO
-from amara import tree, xml_print
-
 from akara import logger
 from akara import registry
-from akara import module_loader
 
 from akara.thirdparty import preforkserver, httpserver
 
@@ -82,7 +86,7 @@ class AkaraPreforkServer(preforkserver.PreforkServer):
         self.modules = modules
 
     def _child(self, sock, parent):
-        module_loader._init_modules(self.modules)
+        _init_modules(self.modules)
         preforkserver.PreforkServer._child(self, sock, parent)
 
 
@@ -142,3 +146,65 @@ class AkaraWSGIDispatcher(object):
         # There is one higher-level handler which will catch errors.
         # If/when that happens it creates a new Akara job handler.
         return service.handler(environ, start_response)
+
+
+
+###### Support extension modules
+
+# This used to be in its own module but that module was so small and
+# almost pointless so I moved it into here. It doesn't feel quite
+# right to be part of multiprocess_http, but it's close enough.
+
+# The master HTTP process uses this module to import the modules and
+# convert them into byte code with the correct globals(). It does not
+# exec the byte code. That's the job for the spawned-off HTTP listener
+# classes.
+
+
+# Instances are used as module global variable so extension modules
+# can get configuration information.
+class AKARA(object):
+    def __init__(self, config, module_name, module_config):
+        self.config = config
+        self.module_name = module_name
+        self.module_config = module_config
+
+def load_modules(module_dir, server_root, config):
+    "Read and prepare all extension modules (*.py) from the module directory"
+    modules = []
+    for filename in os.listdir(module_dir):
+        name, ext = os.path.splitext(filename)
+        if ext != ".py":
+            continue
+        full_path = os.path.join(module_dir, filename)
+        module_config = {}
+        if config.has_section(name):
+            module_config.update(config.items(name))
+
+        module_globals = {
+            "__name__": name,
+            "__file__": full_path,
+            "AKARA": AKARA(config, name, module_config)
+            }
+        f = open(full_path, "rU")
+        # XXX Put some logging here about modules which cannot be parsed
+        try:
+            module_code = compile(f.read(), full_path, 'exec')
+        finally:
+            f.close()
+        modules.append( (name, module_code, module_globals) )
+    return modules
+
+def _init_modules(modules):
+    # The master node parsed the modules but did not exec them.
+    # Do that now, but only once. This will register the functions.
+    for name, code, module_globals in modules:
+        # NOTE: each child execs this code, so any warning and
+        # errors will be repeated for each newly spawned process,
+        # including child restarts.
+        try:
+            exec code in module_globals, module_globals
+        except:
+            logger.error("Unable to initialize module %r" % (name,),
+                         exc_info = True)
+    
