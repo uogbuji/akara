@@ -189,7 +189,12 @@ def load_modules(module_dir, server_root, config):
         f = open(full_path, "rU")
         # XXX Put some logging here about modules which cannot be parsed
         try:
-            module_code = compile(f.read(), full_path, 'exec')
+            try:
+                module_code = compile(f.read(), full_path, 'exec')
+            except:
+                logger.exception(
+                    "Unable to byte-compile %r - skipping module" % (full_path,))
+                
         finally:
             f.close()
         modules.append( (name, module_code, module_globals) )
@@ -205,6 +210,7 @@ def _init_modules(modules):
         try:
             exec code in module_globals, module_globals
         except:
-            logger.error("Unable to initialize module %r" % (name,),
+            logger.error(
+"Unable to initialize module %r - skipping rest of module" % (name,),
                          exc_info = True)
     
