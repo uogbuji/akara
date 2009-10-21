@@ -20,6 +20,20 @@ from amara.tools import atomtools
 
 RESOURCE_DIR = os.path.join(os.path.dirname(__file__), "resource")
 
+# the index "/"
+def test_index():
+    url = server()
+    s = urlopen(url).read()
+    assert "http://purl.org/xml3k/akara/services/builtin/registry" in s
+    assert "akara.atom.json" in s
+
+def test_index_search():
+    url = server() + "?service=http://purl.org/xml3k/akara/services/builtin/registry"
+    s = urlopen(url).read()
+    assert "http://purl.org/xml3k/akara/services/builtin/registry" in s
+    assert "akara.atom.json" not in s
+    
+
 # atomtools.py
 def test_atom_json():
     import simplejson
