@@ -135,7 +135,7 @@ def convert_body(body, content_type, encoding, writer):
 
     if isinstance(body, tree.entity):
         # XXX have Amara tell me the content type (with encoding)
-        # XXX put that into trac
+        # This is trac #29
         if content_type is None:
             if "html" in writer.lower():
                 content_type = "text/html"
@@ -148,7 +148,6 @@ def convert_body(body, content_type, encoding, writer):
     if isinstance(body, unicode):
         body = body.encode(encoding)
         if content_type is None:
-            # XXX Check if this is valid.
             content_type = "text/plain; charset=%s" % (encoding,)
         return body, content_type
 
@@ -316,13 +315,16 @@ class service_method_dispatcher(object):
 
     This is an internal class. You should not need to use it.
     """
-    def __init__(self):
+    def __init__(self, mount_point):
+        self.mount_point = mount_point
         self.method_table = {}
     def add_handler(self, method, handler):
         if method in self.method_table:
-            logger.warn("Replaced method") # XXX improve
+            logger.warn("Replacing %r method handler for %r"  %
+                        (method, self.mount_point))
         else:
-            logger.info("New method") # XXX improve
+            logger.info("Created %r method handler for %r" %
+                        (method, self.mount_point))
         self.method_table[method] = handler
     def __call__(self, environ, start_response):
         method = environ.get("REQUEST_METHOD")
@@ -381,10 +383,10 @@ def method_dispatcher(service_id, mount_point=None):
     """
     def method_dispatcher_wrapper(func):
         doc = inspect.getdoc(func)
-        dispatcher = service_method_dispatcher()
         m_point = mount_point
         if m_point is None:
             m_point = func.__name__
+        dispatcher = service_method_dispatcher(m_point)
         registry.register_service(service_id, m_point, dispatcher, doc)
         return service_dispatcher_decorator(dispatcher)
     return method_dispatcher_wrapper
@@ -475,7 +477,5 @@ class service_dispatcher_decorator(object):
 @simple_service("GET", "http://purl.org/xml3k/akara/services/builtin/registry", "",
                 allow_repeated_args=False)
 def list_services(service=None):
-    if service is not None:
-        service = service[0]  # XXX check for multiple parameters
     return registry.list_services(ident=service) # XXX 'ident' or 'service' ?
 
