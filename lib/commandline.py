@@ -76,15 +76,6 @@ def status(args):
         else:
             print "Process", pid, "is running"
 
-def delete_pid(args):
-    settings, config = read_config.read_config(args.config_filename)
-    pid_file = settings["pid_file"]
-    try:
-        os.unlink(pid_file)
-    except OSError, err:
-        if os.path.exists(pid_file):
-            raise SystemExit("Cannot remove PID file %r: %s" % (pid_file, err))
-
 ######################################################################
 
 # Handle the command-line arguments
@@ -112,6 +103,8 @@ subparsers = parser.add_subparsers(title="The available server commands are")
 parser_start = subparsers.add_parser("start", help="start Akara (use -X for debug mode)")
 parser_start.add_argument("-X", dest="debug", action="store_true",
                           help="start in debug mode")
+parser_start.add_argument("-f", dest="skip_pid_check", action="store_true",
+                          help="do not check for an existing PID file")
 parser_start.set_defaults(func=start)
 
 parser_stop = subparsers.add_parser("stop", help="stop an Akara server")
@@ -122,9 +115,6 @@ parser_restart.set_defaults(func=restart)
 
 parser_status = subparsers.add_parser("status", help="display a status report")
 parser_status.set_defaults(func=status)
-
-parser_delete_pid = subparsers.add_parser("delete-pid", help="remove the PID file")
-parser_delete_pid.set_defaults(func=delete_pid)
 
 def main(argv):
     args = parser.parse_args()
