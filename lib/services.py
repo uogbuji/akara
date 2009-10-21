@@ -212,7 +212,7 @@ def service(service_id, mount_point=None,
 
 def simple_service(method, service_id, mount_point=None,
                    content_type=None, encoding="utf-8", writer="xml",
-                   allow_repeated_args=True):
+                   allow_repeated_args=False):
     """Add the function as an Akara resource
 
     These affect how the resource is registered in Akara

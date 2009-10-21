@@ -15,11 +15,6 @@ from akara.services import simple_service
 
 URL_REQUIRED = _("The 'url' query parameter is mandatory.")
 
-def get_first_item(items, errmsg):
-    if not items:
-        raise AssertionError(errmsg)
-    return items[0]
-
 SERVICE_ID = 'http://purl.org/akara/services/builtin/rdfa.json'
 @simple_service('GET', SERVICE_ID, 'akara.rdfa.json', 'application/json')
 def rdfa2json(url=None):
@@ -29,7 +24,8 @@ def rdfa2json(url=None):
     Sample request:
     curl "http://localhost:8880/akara.rdfa.json?url=http://zepheira.com"
     '''
-    url = get_first_item(url, URL_REQUIRED)
+    if url is None:
+        raise AssertionError(URL_REQUIRED)
     resources = rdfaparse(url)
     return simplejson.dumps({'items': resources}, indent=4)
     

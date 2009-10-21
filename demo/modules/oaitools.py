@@ -99,11 +99,10 @@ def atomize_oai_record(endpoint=None, id=None):
     Sample request:
     curl "http://localhost:8880/akara.oai.atom?endpoint=http://dspace.mit.edu/oai/request&id=oai:dspace.mit.edu:1721.1/5451"
     '''
-    if not endpoint:
+    if endpoint is None:
         raise ValueError('endpoint required')
-    if not id:
+    if id is None:
         raise ValueError('id required')
-    id, endpoint = id[0], endpoint[0]
     qstr = urllib.urlencode({'verb' : 'GetRecord', 'metadataPrefix': 'oai_dc', 'identifier': id})
     url = endpoint + '?' + qstr
     doc = bindery.parse(url, model=OAI_MODEL)

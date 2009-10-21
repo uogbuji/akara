@@ -78,7 +78,8 @@ def svncheckout(url=None):
     curl "http://localhost:8880/akara.svncheckout?url=http://zepheira.com"
     '''
     ids = set()
-    url = first_item(url, next=partial(assert_not_equal, None, msg=URL_REQUIRED))
+    if url is None:
+        raise AssertionError(URL_REQUIRED)
     with closing(urllib2.urlopen(url)) as resp:
         content = resp.read()
     resources = rdfaparse(content)

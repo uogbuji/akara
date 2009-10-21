@@ -52,7 +52,7 @@ def akara_xslt(body, ctype, **params):
     curl --request POST --data-binary "@foo.xml" --header "Content-Type: application/xml" "http://localhost:8880/akara.xslt?@xslt=http://hg.akara.info/amara/trunk/raw-file/tip/demo/data/identity.xslt"
     '''
     if "@xslt" in params:
-        akaraxslttransform = params["@xslt"][0]
+        akaraxslttransform = params["@xslt"]
     else:
         if not DEFAULT_TRANSFORM:
             raise ValueError('XSLT transform required')
@@ -77,10 +77,10 @@ def akara_xpath(body, ctype, **params):
     Sample request:
     curl --request POST --data-binary "@foo.xml" --header "Content-Type: application/xml" "http://localhost:8880/akara.xpath?select=/html/head/title&tidy=yes"
     '''
-    if params.get("tidy") == ['yes']:
+    if params.get("tidy") == 'yes':
         doc = html.parse(body)
     else:
         doc = amara.parse(body)
-    result = simplify(doc.xml_select(params['select'][0].decode('utf-8')))
+    result = simplify(doc.xml_select(params['select'].decode('utf-8')))
     return str(result)
 

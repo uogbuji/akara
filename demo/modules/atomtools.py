@@ -38,7 +38,6 @@ def atom_json(url=None):
     '''
     # From http://code.google.com/p/simplejson/
     import simplejson
-    url = url[0]
     entries = atomtools.ejsonize(url)
     return simplejson.dumps({'items': entries}, indent=4)
 
@@ -92,9 +91,8 @@ def webfeed_json(url=None):
     # From http://code.google.com/p/simplejson/
     import simplejson
 
-    if not url:
+    if url is None:
         raise AssertionError("The 'url' query parameter is mandatory.")
-    url = url[0]
     feed = feedparser.parse(url)
     # Note: bad URLs might mean the feed doesn't have headers
     #print >> sys.stderr, "Feed info:", url, feed.version, feed.encoding, feed.headers.get('Content-type')

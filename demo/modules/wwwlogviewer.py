@@ -117,7 +117,7 @@ def wwwlog2json(body, ctype, maxrecords=None, nobots=False):
     * curl --request POST --data-binary "@access.log" --header "Content-Type: text/plain" "http://localhost:8880/akara.wwwlog.json"
     '''
     if maxrecords:
-        maxrecords = int(maxrecords[0])
+        maxrecords = int(maxrecords)
     entries = []
     for count, line in enumerate(body.splitlines()):
         if maxrecords and count >= maxrecords:

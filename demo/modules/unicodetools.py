@@ -19,11 +19,6 @@ from amara.writers.struct import *
 NAME_REQUIRED = _("The 'name' query parameter is mandatory.")
 
 
-def get_first_item(items, errmsg):
-    if not items:
-        raise AssertionError(errmsg)
-    return items[0]
-
 SERVICE_ID = 'http://purl.org/akara/services/builtin/unicode.charbyname'
 #@simple_service('get', SERVICE_ID, 'akara.rdfa.json', 'application/json')
 @simple_service('GET', SERVICE_ID, 'akara.unicode.charbyname', 'text/plain')
@@ -34,7 +29,8 @@ def charbyname(name=None):
     Sample request:
     curl "http://localhost:8880/akara.unicode.charbyname?name=DOUBLE+DAGGER"
     '''
-    name = get_first_item(name, NAME_REQUIRED)
+    if name is None:
+        raise AssertionError(NAME_REQUIRED)
     try:
         return lookup(name).encode('utf-8')
     except KeyError:
@@ -53,7 +49,8 @@ def charsearch(q=None):
     Sample request:
     curl "http://localhost:8880/akara.unicode.search?q=dagger"
     '''
-    q = get_first_item(q, Q_REQUIRED)
+    if q is None:
+        raise AssertionError(Q_REQUIRED)
     query = urllib.urlencode({"q": q})
     search_url = UINFO_SEARCH_URL + query
     doc = html.parse(search_url)

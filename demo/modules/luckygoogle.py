@@ -31,9 +31,8 @@ def lucky_google(q=None):
     Sample request:
     * curl "http://localhost:8880/akara.luckygoogle?q=zepheira"
     '''
-    if not q:
+    if q is None:
         raise AssertionError(Q_REQUIRED)
-    q = q[0]
     query = urllib.urlencode({'q' : q})
     url = 'http://ajax.googleapis.com/ajax/services/search/web?v=1.0&' + query
     json = simplejson.load(urllib.urlopen(url))
