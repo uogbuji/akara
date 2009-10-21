@@ -38,9 +38,8 @@ class Registry(object):
     "Internal class to handle resource registration information"
     def __init__(self):
         self._registered_services = {}
-        self.register_service(self.list_services,
-                              "http://purl.org/xml3k/akara/services/builtin/registry", "")
-    def register_service(self, handler, ident, path, doc=None):
+
+    def register_service(self, ident, path, handler, doc=None):
         if "/" in path:
             raise TypeError("Registered path may not contain a '/'")
         if doc is None:
@@ -76,8 +75,8 @@ _current_registry = Registry()
 # unique identifier. Therefore, that should be the first parameter.
 # Next is how to find it via HTTP, then the handler information.
 
-def register_service(function, ident, path, doc=None):
-    _current_registry.register_service(function, ident, path, doc)
+def register_service(ident, path, function, doc=None):
+    _current_registry.register_service(ident, path, function, doc)
 
 def get_service(mount_point):
     return _current_registry.get_service(mount_point)

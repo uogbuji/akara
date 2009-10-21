@@ -200,7 +200,7 @@ def service(service_id, mount_point=None,
         m_point = mount_pount
         if m_point is None:
             m_point = func.__name__
-        registry.register_service(wrapper, service_id, m_point)
+        registry.register_service(service_id, m_point, wrapper)
         return wrapper
     return service_wrapper
 
@@ -288,7 +288,7 @@ def simple_service(method, service_id, mount_point=None,
         m_point = mount_point
         if m_point is None:
             m_point = func.__name__
-        registry.register_service(wrapper, service_id, m_point) 
+        registry.register_service(service_id, m_point, wrapper) 
         return wrapper
     return service_wrapper
 
@@ -385,7 +385,7 @@ def method_dispatcher(service_id, mount_point=None):
         m_point = mount_point
         if m_point is None:
             m_point = func.__name__
-        registry.register_service(dispatcher, service_id, m_point, doc)
+        registry.register_service(service_id, m_point, dispatcher, doc)
         return service_dispatcher_decorator(dispatcher)
     return method_dispatcher_wrapper
 

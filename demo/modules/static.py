@@ -82,4 +82,4 @@ else:
     for path in paths:
         root = AKARA.module_config[path]
         handler = MediaHandler(root)
-        registry.register_service(handler, SERVICE_ID, path)
+        registry.register_service(SERVICE_ID, path, handler)
