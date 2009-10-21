@@ -41,7 +41,7 @@ class Registry(object):
 
     def register_service(self, ident, path, handler, doc=None):
         if "/" in path:
-            raise TypeError("Registered path may not contain a '/'")
+            raise TypeError("Registered path %r may not contain a '/'" % (path,))
         if doc is None:
             doc = inspect.getdoc(handler) or ""
         if ident in self._registered_services:
