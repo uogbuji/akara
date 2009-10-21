@@ -126,6 +126,23 @@ class AkaraWSGIHandler(httpserver.WSGIHandler):
 # the path (called the "mount_point") and get the associated handler
 # from the registry.
 
+ERROR_DOCUMENT_TEMPLATE = """<?xml version="1.0" encoding="ISO-8859-1"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<hmtl xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <title>%(reason)s</title>
+</head>
+<body>
+  <h1>%(reason)s</h1>
+  <p>
+  %(message)s
+  </p>
+  <h2>Error %(code)s</h2>
+</body>
+</html>
+"""
+
 class AkaraWSGIDispatcher(object):
     def __init__(self, settings, config):
         self.server_address = settings["server_address"]
@@ -139,7 +156,7 @@ class AkaraWSGIDispatcher(object):
             # Not found. Report something semi-nice to the user
             start_response("404 Not Found", [("Content-Type", "text/xml")])
             reason, message = WSGIRequestHandler.responses[404]
-            return ERROR_DOCUMENT_TEMPLATE % dict(status = "404",
+            return ERROR_DOCUMENT_TEMPLATE % dict(code = "404",
                                                   reason = reason,
                                                   message = message)
         # The handler is in charge of doing its own error catching.
