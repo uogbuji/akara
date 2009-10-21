@@ -69,11 +69,6 @@ class Registry(object):
 
 _current_registry = Registry()
 
-# XXX I don't like the parameter order. I think it should be:
-#  ident, path, function, doc=None
-# Why? In Akara we are pushing the idea that each service has a
-# unique identifier. Therefore, that should be the first parameter.
-# Next is how to find it via HTTP, then the handler information.
 
 def register_service(ident, path, function, doc=None):
     _current_registry.register_service(ident, path, function, doc)
