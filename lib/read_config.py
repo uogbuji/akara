@@ -18,7 +18,6 @@ SERVER_CONFIG_DEFAULTS = {
         'ServerRoot': '~/.local/lib/akara',
         'PidFile': 'logs/akara.pid',
 
-        'StartServers': '5',
         'MinSpareServers': '5',
         'MaxSpareServers': '10',
         'MaxServers': '150',
