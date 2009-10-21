@@ -19,6 +19,8 @@ import python_support
 # Set 'False' to keep the temporary directory used for the server tests
 #DELETE_TEMPORARY_SERVER_DIRECTORY = False
 DELETE_TEMPORARY_SERVER_DIRECTORY = True
+if "AKARA_SAVE" in os.environ:
+    DELETE_TEMPORARY_SERVER_DIRECTORY = False
 
 
 ######
