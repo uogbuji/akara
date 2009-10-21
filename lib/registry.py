@@ -41,7 +41,7 @@ class Registry(object):
         self.register_service(self.list_services,
                               "http://purl.org/xml3k/akara/services/builtin/registry", "")
     def register_service(self, handler, ident, path, doc=None):
-        if "/" in mount_point:
+        if "/" in path:
             raise TypeError("Registered path may not contain a '/'")
         if doc is None:
             doc = inspect.getdoc(handler) or ""
