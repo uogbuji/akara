@@ -51,7 +51,9 @@ def status(args):
     except read_config.Error, err:
         print "** ERROR **:", str(error)
         raise SystemExit(1)
+
     print "Error log file:", repr(settings["error_log"])
+    print "Access log file:", repr(settings["access_log"])
 
     pid_file = settings["pid_file"]
     print "PID file:", repr(pid_file)
