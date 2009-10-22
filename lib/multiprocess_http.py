@@ -33,9 +33,13 @@ each HTTP listener subprocesses, which is also when module resource
 registration occurs.
 
 """
-import sys
+import datetime
 import os
+import string
+import sys
+import time
 import traceback
+import urllib
 from cStringIO import StringIO
 
 from wsgiref.util import shift_path_info
@@ -123,6 +127,9 @@ class AkaraWSGIHandler(httpserver.WSGIHandler):
     server_version = "Akara/2.0"  # Declare that we are an Akara server
     protocol_version = "HTTP/1.1" # Support (for the most part) HTTP/1.1 semantics
 
+    # Suppress access log reporting from BaseHTTPServer.py
+    def log_request(self, code='-', size='-'):
+        pass
 
 # This is the the top-level WSGI dispatcher between paste.httpserver
 # and Akara proper. It only understand how to get the first part of
@@ -154,34 +161,126 @@ def _send_error(start_response, code, exc_info=None):
                                           reason = reason,
                                           message = message)
 
+#    Output will look like this example from the Apache documentation (on one line)
+# 127.0.0.1 - frank [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.0"
+# 200 2326 "http://www.example.com/start.html" "Mozilla/4.08 [en] (Win98; I ;Nav)"
+
+# This definition comes from paste.translogger. For certainty's sake:
+# (c) 2005 Ian Bicking and contributors; written for Paste (http://pythonpaste.org)
+# Licensed under the MIT license: http://www.opensource.org/licenses/mit-license.php
+ACCESS_LOG_MESSAGE = (
+    '%(REMOTE_ADDR)s - %(REMOTE_USER)s [%(start_time)s] '
+    '"%(REQUEST_METHOD)s %(REQUEST_URI)s %(HTTP_VERSION)s" '
+    '%(status)s %(bytes)s "%(HTTP_REFERER)s" "%(HTTP_USER_AGENT)s"')
+
+# This proved a lot more difficult than I thought it would be.
+# I looked at the translogger solution, but I don't think it works
+# across the change of timezones and I didn't want to use the '%b'
+# time formatter because it is locale dependant.
+
+def timetuple_to_datetime(t):
+    return datetime.datetime(t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec)
+
+_months = "XXX Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
+def _get_time():
+    now = time.localtime()
+    utc_time = time.gmtime()
+
+    tz_seconds = (timetuple_to_datetime(now) - timetuple_to_datetime(utc_time)).seconds
+    # Round to the nearest minute
+    tz_minutes = (tz_seconds + 30)//60
+    tz_hour, tz_minute = divmod(tz_minutes, 60)
+
+    # I've got the timezone component. The rest is easy
+    return "%02d/%s/%d:%02d:%02d:%02d %+03d%02d" % (
+        now.tm_year, _months[now.tm_mon], now.tm_mday,
+        now.tm_hour, now.tm_min, now.tm_sec,
+        tz_hour, tz_minute)
+
+# Filter out empty fields, control characters, and space characters
+_illegal = ("".join(chr(i) for i in range(33)) +   # control characters up to space (=ASCII 32)
+            "".join(chr(i) for i in range(127, 256)) ) # high ASCII
+_clean_table = string.maketrans(_illegal, "?" * len(_illegal))
+def _clean(s):
+    # Check for empty fields
+    if not s:
+        return "-"
+    # Filter control characters. These can be used for
+    # escape character attacks against the terminal.
+    # Plus, spaces can mess up access log parsers.
+    return s.translate(_clean_table)
+    
 
 class AkaraWSGIDispatcher(object):
     def __init__(self, settings, config):
         self.server_address = settings["server_address"]
 
     def wsgi_application(self, environ, start_response):
-        mount_point = shift_path_info(environ)
+        # Get information used for access logging
+        request_uri = urllib.quote(environ.get("SCRIPT_NAME", "") +
+                                   environ.get("PATH_INFO", ""))
+        if environ.get("QUERY_STRING"):
+            request_uri += "?" + environ["QUERY_STRING"]
 
+        access_data = dict(start_time = _get_time(),
+                           request_uri = request_uri,
+                           # Will get the following two from start_response_
+                           status=None, content_length="-")
+
+        # Set up some middleware so I can capture the status and header
+        # information used for access logging.
+        def start_response_(status, headers, exc_info=None):
+            access_data["status"] = status.split(" ", 1)[0]
+            access_data["content_length"] = "-"
+            content_length = None
+            for k, v in headers:
+                if k.lower() == "content-length":
+                    access_data["content_length"] = v
+            # Forward things to the real start_response
+            return start_response(status, headers, exc_info)
+
+        # Get the handler for this mount point
+        mount_point = shift_path_info(environ)
         try:
             service = registry.get_service(mount_point)
         except KeyError:
             # Not found. Report something semi-nice to the user
             return _send_error(start_response, 404)
 
+        # Call the handler, deal with any errors, do access logging
         try:
-            return service.handler(environ, start_response)
-        except Exception, err:
-            exc_info = sys.exc_info()
             try:
-                f = StringIO()
-                traceback.print_exc(file=f)
-                logger.error("Uncaught exception from %r (%r)\n%s" %
-                             (mount_point, service.ident, f.getvalue()))
-                return _send_error(start_response, 500, exc_info=exc_info)
-            finally:
-                del exc_info
-            
+                return service.handler(environ, start_response_)
+            except Exception, err:
+                exc_info = sys.exc_info()
+                try:
+                    f = StringIO()
+                    traceback.print_exc(file=f)
+                    logger.error("Uncaught exception from %r (%r)\n%s" %
+                                 (mount_point, service.ident, f.getvalue()))
+                    return _send_error(start_response, 500, exc_info=exc_info)
+                finally:
+                    del exc_info
+        finally:
+            self.save_to_access_log(environ, access_data)
 
+
+            
+    def save_to_access_log(self, environ, access_data):
+        fields = dict(REMOTE_ADDR = _clean(environ.get("REMOTE_ADDR")),
+                      REMOTE_USER = _clean(environ.get("REMOTE_USER")),
+                      start_time = access_data["start_time"],
+                      REQUEST_METHOD = _clean(environ.get("REQUEST_METHOD")),
+                      REQUEST_URI = _clean(access_data["request_uri"]),
+                      HTTP_VERSION = environ.get("SERVER_PROTOCOL"),
+                      status = access_data["status"],
+                      bytes = access_data["content_length"],
+                      HTTP_REFERER = _clean(environ.get("HTTP_REFERER")),
+                      HTTP_USER_AGENT = _clean(environ.get("HTTP_USER_AGENT")),
+                      )
+        import logging
+        access_logger = logging.getLogger("akara.access")
+        access_logger.info(ACCESS_LOG_MESSAGE % fields)
 
 
 ###### Support extension modules

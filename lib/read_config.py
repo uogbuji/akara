@@ -25,8 +25,8 @@ SERVER_CONFIG_DEFAULTS = {
 
         'ModuleDir': 'modules',
         'ErrorLog': 'logs/error.log',
+        'AccessLog': 'logs/access.log',
         'LogLevel': 'INFO',
-        'AccessLog': '',
         },
     'akara.cache': {
         'DefaultExpire': '3600',
@@ -119,6 +119,9 @@ def _extract_settings(config):
 
     error_log = config.get('global', 'ErrorLog')
     settings["error_log"] = os.path.join(server_root, error_log)
+
+    access_log = config.get('global', 'AccessLog')
+    settings["access_log"] = os.path.join(server_root, access_log)
 
     module_dir = config.get("global", "ModuleDir")
     settings["module_dir"] = os.path.join(server_root, module_dir)

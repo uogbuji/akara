@@ -141,6 +141,9 @@ def main(args):
         # Open this now, so any errors can be reported
         logger_config.set_logfile(settings["error_log"])
 
+        # Configure the access log
+        logger_config.set_access_logfile(settings["access_log"])
+
         # Compile the modules before spawning the server process
         # If there are any problems, die
         modules = load_modules(settings["module_dir"],

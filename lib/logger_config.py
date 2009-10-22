@@ -106,3 +106,19 @@ def redirect_stdio():
     sys.stdin = StringIO("")
     sys.stdout = WriteToLogger(STDOUT)
     sys.stderr = WriteToLogger(STDERR)
+
+########  Access logger
+
+_access_logger = logging.getLogger("akara.access")
+_access_log_formatter = logging.Formatter("%(message)s")
+
+_access_handler = None
+
+def set_access_logfile(f):
+    global _access_handler
+    new_access_handler = logging.FileHandler(f)
+    new_access_handler.setFormatter(_access_log_formatter)
+    _access_logger.addHandler(new_access_handler)
+    if _access_handler is not None:
+        _access_logger.removeHandler(_access_handler)
+    _access_handler = new_access_handler
