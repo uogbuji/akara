@@ -63,6 +63,7 @@ def status(args):
         # It's fine if the PID file isn't there
         if not os.path.exists(pid_file):
             print "PID file does not exist"
+            print "Akara is not running"
         else:
             print "*** Cannot open PID file:", err
     else:
@@ -75,9 +76,10 @@ def status(args):
             os.kill(pid, 0)
         except OSError:
             print "PID is", pid, "but no process found with that PID"
-            print "Akara is stopped"
+            print "Akara is not running"
         else:
             print "PID is", pid, "and there is a process with that PID"
+            # XXX try to connect to the server?
             print "Akara is running"
 
 ######################################################################
