@@ -110,28 +110,35 @@ def clear_request():
     response.code = None
     response.headers = None
 
-def send_headers(start_response, default_content_type):
+def send_headers(start_response, default_content_type, content_length):
     "Send the WSGI headers, using values from akara.request.*"
     from akara import response
     code = response.code
     if isinstance(code, int):
         reason = http_responses[code][0]
         code = "%d %s" % (code, reason)
+    has_content_type = False
+    has_content_length = False
     for k, v in response.headers:
-        if k.lower() == "content-type":
-            break
-    else:
+        k = k.lower()
+        if k == "content-type":
+            has_content_type = True
+        elif k == "content-length":
+            has_content_length = True
+
+    if not has_content_type:
         response.headers.append( ("Content-Type", default_content_type) )
+    if not has_content_length and content_length is not None:
+        response.headers.append( ("Content-Length", content_length) )
 
     start_response(code, response.headers)
 
 
 def convert_body(body, content_type, encoding, writer):
     if isinstance(body, str):
-        body = [body]
         if content_type is None:
             content_type = "text/plain"
-        return body, content_type
+        return [body], content_type, len(body)
 
     if isinstance(body, tree.entity):
         # XXX have Amara tell me the content type (with encoding)
@@ -143,18 +150,18 @@ def convert_body(body, content_type, encoding, writer):
                 content_type = "application/xml"
         w = writers.lookup(writer)
         body = body.xml_encode(w, encoding)
-        return body, content_type
+        return body, content_type, len(body)
 
     if isinstance(body, unicode):
         body = body.encode(encoding)
         if content_type is None:
             content_type = "text/plain; charset=%s" % (encoding,)
-        return body, content_type
+        return [body], content_type, len(body)
 
     # Probably one of the normal WSGI responses
     if content_type is None:
         content_type = "text/plain"
-    return body, content_type
+    return body, content_type, None
 
 
 # The HTTP spec says a method can be and 1*CHAR, where CHAR is a
@@ -193,7 +200,7 @@ def service(service_id, mount_point=None,
                 clear_request()
 
             # You need to make sure you sent the correct content-type!
-            result, ctype = convert_body(result, None, encoding, writer)
+            result, ctype, length = convert_body(result, None, encoding, writer)
             return result
 
         m_point = mount_pount
@@ -279,8 +286,8 @@ def simple_service(method, service_id, mount_point=None,
                 clear_request()
                 raise
 
-            result, ctype = convert_body(result, content_type, encoding, writer)
-            send_headers(start_response, ctype)
+            result, ctype, clength = convert_body(result, content_type, encoding, writer)
+            send_headers(start_response, ctype, clength)
             clear_request()
             return result
 
@@ -432,7 +439,7 @@ class service_dispatcher_decorator(object):
                     clear_request()
                 
                 # You need to make sure you sent the correct content-type!
-                result, ctype = convert_body(result, None, encoding, writer)
+                result, ctype, clength = convert_body(result, None, encoding, writer)
                 return result
 
             self.dispatcher.add_handler(method, method_wrapper)
@@ -460,8 +467,8 @@ class service_dispatcher_decorator(object):
                 except:
                     clear_request()
                     raise
-                result, ctype = convert_body(result, content_type, encoding, writer)
-                send_headers(start_response, ctype)
+                result, ctype, clength = convert_body(result, content_type, encoding, writer)
+                send_headers(start_response, ctype, clength)
                 clear_request()
                 return result
 
