@@ -33,7 +33,10 @@ each HTTP listener subprocesses, which is also when module resource
 registration occurs.
 
 """
+import sys
 import os
+import traceback
+from cStringIO import StringIO
 
 from wsgiref.util import shift_path_info
 from wsgiref.simple_server import WSGIRequestHandler
@@ -143,6 +146,15 @@ ERROR_DOCUMENT_TEMPLATE = """<?xml version="1.0" encoding="ISO-8859-1"?>
 </html>
 """
 
+def _send_error(start_response, code, exc_info=None):
+    reason, message = WSGIRequestHandler.responses[code]
+    start_response("%d %s" % (code, reason), [("Content-Type", "application/xml")],
+                   exc_info=exc_info)
+    return ERROR_DOCUMENT_TEMPLATE % dict(code = code,
+                                          reason = reason,
+                                          message = message)
+
+
 class AkaraWSGIDispatcher(object):
     def __init__(self, settings, config):
         self.server_address = settings["server_address"]
@@ -154,15 +166,21 @@ class AkaraWSGIDispatcher(object):
             service = registry.get_service(mount_point)
         except KeyError:
             # Not found. Report something semi-nice to the user
-            start_response("404 Not Found", [("Content-Type", "text/xml")])
-            reason, message = WSGIRequestHandler.responses[404]
-            return ERROR_DOCUMENT_TEMPLATE % dict(code = "404",
-                                                  reason = reason,
-                                                  message = message)
-        # The handler is in charge of doing its own error catching.
-        # There is one higher-level handler which will catch errors.
-        # If/when that happens it creates a new Akara job handler.
-        return service.handler(environ, start_response)
+            return _send_error(start_response, 404)
+
+        try:
+            return service.handler(environ, start_response)
+        except Exception, err:
+            exc_info = sys.exc_info()
+            try:
+                f = StringIO()
+                traceback.print_exc(file=f)
+                logger.error("Uncaught exception from %r (%r)\n%s" %
+                             (mount_point, service.ident, f.getvalue()))
+                return _send_error(start_response, 500, exc_info=exc_info)
+            finally:
+                del exc_info
+            
 
 
 
