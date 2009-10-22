@@ -109,7 +109,16 @@ def redirect_stdio():
 
 ########  Access logger
 
+# Use the logging mechanism to deal with access logging
+
+# I think this is a bit more cute than I would like.
+# Log at the DEBUG level to akara.access.
+# That always writes to the _access_logger because of the .setLevel(DEBUG)
+# The log event trickles up to the 'akara' logger.
+# That only displays in debug mode (most likely with -X)
+
 _access_logger = logging.getLogger("akara.access")
+_access_logger.setLevel(logging.DEBUG)
 _access_log_formatter = logging.Formatter("%(message)s")
 
 _access_handler = None

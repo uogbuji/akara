@@ -41,6 +41,7 @@ import time
 import traceback
 import urllib
 from cStringIO import StringIO
+import logging
 
 from wsgiref.util import shift_path_info
 from wsgiref.simple_server import WSGIRequestHandler
@@ -50,6 +51,7 @@ from akara import registry
 
 from akara.thirdparty import preforkserver, httpserver
 
+access_logger = logging.getLogger("akara.access")
 
 # AkaraPreforkServer creates and manages the subprocesses which are
 # listening for HTTP requests. When a new connection request comes in
@@ -278,9 +280,7 @@ class AkaraWSGIDispatcher(object):
                       HTTP_REFERER = _clean(environ.get("HTTP_REFERER")),
                       HTTP_USER_AGENT = _clean(environ.get("HTTP_USER_AGENT")),
                       )
-        import logging
-        access_logger = logging.getLogger("akara.access")
-        access_logger.info(ACCESS_LOG_MESSAGE % fields)
+        access_logger.debug(ACCESS_LOG_MESSAGE % fields)
 
 
 ###### Support extension modules
