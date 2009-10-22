@@ -74,9 +74,11 @@ def status(args):
         try:
             os.kill(pid, 0)
         except OSError:
-            print "Process", pid, "does not exist"
+            print "PID is", pid, "but no process found with that PID"
+            print "Akara is stopped"
         else:
-            print "Process", pid, "is running"
+            print "PID is", pid, "and there is a process with that PID"
+            print "Akara is running"
 
 ######################################################################
 
