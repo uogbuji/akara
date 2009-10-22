@@ -163,7 +163,8 @@ def _send_error(start_response, code, exc_info=None):
                                           reason = reason,
                                           message = message)
 
-#    Output will look like this example from the Apache documentation (on one line)
+# Output will look like Apache's "combined log format".
+#    Here's an example based on the Apache documentation (it should be on a single line)
 # 127.0.0.1 - frank [10/Oct/2000:13:55:36 -0700] "GET /apache_pb.gif HTTP/1.0"
 # 200 2326 "http://www.example.com/start.html" "Mozilla/4.08 [en] (Win98; I ;Nav)"
 
