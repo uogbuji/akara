@@ -116,6 +116,7 @@ def redirect_stdio():
 # That always writes to the _access_logger because of the .setLevel(DEBUG)
 # The log event trickles up to the 'akara' logger.
 # That only displays in debug mode (most likely with -X)
+#  Downside: it displays with the standard Akara log prefix
 
 _access_logger = logging.getLogger("akara.access")
 _access_logger.setLevel(logging.DEBUG)
