@@ -2,35 +2,37 @@
 
 This is a development tool used before doing a distribution.
 """
-import re
+import ConfigParser
 
 # Only for use in the development environment!
+# (That's why I call it 'lib' instead of 'akara')
 from lib import read_config
 
-_definition_pattern = re.compile("^#(\S+)\s+=\s+(\S+)\s*$")
+config = ConfigParser.ConfigParser()
+files = config.read("akara.conf")
+assert files == ["akara.conf"]
 
-DEFAULTS = read_config.SERVER_CONFIG_DEFAULTS["global"].copy()
-DEFAULTS.update(read_config.SERVER_CONFIG_DEFAULTS["akara.cache"])
+DEFAULTS = read_config.SERVER_CONFIG_DEFAULTS
 
-expected_names = set(DEFAULTS)
+for section, defaults in DEFAULTS.items():
+    if not config.has_section(section):
+        raise AssertionError("missing section %r" % section)
+    for name, value in defaults.iteritems():
+        if not config.has_option(section, name):
+            raise AssertionError("missing [%r] %r" % (section, name))
+        config_value = config.get(section, name)
+        if value != config_value:
+            raise AssertionError("[%r] %r is %r should be %r" %
+                                 (section, name, config_value, value))
 
-for line in open("akara.conf"):
-    m = _definition_pattern.match(line)
-    if m is not None:
-        name = m.group(1)
-        value = m.group(2)
-        if name not in DEFAULTS:
-            raise AssertionError("Unknown configuration directive: %r" % line)
-        if name not in expected_names:
-            raise AssertionError("Duplicate configuration directive: %r" % name)
 
-        reference_value = DEFAULTS[name]
-        if value != reference_value:
-            raise AssertionError("Directive %r says %r but should be %r" %
-                                 (name, value, reference_value))
+# Also check for extra names in the config file
+for section in config.sections():
+    if section not in DEFAULTS:
+        raise AssertionError("Extra section %r" % (section,))
+    lowercase_options = [s.lower() for s in DEFAULTS[section]]
+    for option in config.options(section):
+        if option not in lowercase_options:
+            raise AssertionError("Extra option [%s] %r" % (section, option))
 
-        expected_names.remove(name)
-
-if expected_names:
-    raise AssertionError("Template is missing: %r" % expected_names)
-print "Template is valid"
+print "akara.conf is valid"
