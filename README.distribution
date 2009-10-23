@@ -1,0 +1,12 @@
+Checklist before distributing an Akara release:
+
+  - update the version information in setup.py
+  - update the version information in lib/__init__.py
+
+  - run "python verify_akara_conf.py" to make sure "akara.conf"
+      matches the values in read_config.SERVER_CONFIG_DEFAULTS
+
+  - tag the distribution?
+
+  - do a full install from scratch, in its own directory
+     - run the regression tests
