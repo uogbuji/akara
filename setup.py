@@ -44,6 +44,7 @@ setup(name = "akara",
       author_email='amara-dev@googlegroups.com',
       url='http://wiki.xml3k.org/Akara',
       package_dir={'akara':'lib'},
+      package_data={'akara': ["akara.conf"]},
       scripts =['akara'],
       **setuptools_extras)
 
