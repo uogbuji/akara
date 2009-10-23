@@ -60,6 +60,7 @@ def create_server_dir(port):
 ServerRoot = %(server_root)s
 ModuleDir = %(module_dir)s
 Listen = localhost:%(port)s
+LogLevel = DEBUG
 
 [atomtools]
 entries = %(atom_entries)s
