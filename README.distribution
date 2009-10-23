@@ -10,3 +10,32 @@ Checklist before distributing an Akara release:
 
   - do a full install from scratch, in its own directory
      - run the regression tests
+
+
+## Manual tests
+
+  # Assumes you have nothing else important in ~/.local and ~/.config
+remove ~/.local and ~/.config
+
+  # Check that it handles a missing configuration file
+
+% akara start
+
+[josiah:~/cvses/akara-new-server/test] dalke% akara start
+Oct 23 17:08:15 akara[2535]: [CRITICAL] Could not open Akara configuration file:
+   [Errno 2] No such file or directory: '/Users/dalke/.config/akara.conf'
+To set up the default configuration file and directories use "akara setup"
+Cannot start Akara. Exiting.
+
+
+  # Check that it handles an empty/non-config-file file
+
+% akara -f /dev/null start
+[josiah:~/cvses/akara-new-server/test] dalke% akara -f /dev/null start
+Oct 23 17:09:19 akara[2537]: [CRITICAL] Could not read from Akara configuration file '/dev/null': Configuration file is empty
+Cannot start Akara. Exiting.
+
+  # Check that it handles 
+
+akara start
+
