@@ -39,3 +39,14 @@ Cannot start Akara. Exiting.
 
 akara start
 
+
+
+### Manual tests
+
+test 'akara stop' and 'akara restart' work
+  (need to ensure that os.kill is doing its job.
+   need to see a restart message in the logs)
+
+test 'akara status' when there is a validally formatted PID file
+   but no corresponding process
+
