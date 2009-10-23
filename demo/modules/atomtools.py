@@ -13,7 +13,6 @@ title><id>http://example.com/myfeed</id></feed>
 
 import sys
 from datetime import datetime, timedelta
-from cStringIO import StringIO
 import glob
 
 import amara
@@ -70,9 +69,7 @@ def aggregate_atom():
     if refresh:
         fnames = glob.glob(ENTRIES)
         doc, metadata = atomtools.aggregate_entries(FEED_ENVELOPE, fnames)
-        buf = StringIO()
-        amara.xml_print(doc, stream=buf, indent=True)
-        DOC_CACHE = buf.getvalue(), datetime.now()
+        DOC_CACHE = doc.xml_encode('xml-indent'), datetime.now()
     return DOC_CACHE[0]
 
 

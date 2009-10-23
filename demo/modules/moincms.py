@@ -123,7 +123,7 @@ class atom_entry(node):
         #import pprint
         #pprint.pprint(resources)
         '''
-         akara:type:: [[http://purl.org/dc/org/xml3k/akara/cms/folder|folder]]
+         akara:type:: [[http://purl.org/xml3k/akara/xmlmodel/cms/folder|folder]]
          title:: A page
          template:: http://wiki.example.com/Site;attachment=foo.xslt ##Just XSLT for now.  Plan to support other templating systems soon
          link:: [[http://example.org|]] rel=...

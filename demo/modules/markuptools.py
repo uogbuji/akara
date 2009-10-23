@@ -3,7 +3,6 @@
 Useful tools for processing markup
 '''
 
-from cStringIO import StringIO
 
 import amara
 from amara.bindery import html as htmldoc
@@ -35,7 +34,5 @@ def akara_twc(body, ctype, max=None, html='no'):
         doc = amara.parse(body)
     else:
         doc = htmldoc.parse(body)
-    buf = StringIO()
-    amara.xml_print(trim_word_count(doc, max_), buf)
-    return buf.getvalue()
+    return trim_word_count(doc, max_).xml_encode('xml-indent')
 
