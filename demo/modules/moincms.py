@@ -13,6 +13,9 @@ Project home, documentation, distributions: http://wiki.xml3k.org/Akara
 
 @copyright: 2009 by Uche ogbuji <uche@ogbuji.net>
 """
+
+from __future__ import with_statement
+
 #
 #Detailed license and copyright information: http://4suite.org/COPYRIGHT
 from __future__ import with_statement

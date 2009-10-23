@@ -18,6 +18,8 @@ Project home, documentation, distributions: http://wiki.xml3k.org/Akara
 Can be launched from the command line, e.g.:
     python akara/services/moincms.py -p "Site.*" http://restwrap.mywiki.example.com/ /path/to/output/dir http://localhost:8080/
 """
+from __future__ import with_statement
+
 #python akara/services/moincms.py -p "Site.*" http://localhost:8880/ ~/tmp/ http://localhost:8080/
 #
 #Detailed license and copyright information: http://4suite.org/COPYRIGHT
