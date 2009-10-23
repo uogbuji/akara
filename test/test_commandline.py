@@ -15,6 +15,10 @@ class Config(object):
         finally:
             f.close()
 
+# 'akara stop' and 'akara restart' essentially just call get_pid()
+# plus do one extra call. It's hard to test that automatically so
+# do those tests manually.
+
 def test_get_pid():
     server_root = tempfile.mkdtemp(prefix="akara_test_")    
     try:
@@ -51,5 +55,4 @@ def test_get_pid():
             
     finally:
         shutil.rmtree(server_root)
-
 
