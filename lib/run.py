@@ -132,11 +132,11 @@ def main(args):
         try:
             settings, config = read_config.read_config(config_filename)
         except read_config.Error, err:
-            logger.fatal("""\
-Coult not open the Akara configuration file:
-   %s
-Does that file exist and is it readable?
-You may want to use 'akara setup' to set up the directory structure""" % err)
+            logger.fatal(str(err))
+            if first_time:
+                raise SystemExit("Cannot start Akara. Exiting.")
+            else:
+                raise SystemExit("Cannot restart Akara. Exiting.")
 
         # In debug mode (-X), display all log messages.
         # Otherwise, use the configuration level
