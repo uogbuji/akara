@@ -113,6 +113,7 @@ def setup_directory_for(what, dirname):
             os.makedirs(dirname)
         except OSError, err:
             raise SystemExit("Cannot make %s directory: %s" % (what, err))
+        print "Created %s directory: %r" % (what, dirname)
 
 def setup(args):
     if not args.config_filename:
