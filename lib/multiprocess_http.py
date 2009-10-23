@@ -304,7 +304,7 @@ class AKARA(object):
         self.module_name = module_name
         self.module_config = module_config
 
-def load_modules(module_dir, server_root, config):
+def load_modules(module_dir, config):
     "Read and prepare all extension modules (*.py) from the module directory"
     modules = []
     for filename in os.listdir(module_dir):
