@@ -7,6 +7,7 @@ This is an internal module and should not be called from other libraries.
 import sys
 import os
 import signal
+import shutil
 
 from akara.thirdparty import argparse
 from akara import read_config, run
@@ -82,6 +83,53 @@ def status(args):
             # XXX try to connect to the server?
             print "Akara is running"
 
+
+def setup_config_file():
+    default_file = read_config.DEFAULT_SERVER_CONFIG_FILE
+    if os.path.exists(default_file):
+        print "Configuration file already exists at", repr(default_file)
+    else:
+        print "Copying reference configuration file to", repr(default_file)
+        dirname = os.path.dirname(default_file)
+        if not os.path.exists(dirname):
+            print "  Creating directory", dirname
+            try:
+                os.makedirs(dirname)
+            except OSError, err:
+                raise SystemExit("Cannot make directory: %s" % err)
+
+        akara_config = os.path.join(os.path.dirname(read_config.__file__),
+                                    "akara.conf")
+        try:
+            shutil.copy(akara_config, default_file)
+        except IOError, err:
+            raise SystemExit("Cannot copy file: %s" % err)
+
+def setup_directory_for(what, dirname):
+    if os.path.isdir(dirname):
+        print "%s directory exists: %r" % (what.capitalize(), dirname)
+    else:
+        try:
+            os.makedirs(dirname)
+        except OSError, err:
+            raise SystemExit("Cannot make %s directory: %s" % (what, err))
+
+def setup(args):
+    if not args.config_filename:
+        setup_config_file()
+    settings, config = read_config.read_config(args.config_filename)
+
+    dirname = os.path.dirname
+    setup_directory_for("error log", dirname(settings["error_log"]))
+    setup_directory_for("access log", dirname(settings["access_log"]))
+    setup_directory_for("PID file", dirname(settings["pid_file"]))
+    setup_directory_for("extension modules", settings["module_dir"])
+
+    print
+    print "Akara environment set up. To start Akara use:"
+    print "    akara start"
+    
+
 ######################################################################
 
 # Handle the command-line arguments
@@ -121,6 +169,9 @@ parser_restart.set_defaults(func=restart)
 
 parser_status = subparsers.add_parser("status", help="display a status report")
 parser_status.set_defaults(func=status)
+
+parser_setup = subparsers.add_parser("setup", help="set up directories and files for Akara")
+parser_setup.set_defaults(func=setup)
 
 def main(argv):
     args = parser.parse_args()
