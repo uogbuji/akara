@@ -174,6 +174,10 @@ def check_is_valid_method(method):
     if min_c < 'A' or max_c > 'Z':
         raise ValueError("Method %r may only contain uppercase ASCII letters" % (method,))
 
+def _no_slashes(path):
+    if path is not None and "/" in path:
+        # Really these are more like mount points
+        raise TypeError("service paths may not contain a '/'")
 
 ###### public decorators
 
@@ -183,8 +187,9 @@ def check_is_valid_method(method):
 # @service(*args)  
 # def func(): pass  -> returns a wrapper() which calls func
 
-def service(service_id, mount_point=None,
+def service(service_id, path=None,
             encoding="utf-8", writer="xml"):
+    _no_slashes(path)
     def service_wrapper(func):
         @functools.wraps(func)
         def wrapper(environ, start_response):
@@ -203,10 +208,10 @@ def service(service_id, mount_point=None,
             result, ctype, length = convert_body(result, None, encoding, writer)
             return result
 
-        m_point = mount_pount
-        if m_point is None:
-            m_point = func.__name__
-        registry.register_service(service_id, m_point, wrapper)
+        pth = path
+        if pth is None:
+            pth = func.__name__
+        registry.register_service(service_id, pth, wrapper)
         return wrapper
     return service_wrapper
 
@@ -217,16 +222,17 @@ def service(service_id, mount_point=None,
 # @simple_service(*args)  
 # def func(): pass  -> returns a wrapper() which calls func
 
-def simple_service(method, service_id, mount_point=None,
+def simple_service(method, service_id, path=None,
                    content_type=None, encoding="utf-8", writer="xml",
                    allow_repeated_args=False):
+    _no_slashes(path)
     """Add the function as an Akara resource
 
     These affect how the resource is registered in Akara
       method - the supported HTTP method (either "GET" or "POST")
       service_id - a string which identifies this service; should be a URL
-      mount_point - the local URL path to the resource (must not at present
-           contain a '/') If None, use the function's name as the mount point.
+      path - the local URL path to the resource (must not at present
+           contain a '/') If None, use the function's name as the path.
 
     These control how to turn the return value into an HTTP response
       content_type - the response content-type. If not specified, and if
@@ -291,10 +297,10 @@ def simple_service(method, service_id, mount_point=None,
             clear_request()
             return result
 
-        m_point = mount_point
-        if m_point is None:
-            m_point = func.__name__
-        registry.register_service(service_id, m_point, wrapper) 
+        pth = path
+        if pth is None:
+            pth = func.__name__
+        registry.register_service(service_id, pth, wrapper) 
         return wrapper
     return service_wrapper
 
@@ -322,16 +328,16 @@ class service_method_dispatcher(object):
 
     This is an internal class. You should not need to use it.
     """
-    def __init__(self, mount_point):
-        self.mount_point = mount_point
+    def __init__(self, path):
+        self.path = path
         self.method_table = {}
     def add_handler(self, method, handler):
         if method in self.method_table:
             logger.warn("Replacing %r method handler for %r"  %
-                        (method, self.mount_point))
+                        (method, self.path))
         else:
             logger.info("Created %r method handler for %r" %
-                        (method, self.mount_point))
+                        (method, self.path))
         self.method_table[method] = handler
     def __call__(self, environ, start_response):
         method = environ.get("REQUEST_METHOD")
@@ -357,14 +363,14 @@ class service_method_dispatcher(object):
 # def method_func(): pass --> returns a method_wrapper which calls method_func
 
 # This is the top-level decorator
-def method_dispatcher(service_id, mount_point=None):
+def method_dispatcher(service_id, path=None):
     """Add an Akara resource which dispatches to other functions based on the HTTP method
     
     Used for resources which handle, say, both GET and POST requests.
 
       service_id - a string which identifies this service; should be a URL
-      mount_point - the local URL path to the resource (must not at present
-           contain a '/') If None, use the function's name as the mount point.
+      path - the local URL path to the resource (must not at present
+           contain a '/') If None, use the function's name as the path.
 
     Example of use:
 
@@ -390,11 +396,11 @@ def method_dispatcher(service_id, mount_point=None):
     """
     def method_dispatcher_wrapper(func):
         doc = inspect.getdoc(func)
-        m_point = mount_point
-        if m_point is None:
-            m_point = func.__name__
-        dispatcher = service_method_dispatcher(m_point)
-        registry.register_service(service_id, m_point, dispatcher, doc)
+        pth = path
+        if pth is None:
+            pth = func.__name__
+        dispatcher = service_method_dispatcher(pth)
+        registry.register_service(service_id, pth, dispatcher, doc)
         return service_dispatcher_decorator(dispatcher)
     return method_dispatcher_wrapper
 
