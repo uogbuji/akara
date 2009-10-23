@@ -1,20 +1,31 @@
 # -*- coding: iso-8859-1 -*-
 # 
 """
-A RESTful wrapper for MoinMoin wikis
+@ 2009 by Uche ogbuji <uche@ogbuji.net>
 
-Copyright 2009 Uche Ogbuji
 This file is part of the open source Akara project,
 provided under the Apache 2.0 license.
 See the files LICENSE and NOTICE for details.
 Project home, documentation, distributions: http://wiki.xml3k.org/Akara
 
-@copyright: 2009 by Uche ogbuji <uche@ogbuji.net>
+ Module name:: moinrest
+
+= Defined REST entry points =
+
+http://purl.org/akara/services/builtin/collection (moin)
+  - Under there top mount point is oen or more lower points depending on config,
+    each of which handles HEAD, GET, POST, PUT
+
+= Configuration =
 
 You'll need a config entry such as:
 
 [moinrest]
 target-xml3k=http://wiki.xml3k.org
+
+= Notes on security =
+
+Forwards HTTP auth for requests to Moin user auth
 
 """
 #Detailed license and copyright information: http://4suite.org/COPYRIGHT
@@ -24,7 +35,7 @@ from __future__ import with_statement
 SAMPLE_QUERIES_DOC = '''
 Some sample queries:
     curl http://localhost:8880/moin/xml3k/FrontPage
-    curl -H Accept: application/docbook+xml" http://localhost:8880/moin/xml3k/FrontPage
+    curl -H "Accept: application/docbook+xml" http://localhost:8880/moin/xml3k/FrontPage
     curl -H "Accept: application/rdf+xml" http://localhost:8880/moin/xml3k/FrontPage
     curl -H "Accept: application/x-moin-attachments+xml" http://localhost:8880/moin/xml3k/FrontPage
     curl --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: text/plain" "http://localhost:8880/moin/xml3k/FooTest"
@@ -65,14 +76,15 @@ from amara.lib.iri import * #split_fragment, relativize, absolutize
 
 from akara.util import multipart_post_handler, wsgibase, http_method_handler
 
-from akara.services import *
+from akara.services import method_dispatcher
 from akara.util.moin import *
+from akara import response
 
-#AKARA_MODULE_CONFIG is automatically defined at global scope for a module running within Akara
-#WIKIBASE = AKARA_MODULE_CONFIG.get('wrapped_wiki')
-TARGET_WIKIS = dict(( (k.split('-', 1)[1], AKARA_MODULE_CONFIG[k].rstrip('/') + '/') for k in AKARA_MODULE_CONFIG if k.startswith('target-')))
+#AKARA is automatically defined at global scope for a module running within Akara
+#WIKIBASE = AKARA.module_config.get('wrapped_wiki')
+#print >> sys.stderr, AKARA.module_config
 
-#print >> sys.stderr, AKARA_MODULE_CONFIG
+TARGET_WIKIS = dict(( (k.split('-', 1)[1], AKARA.module_config[k].rstrip('/') + '/') for k in AKARA.module_config if k.startswith('target-')))
 
 TARGET_WIKI_OPENERS = {}
 DEFAULT_OPENER = urllib2.build_opener(
@@ -105,7 +117,8 @@ for k, v in TARGET_WIKIS.items():
     else:
         TARGET_WIKI_OPENERS[k] = DEFAULT_OPENER
 
-print >> sys.stderr, 'Moin target wiki info', TARGET_WIKIS
+#Top-level prints to stderr cause a lot of problems with logging
+#print >> sys.stderr, 'Moin target wiki info', TARGET_WIKIS
 
 # Templates
 four_oh_four = Template("""
@@ -114,8 +127,11 @@ four_oh_four = Template("""
   The requested URL <i>$fronturl</i> was not found (<i>$backurl</i> in the target wiki).
 </body></html>""")
 
-SERVICE_ID = 'http://purl.org/akara/services/builtin/xslt'
+SERVICE_ID = 'http://purl.org/akara/services/builtin/moinrest'
 DEFAULT_MOUNT = 'moin'
+
+def status_response(code):
+    return '%i %s'%(code, httplib.responses[code])
 
 
 def target(environ):
@@ -149,7 +165,8 @@ def check_auth(environ, start_response, base, opener):
         print >> sys.stderr, 'Error accessing: ', url
         raise
         rbody = four_oh_four.substitute(fronturl=request_uri(environ), backurl=url)
-        return response(rbody, 'text/html', httplib.NOT_FOUND)
+        start_response(status_response(httplib.NOT_FOUND), [("Content-Type", "text/html")])
+        return rbody
     environ['REMOTE_USER'] = username
     #print "="*60
     #doc = htmlparse(response)
@@ -161,10 +178,9 @@ def check_auth(environ, start_response, base, opener):
     return
 
 
-def _head_page(environ, start_response):
+def _get_page(environ, start_response):
     wiki_id, base, opener = target(environ)
     page = environ['PATH_INFO'].lstrip('/')
-    print >> sys.stderr, (page, wiki_id, base)
     check_auth(environ, start_response, base, opener)
     #print page
     upstream_handler = None
@@ -235,23 +251,24 @@ def _head_page(environ, start_response):
                 rbody = resp.read()
         
         #headers = {ORIG_BASE_HEADER: base}
-        headers = [(ORIG_BASE_HEADER, absolutize(wiki_id, base))]
-        return status, rbody, ctype, headers
+        start_response(status_response(status), [("Content-Type", ctype), (ORIG_BASE_HEADER, absolutize(wiki_id, base))])
+        return rbody
     except urllib2.URLError, e:
         if e.code == 403:
             #send back 401
             #FIXME: L10N
-            return httplib.UNAUTHORIZED, 'Unauthorized access.  Please authenticate.', 'text/html', [('WWW-Authenticate', 'Basic realm="%s"'%wiki_id)]
+            start_response(status_response(httplib.UNAUTHORIZED), [("Content-Type", "text/html"), ("WWW-Authenticate", 'Basic realm="%s"'%wiki_id)])
+            return 'Unauthorized access.  Please authenticate.'
         if e.code == 404:
             rbody = four_oh_four.substitute(fronturl=request_uri(environ), backurl=url)
-            return httplib.NOT_FOUND, rbody, 'text/html', []
+            start_response(status_response(httplib.NOT_FOUND), [("Content-Type", "text/html")])
+            return rbody
         else:
             print >> sys.stderr, 'Error accessing: ', (url, e.code)
             raise
 
 def fill_page_edit_form(page, wiki_id, base, opener):
     url = absolutize(page, base)
-    print >> sys.stderr, 'GRIPPO: ', (page, base, url)
     with closing(opener.open(urllib2.Request(url + '?action=edit&editor=text'))) as resp:
         doc = htmlparse(resp)
     form = doc.html.body.xml_select(u'.//*[@id="editor"]')[0]
@@ -289,34 +306,26 @@ def fill_attachment_form(page, attachment, wiki_id, base, opener):
 #    return
 
 
-@service(['HEAD', 'GET', 'PUT', 'POST'], SERVICE_ID, DEFAULT_MOUNT)
-def dispatcher(environ, start_response):
+@method_dispatcher(SERVICE_ID, DEFAULT_MOUNT)
+def dispatcher():
     __doc__ = SAMPLE_QUERIES_DOC
-    #print >> sys.stderr, globals()['head_page'], dir(globals()['head_page'])
-    return rest_dispatch(environ, start_response, environ['akara.service_id'], globals())
+    return
 
 
 #def akara_xslt(body, ctype, **params):
-@method_handler('HEAD', SERVICE_ID)
+@dispatcher.method("HEAD")
 def head_page(environ, start_response):
-    status, rbody, ctype, headers = _head_page(environ, start_response)
-    #headers['CONTENT_TYPE'] = ctype
-    headers.append(('CONTENT_TYPE', ctype))
-    #print >> sys.stderr, headers
-    return response('', None, status, headers)
+    rbody = _get_page(environ, start_response)
+    return ''
 
 
-@method_handler('GET', SERVICE_ID)
+@dispatcher.method("GET")
 def get_page(environ, start_response):
-    status, rbody, ctype, headers = _head_page(environ, start_response)
-    #headers['CONTENT_TYPE'] = ctype
-    headers.append(('CONTENT_TYPE', ctype))
-    #print >> sys.stderr, headers
-    return response(rbody, None, status, headers)
+    return _get_page(environ, start_response)
 
 
 #def check_auth(self, user=None, password=None):
-@method_handler('PUT', SERVICE_ID)
+@dispatcher.method("PUT")
 def put_page(environ, start_response):
     '''
     '''
@@ -324,13 +333,12 @@ def put_page(environ, start_response):
     page = environ['PATH_INFO'].lstrip('/')
     check_auth(environ, start_response, base, opener)
     ctype = environ.get('CONTENT_TYPE', 'application/unknown')
-    clen = int(environ.get('CONTENT_LENGTH', None))
-    if not clen:
-        return response('Content length Required', 'text/plain', httplib.LENGTH_REQUIRED)
-    content = environ['wsgi.input'].read(clen)
+    temp_fpath = read_http_body_to_temp(environ, start_response)
+    if not temp_fpath:
+        return 'Content length Required'
 
     form_vars = fill_page_edit_form(page, wiki_id, base, opener)
-    form_vars["savetext"] = content
+    form_vars["savetext"] = open(temp_fpath, "r").read()
 
     url = absolutize(page, base)
     data = urllib.urlencode(form_vars)
@@ -342,62 +350,89 @@ def put_page(environ, start_response):
         print >> sys.stderr, 'Error accessing: ', url
         raise
         rbody = four_oh_four.substitute(fronturl=request_uri(environ), backurl=url)
-        return response(rbody, 'text/html', httplib.NOT_FOUND)
+        start_response(status_response(httplib.NOT_FOUND), [("Content-Type", "text/html")])
+        return rbody
     #print "="*60
     #amara.xml_print(doc)
 
     msg = 'Page updated OK: ' + url
-    headers = [('Content-Type', 'text/plain'), ('Content-Location', url)]
+    #response.add_header("Content-Length", str(len(msg)))
+    start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url)])
+    return msg
 
-    #headers.append(('Content-Length', str(len(msg))))
-    return response(msg, None, httplib.CREATED, headers)
 
-
-@method_handler('POST', SERVICE_ID)
+@dispatcher.method("POST")
 def post_page(environ, start_response):
-    #http://groups.google.com/group/comp.lang.python/browse_thread/thread/4662d41aca276d99
+    '''
+    Attachments use URI path params
+    (for a bit of discussion see http://groups.google.com/group/comp.lang.python/browse_thread/thread/4662d41aca276d99)
+    '''
     #ctype = environ.get('CONTENT_TYPE', 'application/unknown')
     wiki_id, base, opener = target(environ)
     check_auth(environ, start_response, base, opener)
     page = environ['PATH_INFO'].lstrip('/')
     page, chaff, attachment = page.partition(';attachment=')
     print >> sys.stderr, page, attachment
-    clen = int(environ.get('CONTENT_LENGTH', None))
-    if not clen:
-        return response('Content length Required', 'text/plain', httplib.LENGTH_REQUIRED)
     #now = datetime.now().isoformat()
     #Unfortunately because urllib2's data dicts don't give an option for limiting read length, must read into memory and wrap
     #content = StringIO(environ['wsgi.input'].read(clen))
-
-    temp = tempfile.mkstemp(suffix=".dat")
-    os.write(temp[0], environ['wsgi.input'].read(clen))
+    temp_fpath = read_http_body_to_temp(environ, start_response)
+    if not temp_fpath:
+        return 'Content length Required'
 
     form_vars = fill_attachment_form(page, attachment, wiki_id, base, opener)
-    form_vars["file"] = open(temp[1], "rb")
+    form_vars["file"] = open(temp_fpath, "rb")
 
     url = absolutize(page, base)
-    print >> sys.stderr, url, 
+    #print >> sys.stderr, url, temp_fpath
     #data = urllib.urlencode(form_vars)
     request = urllib2.Request(url, form_vars)
     try:
         with closing(opener.open(request)) as resp:
             doc = htmlparse(resp)
-            amara.xml_print(doc, stream=sys.stderr, indent=True)
+            #amara.xml_write(doc, stream=sys.stderr, indent=True)
     except urllib2.URLError:
         print >> sys.stderr, 'Error accessing: ', url
         raise
         rbody = four_oh_four.substitute(fronturl=request_uri(environ), backurl=url)
-        return response(rbody, 'text/html', httplib.NOT_FOUND)
+        start_response(status_response(httplib.NOT_FOUND), [("Content-Type", "text/html")])
+        return rbody
     form_vars["file"].close()
-    os.close(temp[0])
-    os.remove(temp[1])
+    os.remove(temp_fpath)
     #print "="*60
     #amara.xml_print(doc)
 
     msg = 'Attachment updated OK: %s\n'%(url)
-    headers = [('Content-Type', 'text/plain'), ('Content-Location', url)]
 
-    #headers.append(('Content-Length', str(len(msg))))
-    return response(msg, None, httplib.CREATED, headers)
+    #response.add_header("Content-Length", str(len(msg)))
+    start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url)])
+    return msg
 
+#
+CHUNKLEN = 4096
+def read_http_body_to_temp(environ, start_response):
+    '''
+    Handle the reading of a file from an HTTP message body (file pointer from wsgi.input)
+    in chunks to a temporary file
+    Returns the file path of the resulting temp file
+    '''
+    clen = int(environ.get('CONTENT_LENGTH', None))
+    if not clen:
+        start_response(status_response(httplib.LENGTH_REQUIRED), [("Content-Type", "text/plain")])
+        return None
+    http_body = environ['wsgi.input']
+    temp = tempfile.mkstemp(suffix=".dat")
+    while clen != 0:
+        chunk_len = min(CHUNKLEN, clen)
+        data = http_body.read(chunk_len)
+        if data:
+            #assert chunk_len == os.write(temp[0], data)
+            written = os.write(temp[0], data)
+            #print >> sys.stderr, "Bytes written to file in this chunk", written
+            clen -= len(data)
+        else:
+            clen = 0
+    os.fsync(temp[0]) #is this needed with the close below?
+    os.close(temp[0])
+    return temp[1]
 
