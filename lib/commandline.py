@@ -13,7 +13,10 @@ from akara.thirdparty import argparse
 from akara import read_config, run
 
 def get_pid(args):
-    settings, config = read_config.read_config(args.config_filename)
+    try:
+        settings, config = read_config.read_config(args.config_filename)
+    except read_config.Error, err:
+        raise SystemExit(str(err))
 
     pid_file = settings["pid_file"]
     try:
@@ -50,7 +53,7 @@ def status(args):
     try:
         settings, config = read_config.read_config(config_filename)
     except read_config.Error, err:
-        print "** ERROR **:", str(error)
+        print "** ERROR **:", str(err)
         raise SystemExit(1)
 
     print "Error log file:", repr(settings["error_log"])

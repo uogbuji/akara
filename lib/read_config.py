@@ -62,27 +62,23 @@ def read_config(config_file=None):
     if config_file is None:
         config_file = DEFAULT_SERVER_CONFIG_FILE
     config = ConfigParser.ConfigParser()
-    config_file_exists = True
     try:
         f = open(config_file)
     except IOError, err:
-        log.warning("""\
-Could not open Akara configuration file: %s
-Using default configuration settings. 
-To set up the default configuration file and directories use
-  akara setup
+        raise Error("""\
+Could not open Akara configuration file:
+   %s
+To set up the default configuration file and directories use "akara setup"\
 """ % (err,))
-        config_file_exists = False
 
     try:
-        if config_file_exists:
-            config.readfp(f)
-            # Do some sanity checks. It's best to do these tests now because
-            # doing them downstream leads to more confusing error messages.
-            if not config.sections():
-                raise Error("Configuration file is empty")
-            if not config.has_section("global"):
-                raise Error("Configuration file missing required 'global' section")
+        config.readfp(f)
+        # Do some sanity checks. It's best to do these tests now because
+        # doing them downstream leads to more confusing error messages.
+        if not config.sections():
+            raise Error("Configuration file is empty")
+        if not config.has_section("global"):
+            raise Error("Configuration file missing required 'global' section")
         _add_config_defaults(config)
         settings = _extract_settings(config)
     except (Error, ConfigParser.Error), err:

@@ -129,7 +129,14 @@ def main(args):
         # file, reload the extension modules, and start
         # the flup server again.
 
-        settings, config = read_config.read_config(config_filename)
+        try:
+            settings, config = read_config.read_config(config_filename)
+        except read_config.Error, err:
+            logger.fatal("""\
+Coult not open the Akara configuration file:
+   %s
+Does that file exist and is it readable?
+You may want to use 'akara setup' to set up the directory structure""" % err)
 
         # In debug mode (-X), display all log messages.
         # Otherwise, use the configuration level
@@ -145,7 +152,8 @@ def main(args):
             # Only give the 'akara setup' text here because it's where
             # we get to with an empty/nonexistant configuration file.
             logger.fatal("""\
-Could not open the Akara error log: %s
+Could not open the Akara error log:
+   %s
 Does that directory exist and is it writeable?
 You may want to use 'akara setup' to set up the directory structure.""" % err)
             sys.exit(1)
@@ -155,7 +163,8 @@ You may want to use 'akara setup' to set up the directory structure.""" % err)
             logger_config.set_access_logfile(settings["access_log"])
         except IOError, err:
             logger.fatal("""\
-Could not open the Akara access log: %s
+Could not open the Akara access log:
+   %s
 Does that directory exist and is it writeable?""" % err)
             sys.exit(1)
 
@@ -166,7 +175,8 @@ Does that directory exist and is it writeable?""" % err)
             modules = load_modules(settings["module_dir"], config)
         except (OSError, IOError), err:
             logger.fatal("""\
-Could not load Akara extension modules: %s
+Could not load Akara extension modules:
+   %s
 Does that directory exist and is it readable?""" % err)
             sys.exit(1)
 
