@@ -14,7 +14,7 @@ DEFAULT_SERVER_CONFIG_FILE = os.path.expanduser('~/.config/akara.conf')
 
 SERVER_CONFIG_DEFAULTS = {
     'global': {
-        # 'Listen': must be present in the config
+        'Listen': '8880',
         'ServerRoot': '~/.local/lib/akara',
         'PidFile': 'logs/akara.pid',
 
