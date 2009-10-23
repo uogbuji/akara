@@ -139,18 +139,40 @@ def main(args):
             logger.setLevel(settings["log_level"])
 
         # Open this now, so any errors can be reported
-        logger_config.set_logfile(settings["error_log"])
+        try:
+            logger_config.set_logfile(settings["error_log"])
+        except IOError, err:
+            # Only give the 'akara setup' text here because it's where
+            # we get to with an empty/nonexistant configuration file.
+            logger.fatal("""\
+Could not open the Akara error log: %s
+Does that directory exist and is it writeable?
+You may want to use 'akara setup' to set up the directory structure.""" % err)
+            sys.exit(1)
 
         # Configure the access log
-        logger_config.set_access_logfile(settings["access_log"])
+        try:
+            logger_config.set_access_logfile(settings["access_log"])
+        except IOError, err:
+            logger.fatal("""\
+Could not open the Akara access log: %s
+Does that directory exist and is it writeable?""" % err)
+            sys.exit(1)
+
 
         # Compile the modules before spawning the server process
         # If there are any problems, die
-        modules = load_modules(settings["module_dir"],
-                               settings["server_root"], config)
+        try:
+            modules = load_modules(settings["module_dir"], config)
+        except (OSError, IOError), err:
+            logger.fatal("""\
+Could not load Akara extension modules: %s
+Does that directory exist and is it readable?""" % err)
+            sys.exit(1)
 
         # Don't start if the PID file already exists.
         pid_file = settings["pid_file"]
+
         if first_time and (not skip_pid_check) and os.path.exists(pid_file):
             msg = ("Akara PID file %r already exists. Is another Akara instance running?\n"
                    "If not, remove the file or use the '-f' option to skip this check")
