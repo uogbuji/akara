@@ -322,6 +322,7 @@ def load_modules(module_dir, config):
             "AKARA": AKARA(config, name, module_config)
             }
         f = open(full_path, "rU")
+        module_code = None
         try:
             try:
                 module_code = compile(f.read(), full_path, 'exec')
@@ -330,7 +331,8 @@ def load_modules(module_dir, config):
                     "Unable to byte-compile %r - skipping module" % (full_path,))
         finally:
             f.close()
-        modules.append( (name, module_code, module_globals) )
+        if module_code is not None:
+            modules.append( (name, module_code, module_globals) )
     return modules
 
 def _init_modules(modules):
