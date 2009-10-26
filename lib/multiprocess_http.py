@@ -127,7 +127,7 @@ class AkaraJob(object):
 class AkaraWSGIHandler(httpserver.WSGIHandler):
     sys_version = None  # Disable including the Python version number
     server_version = "Akara/2.0"  # Declare that we are an Akara server
-    protocol_version = "HTTP/1.1" # Support (for the most part) HTTP/1.1 semantics
+    #protocol_version = "HTTP/1.1" # Support (for the most part) HTTP/1.1 semantics
 
     # Suppress access log reporting from BaseHTTPServer.py
     def log_request(self, code='-', size='-'):
