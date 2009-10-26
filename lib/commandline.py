@@ -70,6 +70,7 @@ def status(args):
             print "Akara is not running"
         else:
             print "*** Cannot open PID file:", err
+            raise SystemExit(1)
     else:
         try:
             pid = int(line)
@@ -88,7 +89,11 @@ def status(args):
 
 
 def setup_config_file():
-    default_file = read_config.DEFAULT_SERVER_CONFIG_FILE
+    _setup_config_file(read_config.DEFAULT_SERVER_CONFIG_FILE)
+
+# This function is called by test code.
+# It is not part of the external API.
+def _setup_config_file(default_file):
     if os.path.exists(default_file):
         print "Configuration file already exists at", repr(default_file)
     else:
@@ -101,6 +106,7 @@ def setup_config_file():
             except OSError, err:
                 raise SystemExit("Cannot make directory: %s" % err)
 
+        # Using 'read_config.__file__' because it was handy
         akara_config = os.path.join(os.path.dirname(read_config.__file__),
                                     "akara.conf")
         try:
@@ -110,7 +116,9 @@ def setup_config_file():
 
 def setup_directory_for(what, dirname):
     if os.path.isdir(dirname):
-        print "%s directory exists: %r" % (what.capitalize(), dirname)
+        if what[0] > "Z":
+            what = what[0].upper() + what[1:]
+        print "%s directory exists: %r" % (what, dirname)
     else:
         try:
             os.makedirs(dirname)

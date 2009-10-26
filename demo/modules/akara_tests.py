@@ -1,0 +1,115 @@
+"""These services are part of the Akara self-tests"""
+
+from amara import tree
+
+from akara.services import *
+from akara import request, response
+
+
+# Make sure the environment is set up
+@simple_service("GET", "http://example.com/test")
+def test_environment():
+    # Every extension module has an extra 'AKARA' global module variable
+    assert AKARA.config is not None
+    assert AKARA.module_name == __name__
+    assert isinstance(AKARA.module_config, dict)
+    assert AKARA.config.has_section("global")
+
+    # simple services can access the WSGI environ this way
+    assert request.environ is not None
+
+    # Here's how to override the response fields
+    assert response.code.startswith("200 ")
+    assert response.headers == []
+    return "Good!"
+
+# Make sure the simple_service can specify the path
+# (If not given, uses the function's name)
+@simple_service("GET", "http://example.com/test", path="test.new.path")
+def test_set_path():
+    return "Goody!"
+
+# Return a different content-type
+@simple_service("GET", "http://example.com/test", content_type="image/gif")
+def test_image_gif():
+    # A small gif, from http://www.perlmonks.org/?node_id=7974
+    # 1x1 pixel red image
+    return ('GIF89a\x01\x00\x01\x00\x90\x00\x00\xff\x00\x00\x00'
+            '\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02'
+            '\x02\x04\x01\x00;')
+
+# Set the content-type through the response
+# Make sure it overrides the one in the simple_service
+@simple_service("GET", "http://example.com/test", content_type="image/gif")
+def test_dynamic_content_type():
+    response.add_header("Content-Type", "chemical/x-daylight-smiles")
+    return "c1ccccc1O" # a phenol
+
+# Unicode tests
+
+@simple_service("GET", "http://example.com/test")
+def test_unicode_utf8():
+    # A simple Unicode string (nothing outside of Latin-1)
+    return u"\xc5sa bor i G\xf6teborg"
+
+# Yes, I know I'm not returning text/plain, but I want to make sure
+# the simple_service parameter overrides the default, which is based
+# on the return being a Unicode string.
+@simple_service("GET", "http://example.com/test", "test_unicode_latin1",
+                "text/plain", "latin1")
+def test_unicode_latin1():
+    return u"\xc5sa bor i G\xf6teborg"
+
+# Check that I can override the default content-type specification
+@simple_service("GET", "http://example.com/test", None, "text/plain", encoding="utf16")
+def test_unicode_utf16():
+    response.add_header("Content-Type", "something/strange")
+    return u"\xc5sa bor i G\xf6teborg"
+
+# Amara strings
+test_document = tree.entity()
+node = test_document.xml_append(tree.element(None, "nothing"))
+node.xml_attributes["name"] = u"\xc5sa"
+node.xml_attributes["city"] = u"G\xf6teborg"
+node.xml_append(tree.element(None, "something"))
+del node
+
+
+@simple_service("GET", "http://example.com/test")
+def test_xml_utf8():
+    return test_document
+
+@simple_service("GET", "http://example.com/test", encoding="latin1")
+def test_xml_latin1():
+    return test_document
+
+@simple_service("GET", "http://example.com/test", writer="xml-indent")
+def test_xml_utf8_indent():
+    return test_document
+
+# The default WSGI return types are list of (byte) strings and
+# iterator of byte strings. Akara can't do much with these. It assumes
+# the results are "text/plain" (if not given) and leave it be.
+
+@simple_service("GET", "http://example.com/test")
+def test_list_of_strings():
+    return ["This ", "is ", "a ", "test.\n"]
+
+@simple_service("GET", "http://example.com/test")
+def test_iterator():
+    yield "When shall we three meet again?\n"
+    yield "In thunder, lightning, or in rain?\n"
+    yield "When the hurlyburly's done,\n"
+    yield "When the battle's lost and won.\n"
+
+
+# Basic args (repeats are not allowed)
+@simple_service("GET", "http://example.com/test_args", None, "text/plain")
+def test_args(a, b=3):
+    return "Hi %s and %s" % (a, b)
+
+# Allow repeated parameters
+@simple_service("GET", "http://example.com/test_args", content_type="text/plain",
+                allow_repeated_args=True)
+def test_repeated_args(a, b=3):
+    return "Hello %s and %s" % (a, b)
