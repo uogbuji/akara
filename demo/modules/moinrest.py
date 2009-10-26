@@ -67,7 +67,7 @@ from wsgiref.util import shift_path_info, request_uri
 
 import amara
 from amara import bindery
-from amara.lib.iri import *
+from amara.lib.iri import absolutize
 from amara.writers.struct import *
 from amara.bindery.html import parse as htmlparse
 from amara.bindery.model import *

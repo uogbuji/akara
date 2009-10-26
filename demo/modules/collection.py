@@ -45,6 +45,7 @@ Get a list of files:
 Add a file:
 
     curl --request POST --data-binary "@foo.txt" --header "Content-Type: text/plain" "http://localhost:8880/collection"
+    Note: You might want to see the response headers.  Add "-i" right after "curl" (works with any of these commands)
 
 Get a file:
 
