@@ -326,8 +326,6 @@ def simple_service(method, service_id, path=None,
 # based on the HTTP method (GET, POST, ...) and you want a
 # different Python function to handle each method.
 
-# # Example of use:
-
 class service_method_dispatcher(object):
     """WSGI dispatcher based on request HTTP method
 
@@ -399,6 +397,7 @@ def method_dispatcher(service_id, path=None):
         curl --data "" http://localhost:8880/something
 
     """
+    _no_slashes(path)
     def method_dispatcher_wrapper(func):
         doc = inspect.getdoc(func)
         pth = path
@@ -458,7 +457,7 @@ class service_dispatcher_decorator(object):
         return service_dispatch_decorator_method_wrapper
 
     def simple_method(self, method, content_type=None,
-                      encoding="utf-8", writer="xml", allow_repeated_args=True):
+                      encoding="utf-8", writer="xml", allow_repeated_args=False):
         _check_is_valid_method(method)
         if method not in ("GET", "POST"):
             raise ValueError(
