@@ -1,18 +1,18 @@
-from server_support import server
+from server_support import server, httplib_server
 
 import urllib, urllib2
 from urllib2 import urlopen
 
-def GET3(name, args=None):
+def GET3(name, args=None, data=None):
     url = server() + name
     if args:
         url += "?" + urllib.urlencode(args)
-    f = urlopen(url)
+    f = urlopen(url, data)
     s = f.read()
     return f.code, f.headers, s
 
-def GET(name, args=None):
-    code, headers, body = GET3(name, args)
+def GET(name, args=None, data=None):
+    code, headers, body = GET3(name, args, data)
     assert code == 200, code
     return body
 
@@ -97,6 +97,19 @@ def test_args2():
     body = GET("test_args", dict(a="Andrew", b="Sara Marie"))
     assert body == "Hi Andrew and Sara Marie"
 
+def test_args2_as_list():
+    body = GET("test_args", [("a", "Andrew"), ("b", "Sara Marie")])
+    assert body == "Hi Andrew and Sara Marie"
+
+def test_args2_as_list_with_duplicates():
+    try:
+        body = GET("test_args", [("a", "Andrew"), ("a", "Peter"), ("b", "Sara Marie")])
+        raise AssertionError("duplicates should not be allowed!")
+    except urllib2.HTTPError, err:
+        assert err.code == 400
+        s = err.fp.read()
+        assert "Using the 'a' query parameter multiple times" in s, s
+
 def test_repeated_args1():
     body = GET("test_repeated_args", dict(a="Andrew"))
     assert body == "Hello ['Andrew'] and 3", repr(body)
@@ -108,3 +121,96 @@ def test_repeated_args2():
 def test_repeated_args3():
     body = GET("test_repeated_args", [("a", "Andrew"), ("b", "Sara Marie"), ("a", "Peter")])
     assert body == "Hello ['Andrew', 'Peter'] and ['Sara Marie']"
+
+def test_add_headers():
+    code, headers, body = GET3("test_add_headers")
+    assert headers["Location"] == "http://freemix.it/"
+    # urlopen combines the multiple headers into one.
+    # This is completely legit according to the spec.
+    assert headers["URL"] == "http://www.xml3k.org/, http://dalkescientific.com/", headers["URL"]
+
+
+# See if we get back what we went.
+def test_echo_simple_get():
+    body = GET("test_echo_simple_get", (("a", "1"), ("c", "2"), ("b", "3")))
+    assert body == """\
+'a' -> '1'
+'b' -> '3'
+'c' -> '2'
+""", body
+
+# Now POST against it, which should fail
+def test_echo_simple_get_with_post():
+    # this should pass
+    GET("test_echo_simple_get", None)
+    # this should not pass
+    try:
+        GET("test_echo_simple_get", None, "Something")
+        raise AssertionError("POST to test_echo_simple_get must fail!")
+    except urllib2.HTTPError, err:
+        assert err.code == 405
+        assert "405: Method Not Allowed" in str(err)
+        # Required by the HTTP spec
+        assert err.headers["Allow"] == "GET, HEAD", err.headers
+
+def test_echo_simple_post():
+    body = GET("test_echo_simple_post", data="Heja Sverige!\n")
+    assert body == """\
+Content-Type: 'application/x-www-form-urlencoded'
+Length: 14
+Body:
+'Heja Sverige!\\n'
+""", "Got %r" % (body,)
+
+def test_echo_simple_post_with_GET():
+    try:
+        GET("test_echo_simple_post")
+        raise AssertionError("GET to test_echo_simple_post must fail!")
+    except urllib2.HTTPError, err:
+        assert err.code == 405
+        assert "405: Method Not Allowed" in str(err)
+        # Required by the HTTP spec
+        assert err.headers["Allow"] == "POST", err.headers
+
+def test_echo_simple_post_negative_content_length():
+    url = server() + "test_echo_simple_post"
+    req = urllib2.Request(url, data="I was here.", headers={"Content-Length": "-100"})
+    try:
+        f = urllib2.urlopen(req)
+        raise AssertionError("Not supposed to handle negative lengths")
+    except urllib2.HTTPError, err:
+        assert err.code == 400
+
+# These have to bypass urllib and work with httplib directly
+# in order to generate ill-formatted requests.
+
+def test_good_path():
+    h = httplib_server()
+    h.request("GET", "/")
+    r = h.getresponse()
+    assert r.status == 200, r.status
+
+def test_bad_path():
+    h = httplib_server()
+    # the request is missing the leading '/'
+    h.request("GET", "missing_slash")
+    r = h.getresponse()
+    assert r.status == 400, r.status
+    
+def test_echo_simple_post_missing_content_length():
+    # First, make sure I can call it
+    h = httplib_server()
+    h.request("POST", "/test_echo_simple_post", "Body",
+              {"Content-Length": 4, "Content-Type": "text/plain"})
+    r = h.getresponse()
+    assert r.status == 200, r.status
+
+    # Try again, this time without a Content-Length
+    # (The only way to do that with httplib is to use Content-Length of None)
+    h = httplib_server()
+    h.request("POST", "/test_echo_simple_post", "Body",
+              {"Content-Length": None, "Content-Type": "text/plain"})
+    r = h.getresponse()
+    # 411 is "Length Required"
+    assert r.status == 411, r.status
+    

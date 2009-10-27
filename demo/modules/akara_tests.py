@@ -1,10 +1,48 @@
-"""These services are part of the Akara self-tests"""
+"""These services are part of the Akara regression test suite
+
+They test functionality from the akara.services modules
+"""
 
 from amara import tree
 
 from akara.services import *
 from akara import request, response
 
+## These are all errors in the simple_service definition.
+# They are caught in the server. Do them now because any
+# failures means the other services will not be registered
+try:
+    # Slashes are not (yet) allowed in the path
+    @simple_service("GET", "http://example.com/test_args", path="simple_service.with/slashes")
+    def spam():
+        pass
+    raise AssertionError("simple_service.with/slashes was allowed")
+except ValueError, err:
+    assert "may not contain a '/'" in str(err), err
+
+
+try:
+    # Can only "GET" and "POST" in a simple service
+    @simple_service("DELETE", "http://example.com/test_args")
+    def spam():
+        pass
+    raise AssertionError("DELETE was allowed")
+except ValueError, err:
+    assert "only supports GET and POST methods" in str(err), err
+
+try:
+    # Slashes are not (yet) allowed in the path
+    @service("http://example.com/test_arg", path="service.with/slashes")
+    def spam():
+        pass
+    raise AssertionError("service.with/slashes was allowed")
+except ValueError, err:
+    assert "may not contain a '/'" in str(err), err
+
+
+   # For now require all methods to match /[A-Z]+/ in a service
+
+## These services are called by the test script
 
 # Make sure the environment is set up
 @simple_service("GET", "http://example.com/test")
@@ -113,3 +151,28 @@ def test_args(a, b=3):
                 allow_repeated_args=True)
 def test_repeated_args(a, b=3):
     return "Hello %s and %s" % (a, b)
+
+
+# Add new headers to the response, including multiple headers with the same name.
+@simple_service("GET", "http://example.com/test_args")
+def test_add_headers():
+    response.add_header("URL", "http://www.xml3k.org/")
+    response.add_header("URL", "http://dalkescientific.com/")
+    response.add_header("Location", "http://freemix.it/")
+    return "Nothing to see here. Move along.\n"
+
+###
+
+@simple_service("GET", "http://example.com/test_echo")
+def test_echo_simple_get(**kwargs):
+    for k, v in sorted(kwargs.items()):
+        yield "%r -> %r\n" % (k, v)
+
+@simple_service("POST", "http://example.com/test_echo")
+def test_echo_simple_post(request_body, request_content_type, **kwargs):
+    yield "Content-Type: %r\n" % request_content_type
+    yield "Length: %s\n" % len(request_body)
+    yield "Body:\n"
+    yield repr(request_body) + "\n"
+
+#### 
