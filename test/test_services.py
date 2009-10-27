@@ -162,6 +162,11 @@ Body:
 'Heja Sverige!\\n'
 """, "Got %r" % (body,)
 
+def test_large_echo():
+    body = GET("test_echo_simple_post", data=", ".join(map(str, range(100000))))
+    assert "Body:\n'0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, " in body, body[:100]
+    assert body.endswith(", 99996, 99997, 99998, 99999'\n"), repr(body[-50:])
+
 def test_echo_simple_post_with_GET():
     try:
         GET("test_echo_simple_post")
@@ -214,3 +219,65 @@ def test_echo_simple_post_missing_content_length():
     # 411 is "Length Required"
     assert r.status == 411, r.status
     
+
+def test_service_no_path():
+    code, headers, body = GET3("test_service_no_path")
+    assert headers["Content-Type"] == "text/plain"
+    assert body == "this uses the default path\n"
+
+def test_service_path():
+    code, headers, body = GET3("test_service_path")
+    assert headers["Content-Type"] == "text/fancy", headers["Content-Type"]
+    assert body == "this specified a path\n"
+
+def test_service_with_a_path():
+    # Just checking that it wasn't also registered
+    try:
+        GET("test_service_with_a_path")
+    except urllib2.HTTPError, err:
+        assert err.code == 404
+
+## Tests for '@method_dispatcher'
+
+def test_dispatching_with_no_methods():
+    try:
+        GET("test_dispatching_with_no_methods")
+        raise AssertionError("test_dispatching_with_no_methods has no methods!")
+    except urllib2.HTTPError, err:
+        assert err.code == 405, err.code
+        assert err.headers.get("Allow", "") == "", repr(err.headers.get("Allow", ""))
+
+def test_dispatching_get_but_with__a_different_name():
+    try:
+        GET3("test_dispatching_but_with_a_different_name")
+        raise AssertionError("test_dispatching_but_with_a_different_name should not work")
+    except urllib2.HTTPError, err:
+        assert err.code == 404
+
+def test_dispatching_get():
+    code, headers, body = GET3("test_dispatching_get")
+    assert code == 200
+    assert headers["Content-Type"] == "text/plain"
+    assert body == "Hi, world!"
+
+def test_dispatching_get_with_arg():
+    code, headers, body = GET3("test_dispatching_get", [("a", "Sweden")])
+    assert code == 200
+    assert headers["Content-Type"] == "text/plain"
+    assert body == "Hi, Sweden!", repr(body)
+    
+def test_dispatching_get_with_wrong_arg():
+    try:
+        GET("test_dispatching_get", [("b", "Sweden")])
+    except urllib2.HTTPError, err:
+        # XXX should this be a 400 or 500 error?
+        assert err.code == 500, err.code
+
+def test_dispatching_get_with_duplicate_arg():
+    try:
+        GET("test_dispatching_get", [("a", "Sweden"), ("a", "USA")])
+    except urllib2.HTTPError, err:
+        assert err.code == 400, err.code
+        body = err.read()
+        assert "'a' query parameter multiple times" in body, repr(body)
+
