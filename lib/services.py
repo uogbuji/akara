@@ -71,6 +71,8 @@ def _get_function_args(environ, allow_repeated_args):
             request_length = int(environ["CONTENT_LENGTH"])
         except (KeyError, ValueError):
             raise _HTTPError(httplib.LENGTH_REQUIRED)
+        if request_length < 0:
+            raise _HTTPError(httplib.BAD_REQUEST)
         request_bytes = environ["wsgi.input"].read(request_length)
         request_content_type = environ.get("CONTENT_TYPE", None)
         args = (request_bytes, request_content_type)
@@ -168,7 +170,7 @@ def convert_body(body, content_type, encoding, writer):
 # US-ASCII character excepting control characters and "punctuation".
 # (like '(){}' and even ' '). We're a bit more strict than that
 # because we haven't seen people use words like "get".
-def check_is_valid_method(method):
+def _check_is_valid_method(method):
     min_c = min(method)
     max_c = max(method)
     if min_c < 'A' or max_c > 'Z':
@@ -177,11 +179,11 @@ def check_is_valid_method(method):
 def _no_slashes(path):
     if path is not None and "/" in path:
         # Really these are more like mount points
-        raise TypeError("service paths may not contain a '/'")
+        raise ValueError("service paths may not contain a '/'")
 
 ###### public decorators
 
-## Guide to make things easier
+## Guide to help in understanding
 # @service(*args) -> returns a service_wrapper
 #
 # @service(*args)  
@@ -216,7 +218,7 @@ def service(service_id, path=None,
     return service_wrapper
 
 
-## Guide to make things easier
+## Guide to help in understanding
 # @simple_service(*args) -> returns a service_wrapper
 #
 # @simple_service(*args)  
@@ -271,7 +273,7 @@ def simple_service(method, service_id, path=None,
       http://localhost:8880/date?format=%25m-%25d-%25Y
 
 """
-    check_is_valid_method(method)
+    _check_is_valid_method(method)
     if method not in ("GET", "POST"):
         raise ValueError(
             "simple_service only supports GET and POST methods, not %s" % (method,))
@@ -281,7 +283,10 @@ def simple_service(method, service_id, path=None,
         def wrapper(environ, start_response):
             try:
                 if environ.get("REQUEST_METHOD") != method:
-                    raise _HTTP405([method])
+                    if method == "GET":
+                        raise _HTTP405(["GET", "HEAD"])
+                    else:
+                        raise _HTTP405(["POST"])
                 args, kwargs = _get_function_args(environ, allow_repeated_args)
             except _HTTPError, err:
                 return err.make_wsgi_response(environ, start_response)
@@ -347,7 +352,7 @@ class service_method_dispatcher(object):
         err = _HTTP405(sorted(self.method_table.keys()))
         return err.make_wsgi_response(environ, start_response)
 
-## Guide to make things easier
+## Guide to help in understanding
 # @method_dispatcher(*args) -> returns a method_dispatcher_wrapper
 #
 # @method_dispatcher(*args)
@@ -429,7 +434,7 @@ class service_dispatcher_decorator(object):
         it serialized and converted to bytes based in the 'writer' and
         'encoding' options.
         """
-        check_is_valid_method(method)
+        _check_is_valid_method(method)
         def service_dispatch_decorator_method_wrapper(func):
             @functools.wraps(func)
             def method_wrapper(environ, start_response):
@@ -454,7 +459,7 @@ class service_dispatcher_decorator(object):
 
     def simple_method(self, method, content_type=None,
                       encoding="utf-8", writer="xml", allow_repeated_args=True):
-        check_is_valid_method(method)
+        _check_is_valid_method(method)
         if method not in ("GET", "POST"):
             raise ValueError(
                 "simple_method only supports GET and POST methods, not %s" %
