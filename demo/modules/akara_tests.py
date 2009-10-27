@@ -39,8 +39,15 @@ try:
 except ValueError, err:
     assert "may not contain a '/'" in str(err), err
 
+try:
+    # Slashes are not (yet) allowed in the path
+    @method_dispatcher("http://example.come/mulimethod", "method_dispatcher.with/slashes")
+    def spam():
+        pass
+    raise AssertionError("method_dispatcher.with/slashes was allowed")
+except ValueError, err:
+    assert "may not contain a '/'" in str(err), err
 
-   # For now require all methods to match /[A-Z]+/ in a service
 
 ## These services are called by the test script
 
@@ -165,14 +172,51 @@ def test_add_headers():
 
 @simple_service("GET", "http://example.com/test_echo")
 def test_echo_simple_get(**kwargs):
+    "This echos a GET request, including the QUERY_STRING"
     for k, v in sorted(kwargs.items()):
         yield "%r -> %r\n" % (k, v)
 
 @simple_service("POST", "http://example.com/test_echo")
-def test_echo_simple_post(request_body, request_content_type, **kwargs):
-    yield "Content-Type: %r\n" % request_content_type
-    yield "Length: %s\n" % len(request_body)
+def test_echo_simple_post(query_body, query_content_type, **kwargs):
+    "This echos a POST request, including the query body"
+    yield "Content-Type: %r\n" % query_content_type
+    yield "Length: %s\n" % len(query_body)
     yield "Body:\n"
-    yield repr(request_body) + "\n"
+    yield repr(query_body) + "\n"
 
-#### 
+#### '@service' tests
+
+# the 'service' decorator is a thin wrapper over the standard WSGI
+# interface Based on code inpection, just about everything is tested
+# by the simple_service decorator, so I'm not going to test all the
+# error cases.
+
+@service("http://example.com/test_service")
+def test_service_no_path(environ, start_response):
+    start_response("200 Ok", [("Content-Type", "text/plain")])
+    return "this uses the default path\n"
+
+@service("http://example.com/test_service", "test_service_path")
+def test_service_with_a_path(environ, start_response):
+    start_response("200 Ok", [("Content-Type", "text/fancy")])
+    return "this specified a path\n"
+
+#### @method_dispatcher tests
+
+@method_dispatcher("http://example.come/multimethod")
+def test_dispatching_with_no_methods():
+    "Test method dispatching"
+
+
+@method_dispatcher("http://example.come/multimethod", path="test_dispatching_get")
+def test_dispatching_but_with_a_different_name():
+    pass
+
+@test_dispatching_but_with_a_different_name.simple_method("GET")
+def say_hi(a="world"):
+    return "Hi, " + a + "!"
+
+
+
+
+   # For now require all methods to match /[A-Z]+/ in a service
