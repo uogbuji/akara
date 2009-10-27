@@ -248,14 +248,14 @@ class AkaraWSGIDispatcher(object):
             # Like when you use httplib directly and forget the leading '/'.
             return _send_error(start_response, 400)
         mount_point = shift_path_info(environ)
-        try:
-            service = registry.get_service(mount_point)
-        except KeyError:
-            # Not found. Report something semi-nice to the user
-            return _send_error(start_response, 404)
 
         # Call the handler, deal with any errors, do access logging
         try:
+            try:
+                service = registry.get_service(mount_point)
+            except KeyError:
+                # Not found. Report something semi-nice to the user
+                return _send_error(start_response_, 404)
             try:
                 return service.handler(environ, start_response_)
             except Exception, err:
@@ -265,7 +265,7 @@ class AkaraWSGIDispatcher(object):
                     traceback.print_exc(file=f)
                     logger.error("Uncaught exception from %r (%r)\n%s" %
                                  (mount_point, service.ident, f.getvalue()))
-                    return _send_error(start_response, 500, exc_info=exc_info)
+                    return _send_error(start_response_, 500, exc_info=exc_info)
                 finally:
                     del exc_info
         finally:
@@ -314,6 +314,9 @@ def load_modules(module_dir, config):
     for filename in os.listdir(module_dir):
         name, ext = os.path.splitext(filename)
         if ext != ".py":
+            continue
+        if name.startswith("."):
+            # For example, Emacs backup files start with ".#"
             continue
         full_path = os.path.join(module_dir, filename)
         module_config = {}
