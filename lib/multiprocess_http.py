@@ -243,6 +243,10 @@ class AkaraWSGIDispatcher(object):
             return start_response(status, headers, exc_info)
 
         # Get the handler for this mount point
+        if "/" not in environ.get("PATH_INFO", "/"):
+            # This happens with very ill-formed queries
+            # Like when you use httplib directly and forget the leading '/'.
+            return _send_error(start_response, 400)
         mount_point = shift_path_info(environ)
         try:
             service = registry.get_service(mount_point)
