@@ -27,7 +27,9 @@ import os
 from itertools import count
 from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from SocketServer import ThreadingMixIn
-from paste.util import converters
+
+#from paste.util import converters # Removed for Akara
+
 import logging
 try:
     from paste.util import killthread
@@ -37,6 +39,21 @@ except ImportError:
 
 __all__ = ['WSGIHandlerMixin', 'WSGIServer', 'WSGIHandler', 'serve']
 __version__ = "0.5"
+
+# Copied from paste.util.converters for use in Akara.
+# Reduce dependencies on external modules
+def asbool(obj):
+    if isinstance(obj, (str, unicode)):
+        obj = obj.strip().lower()
+        if obj in ['true', 'yes', 'on', 'y', 't', '1']:
+            return True
+        elif obj in ['false', 'no', 'off', 'n', 'f', '0']:
+            return False
+        else:
+            raise ValueError(
+                "String is not true/false: %r" % obj)
+    return bool(obj)
+
 
 class ContinueHook(object):
     """
@@ -1283,7 +1300,7 @@ def serve(application, host=None, port=None, handler=None, ssl_pem=None,
     if use_threadpool is None:
         use_threadpool = True
 
-    if converters.asbool(use_threadpool):
+    if asbool(use_threadpool):
         server = WSGIThreadPoolServer(application, server_address, handler,
                                       ssl_context, int(threadpool_workers),
                                       daemon_threads,
@@ -1298,7 +1315,7 @@ def serve(application, host=None, port=None, handler=None, ssl_pem=None,
     if socket_timeout:
         server.wsgi_socket_timeout = int(socket_timeout)
 
-    if converters.asbool(start_loop):
+    if asbool(start_loop):
         protocol = is_ssl and 'https' or 'http'
         host, port = server.server_address
         if host == '0.0.0.0':
