@@ -10,6 +10,8 @@ import subprocess
 import sys
 import tempfile
 import urllib2
+import urlparse
+import httplib
 
 # XXX I only use one function from here. Bring it into this file?
 import python_support
@@ -185,3 +187,19 @@ def server():
 
     return SERVER_URI
 
+def httplib_server():
+    url = server()
+    # <scheme>://<netloc>/<path>?<query>#<fragment>
+    scheme, netloc, path, query, fragment = urlparse.urlsplit(url)
+    assert path in ("", "/"), "Cannot handle path in %r" % url
+    assert query == "", "Cannot handle query in %r" % url
+    assert fragment == "", "Cannot handle fragment in %r" % url
+    assert "@" not in netloc, "Cannot handle '@' in %r" % url
+    if ":" in netloc:
+        host, port = netloc.split(":")
+        port = int(port)
+    else:
+        host = netloc
+        port = 80
+    conn = httplib.HTTPConnection(host, port, strict=True)
+    return conn
