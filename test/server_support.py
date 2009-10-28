@@ -63,6 +63,10 @@ ServerRoot = %(server_root)s
 ModuleDir = %(module_dir)s
 Listen = localhost:%(port)s
 LogLevel = DEBUG
+MinSpareServers = 3
+# These affect test_server.py:test_restart
+MaxServers = 5
+MaxRequestsPerServer = 5
 
 [atomtools]
 entries = %(atom_entries)s
