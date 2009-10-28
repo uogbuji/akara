@@ -361,20 +361,20 @@ def test_method_unicode_utf8():
     assert body == u"\xc5sa bor i G\xf6teborg".encode("utf8"), repr(body)
 
 
-expected_utf_xml = ('<?xml version="1.0" encoding="utf-16"?>\n'
-                    '<nothing city="G\xf6teborg" name="\xc5sa">\n  <something/>\n</nothing>')
+expected_utf8 = ('<?xml version="1.0" encoding="utf-8"?>\n'
+                 '<nothing city="G\xc3\xb6teborg" name="\xc3\x85sa"><something/></nothing>')
 def test_method_xml_utf8():
     code, headers, body = GET3("test_dispatch_xml")
     assert headers["Content-Type"] == "application/xml", headers["Content-Type"]
-    assert body == expected_utf_xml, repr(body)
+    assert body == expected_utf8, repr(body)
 
-
+# Without the byte order marker
+expected_utf16 = ('<?xml version="1.0" encoding="utf-16"?>\n'
+                  '<nothing city="G\xf6teborg" name="\xc5sa">\n  <something/>\n</nothing>')
 def test_method_xml_indent_utf16():
     code, headers, body = GET3("test_dispatch_xml", data="")
     assert headers["Content-Type"] == "application/xml", headers["Content-Type"]
 
-    expected = "\x00".join(expected_utf_xml) + "\x00"
+    expected = "\x00".join(expected_utf16) + "\x00"
     assert body == ("\xfe\xff" + expected), repr(body)
 
-
-# Do multiple tests, to check for server persistency
