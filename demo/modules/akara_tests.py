@@ -208,7 +208,7 @@ def test_dispatching_with_no_methods():
     "Test method dispatching"
 
 
-@method_dispatcher("http://example.come/multimethod", path="test_dispatching_get")
+@method_dispatcher("http://example.com/multimethod", path="test_dispatching_get")
 def test_dispatching_but_with_a_different_name():
     pass
 
@@ -216,7 +216,97 @@ def test_dispatching_but_with_a_different_name():
 def say_hi(a="world"):
     return "Hi, " + a + "!"
 
+@method_dispatcher("http://example.com/multimethod")
+def test_multimethod():
+    "SHRDLU says 'QWERTY'"
 
 
+try:
+    # Some error testing.
+    # Although the HTTP spec allows a wider range of HTTP methods,
+    # Akara requires that all methods match /[A-Z]+/
+    @test_multimethod.method("lowercase", "text/html")
+    def do_post(environ, start_response):
+        start_response("202 Accepted", [])
+        return ""
+    raise AssertionError("Why was a lowercase method allowed?")
+except ValueError, err:
+    assert "HTTP method 'lowercase' value is not valid. It must contain" in str(err), repr(err)
 
-   # For now require all methods to match /[A-Z]+/ in a service
+try:
+    # Some more error testing
+    @test_multimethod.method("A-Z", "text/html")
+    def do_post(environ, start_response):
+        start_response("202 Accepted", [])
+        return ""
+    raise AssertionError("Why was a method with a hyphen allowed?")
+except ValueError, err:
+    assert "HTTP method 'A-Z' value is not valid. It must contain" in str(err), repr(err)
+
+try:
+    # simple only works for GET and POST
+    @test_multimethod.simple_method("DELETE")
+    def do_delete():
+        pass
+    raise AssertionError("Why can DELETE be a simple_method?")
+except ValueError, err:
+    assert "only supports GET and POST methods" in str(err), str(err)
+    
+
+
+# NOTE: if this doesn't work (with a 405 error) then the above error tests
+# likely failed, raising an AssertionError. Check the error log
+@test_multimethod.simple_method("GET", "text/fancy", allow_repeated_args=True)
+def do_get(a, b="spam"):
+    return "My name is %r. I like %r" % (a, b)
+
+@test_multimethod.simple_method("POST", "text/schmancy")
+def do_post(query_body, query_content_type, a="default value"):
+    yield "You sent %d bytes of %r and %r\n" % (len(query_body), query_content_type, a)
+    yield "First few bytes: %r\n" % (query_body[:20],)
+
+@test_multimethod.method("DELETE")
+def do_delete(environ, start_response):
+    if environ.get("CONTENT_TYPE") != "chemical/x-daylight-smiles":
+        start_response("501 Not Implemented", [("Content-Type", "text/plain")])
+        return "give me a SMILES, not a %s" % environ.get("Content-Type")
+    s = environ["wsgi.input"].read(6)
+    if s != "[U235]":
+        start_response("501 Not Implemented", [("Content-Type", "text/plain")])
+        return "Where is the kaboom? There was supposed to be an earth-shattering kaboom!"
+
+    start_response("202 Accepted", [("Content-Type", "application/my-xml")])
+    return test_document
+
+@test_multimethod.method("TEAPOT")
+def do_extension(environ, start_response):
+    start_response("418 I'm a teapot", [("Content-Type", "text/plain")])
+    return "short and stout"
+
+#####
+
+@method_dispatcher("http://example.com/multimethod")
+def test_dispatch_unicode():
+    pass
+
+@test_dispatch_unicode.simple_method("GET", encoding="latin1")
+def get_latin1():
+    return u"\xc5sa bor i G\xf6teborg"
+
+@test_dispatch_unicode.simple_method("POST", encoding="utf-8")
+def post_utf8(body, content_type):
+    return u"\xc5sa bor i G\xf6teborg"
+
+@method_dispatcher("http://example.com/multimethod")
+def test_dispatch_xml():
+    pass
+
+
+@test_dispatch_xml.simple_method("GET", encoding="utf-8", writer="xml")
+def get_xml_utf8():
+    return test_document
+
+@test_dispatch_xml.simple_method("POST", encoding="utf-16", writer="xml-indent")
+def post_xml_indent_utf16(environ, start_response):
+    return test_document
+
