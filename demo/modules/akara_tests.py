@@ -2,6 +2,7 @@
 
 They test functionality from the akara.services modules
 """
+import os
 
 from amara import tree
 
@@ -310,3 +311,14 @@ def get_xml_utf8():
 def post_xml_indent_utf16(environ, start_response):
     return test_document
 
+
+
+### used in test_server.py
+_call_count = 0
+@simple_service("GET", "http://example.com/count")
+def test_get_call_count():
+    global _call_count
+    print "Currently", _call_count
+    s = "%s %s" % (_call_count, os.getpid())
+    _call_count += 1
+    return s
