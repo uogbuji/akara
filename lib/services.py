@@ -400,7 +400,9 @@ def method_dispatcher(service_id, path=None):
     """
     _no_slashes(path)
     def method_dispatcher_wrapper(func):
-        doc = inspect.getdoc(func)
+        # Have to handle a missing docstring here as otherwise
+        # the registry will try to get it from the dispatcher.
+        doc = inspect.getdoc(func) or ""
         pth = path
         if pth is None:
             pth = func.__name__
