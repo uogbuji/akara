@@ -174,7 +174,8 @@ def _check_is_valid_method(method):
     min_c = min(method)
     max_c = max(method)
     if min_c < 'A' or max_c > 'Z':
-        raise ValueError("Method %r may only contain uppercase ASCII letters" % (method,))
+        raise ValueError("HTTP method %r value is not valid. "
+                         "It must contain only uppercase ASCII letters" % (method,))
 
 def _no_slashes(path):
     if path is not None and "/" in path:
