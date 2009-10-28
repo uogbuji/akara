@@ -10,7 +10,6 @@ def vikings():
 
 @vikings.simple_method("GET", "text/plain")
 def vikings_get(word):
-    word = word[0]
     yield "%s, %s, %s, %s\n" % (word, word, word, word)
     yield "%s, %s, %s, %s\n" % (word, word, word, word)
     yield "%s-itty %s!\n" % (word, word)
