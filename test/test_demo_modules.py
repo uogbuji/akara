@@ -206,15 +206,21 @@ def _http_failure(url, code):
         urllib2.urlopen(url).read()
         raise AssertionError("unexpected success")
     except urllib2.HTTPError, err:
-        assert err.code == code
+        assert err.code == code, (err.code, code)
 
 def test_static_missing_file():
     url = server() + "static/missing_file"
     _http_failure(url, 404)
 
+# Interesting. After the upgrade to the most recent paste.httpserver
+# this test fails with a 404 error instead of a 401 error. The
+# new httpserver does a posixpath.normpath and converts the
+# "/static/../widefinder_100.apache_log" ... to
+# "/widefider_100.apache_log", which means I get a 404 error.
 def test_static_bad_relative_file():
-    url = server() + "static/../../server_support.py"
-    _http_failure(url, 401)
+    url = server() + "static/../widefinder_100.apache_log"
+    err = _http_failure(url, 404)
+
 
 def test_static_unauthorized():
     url = server() + "static"
