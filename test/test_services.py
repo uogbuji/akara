@@ -281,3 +281,100 @@ def test_dispatching_get_with_duplicate_arg():
         body = err.read()
         assert "'a' query parameter multiple times" in body, repr(body)
 
+def test_multimethod_get():
+    code, headers, body = GET3("test_multimethod", [("a", "Andrew")])
+    assert headers["Content-Type"] == "text/fancy"
+    assert body == "My name is ['Andrew']. I like 'spam'"
+    body = GET("test_multimethod", [("a", "Andrew"), ("b", "lists")])
+    assert body == "My name is ['Andrew']. I like ['lists']"
+    body = GET("test_multimethod", [("a", "Andrew"),
+                                    ("b", "lists"), ("b", "of"), ("b", "things")])
+    assert body == "My name is ['Andrew']. I like ['lists', 'of', 'things']"
+
+def test_multimethod_get_bad_args():
+    try:
+        GET("test_multimethod")
+    except urllib2.HTTPError, err:
+        assert err.code == 500, err.code
+    try:
+        GET("test_multimethod", [("qwe", "rty")])
+    except urllib2.HTTPError, err:
+        assert err.code == 500, err.code
+
+
+def test_multimethod_post():
+    code, headers, body = GET3("test_multimethod", data="some data")
+    assert code == 200, code
+    assert headers["Content-Type"] == "text/schmancy"
+    assert body == """\
+You sent 9 bytes of 'application/x-www-form-urlencoded' and 'default value'
+First few bytes: 'some data'
+""", repr(body)
+
+def test_multimethod_post_with_arg():
+    code, headers, body = GET3("test_multimethod", [("a", "something")],
+                               data="more data")
+    assert code == 200, code
+    assert headers["Content-Type"] == "text/schmancy"
+    assert body == """\
+You sent 9 bytes of 'application/x-www-form-urlencoded' and 'something'
+First few bytes: 'more data'
+"""
+
+def test_multimethod_post_with_bad_arg():
+    try:
+        GET3("test_multimethod", [("b", "something")], data="more data")
+    except urllib2.HTTPError, err:
+        assert err.code == 500
+    
+
+def test_multimethod_delete():
+    h = httplib_server()
+    h.request("DELETE", "/test_multimethod", "[U235]",
+              {"Content-Length": 9, "Content-Type": "chemical/x-daylight-smiles"})
+    r = h.getresponse()
+    assert r.status == 202, r.status
+
+    s = r.read()
+    assert s == ('<?xml version="1.0" encoding="utf-8"?>\n'
+                 '<nothing city="G\xc3\xb6teborg" name="\xc3\x85sa"><something/></nothing>'), repr(s)
+
+
+def test_multimethod_teapot():
+    h = httplib_server()
+    h.request("TEAPOT", "/test_multimethod")
+    r = h.getresponse()
+    assert r.status == 418, r.status
+    s = r.read()
+    assert s == "short and stout", repr(s)
+
+
+# Unicode and XML encoding
+def test_method_unicode_latin1():
+    code, headers, body = GET3("test_dispatch_unicode")
+    assert headers["Content-Type"] == "text/plain; charset=latin1", headers["Content-Type"]
+    assert body == u"\xc5sa bor i G\xf6teborg".encode("latin1"), repr(body)
+
+def test_method_unicode_utf8():
+    code, headers, body = GET3("test_dispatch_unicode", data="")
+    assert headers["Content-Type"] == "text/plain; charset=utf-8", headers["Content-Type"]
+    assert body == u"\xc5sa bor i G\xf6teborg".encode("utf8"), repr(body)
+
+
+expected_utf_xml = ('<?xml version="1.0" encoding="utf-16"?>\n'
+                    '<nothing city="G\xf6teborg" name="\xc5sa">\n  <something/>\n</nothing>')
+def test_method_xml_utf8():
+    code, headers, body = GET3("test_dispatch_xml")
+    assert headers["Content-Type"] == "application/xml", headers["Content-Type"]
+    assert body == expected_utf_xml, repr(body)
+
+
+def test_method_xml_indent_utf16():
+    code, headers, body = GET3("test_dispatch_xml", data="")
+    assert headers["Content-Type"] == "application/xml", headers["Content-Type"]
+
+    expected = "\x00".join(expected_utf_xml) + "\x00"
+    assert body == ("\xfe\xff" + expected), repr(body)
+
+
+# Do multiple tests, to check for server persistency
