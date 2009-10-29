@@ -78,21 +78,18 @@ Some sample queries:
 
 __doc__ += SAMPLE_QUERIES_DOC
 
-import sys
+# Standard library imports
+import sys     # Used only from sys.stderr
 import os
 import cgi
-#import pprint
 import httplib, urllib, urllib2
-#from wsgiref.util import shift_path_info, request_uri
 from string import Template
 from cStringIO import StringIO
 import tempfile
-from gettext import gettext as _
-from functools import wraps
-from itertools import *
 from contextlib import closing
 from wsgiref.util import shift_path_info, request_uri
 
+# Amara Imports
 import amara
 from amara import bindery
 from amara.lib.iri import absolutize
@@ -102,13 +99,15 @@ from amara.bindery.model import *
 from amara.lib.iri import * #split_fragment, relativize, absolutize
 #from amara import inputsource
 
+# Akara Imports
 from akara.util import multipart_post_handler, wsgibase, http_method_handler
-
 from akara.services import method_dispatcher
+
+import akara.util.moin as moin
+
 from akara.util.moin import *
 from akara import response
 
-# 
 # ======================================================================
 #                         Module Configruation
 # ======================================================================
@@ -240,94 +239,92 @@ A POST or PUT request was made, but no data was found.
 """)
 
 # ======================================================================
-#                      @errorwrapped decorator
+#                          moin_error_handler
 # ======================================================================
-# This decorator should be wrapped around all WSGI methods implemented
-# by the module.   It catches MoinRest specific exceptions and produces
-# appropriate error responses if necessary.
+# This error handling function is what actually runs all of the WSGI
+# functions implemented by the modules. It catches MoinRest specific exceptions 
+# and produces appropriate error responses as needed.
 #
-# The reason for putting this in a decorator is to avoid a lot of 
+# The reason for putting this functionality in a single function is to avoid a lot
 # excessive code duplication between different HTTP methods.  For example,
 # the handlers for each HTTP method are going to have to deal with
-# many of the same error conditions, faults, and responses.  This
-# decorator allows us to define all of the error handling in just one place.
+# many of the same error conditions, faults, and responses.  Centralizing
+# the handling makes it possible to deal all of the errors in just one place.
 
-def errorwrapped(handler):
+def moin_error_handler(wsgi_handler, environ, start_response):
     status_info = {}          # Dictionary of collected status information
 
     # Replacement for the WSGI start_response function.  This merely
-    # collects data for later use if no errors occur
-
+    # collects response data in a dictionary for later use if no errors occur
     def local_start_response(status, headers):
         status_info['status'] = status
         status_info['headers'] = headers
 
-    # Decorated WSGI handler with moinrest error handling
-    @wraps(handler)
-    def error_handler(environ, start_response):
-        try:
-            body = handler(environ, local_start_response)
-            # If control reaches here, no errors.  Proceed with normal WSGI response
-            start_response(status_info['status'],status_info['headers'])
-            return body
+    # Try to run the supplied WSGI handler
+    try:
+        body = wsgi_handler(environ, local_start_response)
+        # If control reaches here, no errors.  Proceed with normal WSGI response
+        start_response(status_info['status'],status_info['headers'])
+        return body
 
-        # Error handling for specifying an invalid moin target name (i.e., not configured, misspelled)
-        except BadTargetError,e:
-            start_response(status_response(httplib.NOT_FOUND), [
-                    ('Content-Type','text/plain')
-                    ])
-            return error_badtarget.safe_substitute(e.parms)
+    # Error handling for specifying an invalid moin target name (i.e., not configured, misspelled)
+    except BadTargetError,e:
+        start_response(status_response(httplib.NOT_FOUND), [
+                ('Content-Type','text/plain')
+                ])
+        return error_badtarget.safe_substitute(e.parms)
 
-        # Error handling for back-end HTTP authorization failure.  For example,
-        # if the HTTP server hosting MoinMoin has rejected our requests due to
-        # bad HTTP authorization.
-        except HTTPAuthorizationError,e:
-            start_response(status_response(httplib.FORBIDDEN), [
-                    ('Content-Type','text/plain')
-                    ])
-            return error_httpforbidden.safe_substitute(e.parms)
+    # Error handling for back-end HTTP authorization failure.  For example,
+    # if the HTTP server hosting MoinMoin has rejected our requests due to
+    # bad HTTP authorization.
+    except HTTPAuthorizationError,e:
+        start_response(status_response(httplib.FORBIDDEN), [
+                ('Content-Type','text/plain')
+                ])
+        return error_httpforbidden.safe_substitute(e.parms)
 
-        # Error handling for MoinMoin authorization failure.  This occurs
-        # if the user and password supplied to MoinMoin is rejected.
-        except MoinAuthorizationError,e:
-            start_response(status_response(httplib.FORBIDDEN), [
-                    ('Content-Type','text/plain')
-                    ])
-            return error_moinauthforbidden.safe_substitute(e.parms)
+    # Error handling for MoinMoin authorization failure.  This occurs
+    # if the user and password supplied to MoinMoin is rejected.
+    except MoinAuthorizationError,e:
+        start_response(status_response(httplib.FORBIDDEN), [
+                ('Content-Type','text/plain')
+                ])
+        return error_moinauthforbidden.safe_substitute(e.parms)
 
-        # Error handling for unexpected HTTP status codes
-        except UnexpectedResponseError,e:
-            start_response(status_response(httplib.INTERNAL_SERVER_ERROR), [
-                    ('Content-Type','text/plain')
-                    ])
-            return error_unexpectedresponse.safe_substitute(e.parms)
+    # Error handling for unexpected HTTP status codes
+    except UnexpectedResponseError,e:
+        start_response(status_response(httplib.INTERNAL_SERVER_ERROR), [
+                ('Content-Type','text/plain')
+                ])
+        return error_unexpectedresponse.safe_substitute(e.parms)
 
-        # Authentication required by MoinMoin.  This isn't an error, but we
-        # have to translate this into a 401 response to send back to the client
-        # in order to get them to supply the appropriate username/password
+    # Authentication required by MoinMoin.  This isn't an error, but we
+    # have to translate this into a 401 response to send back to the client
+    # in order to get them to supply the appropriate username/password
+    except MoinMustAuthenticateError,e:
+        start_response(status_response(httplib.UNAUTHORIZED), [
+                ('Content-Type','text/plain'),
+                ('WWW-Authenticate','Basic realm="%s"' % e.parms.get('target',''))
+                ])
+        return error_moinmustauthenticateresponse.safe_substitute(e.parms)
         
-        except MoinMustAuthenticateError,e:
-            start_response(status_response(httplib.UNAUTHORIZED), [
-                    ('Content-Type','text/plain'),
-                    ('WWW-Authenticate','Basic realm="%s"' % e.parms.get('target',''))
-                    ])
-            return error_moinmustauthenticateresponse.safe_substitute(e.parms)
-        
-        # Page in the target-wiki not found. 404 the client
-        except MoinNotFoundError,e:
-            start_response(status_response(httplib.NOT_FOUND), [
-                    ('Content-Type','text/plain'),
-                    ])
-            return error_moinnotfoundresponse.safe_substitute(e.parms)
+    # Page in the target-wiki not found. 404 the client
+    except MoinNotFoundError,e:
+        start_response(status_response(httplib.NOT_FOUND), [
+                ('Content-Type','text/plain'),
+                ])
+        return error_moinnotfoundresponse.safe_substitute(e.parms)
 
-        # Content-length is required for uploaded data
-        except ContentLengthRequiredError,e:
-            start_response(status_response(httplib.LENGTH_REQUIRED), [
-                    ('Content-Type','text/plain')
-                    ])
-            return error_contentlengthrequired.safe_substitute(e.parms)
+    # Content-length is required for uploaded data
+    except ContentLengthRequiredError,e:
+        start_response(status_response(httplib.LENGTH_REQUIRED), [
+                ('Content-Type','text/plain')
+                ])
+        return error_contentlengthrequired.safe_substitute(e.parms)
 
-    return error_handler
+# ----------------------------------------------------------------------
+#                   Support functions used by handlers
+# ----------------------------------------------------------------------
 
 # Utility function for generating status rsponses for WSGI
 def status_response(code):
@@ -374,7 +371,107 @@ def check_auth(environ, start_response, base, opener):
     environ['REMOTE_USER'] = username
     return True
 
+def fill_page_edit_form(page, wiki_id, base, opener):
+    url = absolutize(page, base)
+    request = urllib2.Request(url+"?action=edit&editor=text")
+    try:
+        with closing(opener.open(request)) as resp:
+            doc = htmlparse(resp)
 
+    except urllib2.URLError,e:
+        # Comment concerning the behavior of MoinMoin.  If an attempt is made to edit a page 
+        # and the user is not authenticated, you will either get a 403 or 404 error depending
+        # on whether or not the page being edited exists or not.   If it doesn't exist, 
+        # MoinMoin sends back a 404 which is misleading.   We raise MoinMustAuthenticateError
+        # to signal the error wrapper to issue a 401 back to the client
+        if e.code == 403 or e.code == 404:
+            raise MoinMustAuthenticateError(url=request.get_full_url(),target=wiki_id)
+        else:
+            raise UnexpectedResponseError(url=request.get_full_url(),code=e.code,error=str(e))
+        
+    form = doc.html.body.xml_select(u'.//*[@id="editor"]')[0]
+    form_vars = {}
+    #form / fieldset / input
+    form_vars["action"] = unicode(form.xml_select(u'string(*/*[@name="action"]/@value)'))
+    form_vars["rev"] = unicode(form.xml_select(u'string(*/*[@name="rev"]/@value)'))
+    form_vars["ticket"] = unicode(form.xml_select(u'string(*/*[@name="ticket"]/@value)'))
+    form_vars["editor"] = unicode(form.xml_select(u'string(*/*[@name="editor"]/@value)'))
+    #pprint.pprint(form_vars)
+    return form_vars
+
+
+def fill_attachment_form(page, attachment, wiki_id, base, opener):
+    url = absolutize(page, base)
+    request = urllib2.Request(url + '?action=AttachFile')
+    try:
+        with closing(opener.open(request)) as resp:
+            doc = htmlparse(resp)
+
+    except urllib2.URLError,e:
+        # Comment concerning the behavior of MoinMoin.  If an attempt is made to post to a page 
+        # and the user is not authenticated, you will either get a 403 or 404 error depending
+        # on whether or not the page being edited exists or not.   If it doesn't exist, 
+        # MoinMoin sends back a 404 which is misleading.   We raise MoinMustAuthenticateError
+        # to signal the error wrapper to issue a 401 back to the client
+        if e.code == 403 or e.code == 404:
+            raise MoinMustAuthenticateError(url=request.get_full_url(),target=wiki_id)
+        else:
+            raise UnexpectedResponse(url=request.get_full_url(),code=e.code,error=str(e))
+
+    form = doc.html.body.xml_select(u'.//*[@id="content"]/form')[0]
+    form_vars = {}
+    #form / dl / ... dd
+    form_vars["rename"] = unicode(attachment)
+    #FIXME: parameterize
+    form_vars["overwrite"] = u'1'
+    form_vars["action"] = unicode(form.xml_select(u'string(*/*[@name="action"]/@value)'))
+    form_vars["do"] = unicode(form.xml_select(u'string(*/*[@name="do"]/@value)'))
+    form_vars["submit"] = unicode(form.xml_select(u'string(*/*[@type="submit"]/@value)'))
+    #pprint.pprint(form_vars)
+    return form_vars
+
+CHUNKLEN = 4096
+def read_http_body_to_temp(environ, start_response):
+    '''
+    Handle the reading of a file from an HTTP message body (file pointer from wsgi.input)
+    in chunks to a temporary file
+    Returns the file path of the resulting temp file
+    '''
+    clen = int(environ.get('CONTENT_LENGTH', None))
+    if not clen:
+        raise ContentLengthRequiredError()
+    http_body = environ['wsgi.input']
+    temp = tempfile.mkstemp(suffix=".dat")
+    while clen != 0:
+        chunk_len = min(CHUNKLEN, clen)
+        data = http_body.read(chunk_len)
+        if data:
+            #assert chunk_len == os.write(temp[0], data)
+            written = os.write(temp[0], data)
+            #print >> sys.stderr, "Bytes written to file in this chunk", written
+            clen -= len(data)
+        else:
+            clen = 0
+    os.fsync(temp[0]) #is this needed with the close below?
+    os.close(temp[0])
+    return temp[1]
+
+# ----------------------------------------------------------------------
+#                       HTTP Method Handlers
+# ----------------------------------------------------------------------
+# The following functions implement versions of the various HTTP methods 
+# (GET, HEAD, POST, PUT).  Each method is actually implemented as a
+# a pair of functions.  One is a private implementation (e.g., _get_page).  
+# The other function is a wrapper that encloses each handler with the error 
+# handling function above (moin_error_handler).   Again, this is to avoid
+# excessive duplication of error handling code.
+
+@method_dispatcher(SERVICE_ID, DEFAULT_MOUNT)
+def dispatcher():
+    __doc__ = SAMPLE_QUERIES_DOC
+    return
+
+# GET handler
 def _get_page(environ, start_response):
     wiki_id, base, opener = target(environ)
     page = environ['PATH_INFO'].lstrip('/')
@@ -450,6 +547,8 @@ def _get_page(environ, start_response):
         start_response(status_response(status), [("Content-Type", ctype), (ORIG_BASE_HEADER, absolutize(wiki_id, base))])
         return rbody
     except urllib2.URLError, e:
+        if e.code == 401:
+            raise HTTPAuthorizationError(url=request.get_full_url())
         if e.code == 403:
             raise MoinMustAuthenticateError(url=request.get_full_url(),target=wiki_id)
         if e.code == 404:
@@ -457,88 +556,18 @@ def _get_page(environ, start_response):
         else:
             raise UnexpectedResponseError(url=url,code=e.code,error=str(e))
 
-def fill_page_edit_form(page, wiki_id, base, opener):
-    url = absolutize(page, base)
-    request = urllib2.Request(url+"?action=edit&editor=text")
-    try:
-        with closing(opener.open(request)) as resp:
-            doc = htmlparse(resp)
+@dispatcher.method("GET")
+def get_page(environ, start_response):
+    return moin_error_handler(_get_page,environ, start_response)
 
-    except urllib2.URLError,e:
-        # Comment concerning the behavior of MoinMoin.  If an attempt is made to edit a page 
-        # and the user is not authenticated, you will either get a 403 or 404 error depending
-        # on whether or not the page being edited exists or not.   If it doesn't exist, 
-        # MoinMoin sends back a 404 which is misleading.   We raise MoinMustAuthenticateError
-        # to signal the error wrapper to issue a 401 back to the client
-        if e.code == 403 or e.code == 404:
-            raise MoinMustAuthenticateError(url=request.get_full_url(),target=wiki_id)
-        else:
-            raise UnexpectedResponseError(url=request.get_full_url(),code=e.code,error=str(e))
-        
-    form = doc.html.body.xml_select(u'.//*[@id="editor"]')[0]
-    form_vars = {}
-    #form / fieldset / input
-    form_vars["action"] = unicode(form.xml_select(u'string(*/*[@name="action"]/@value)'))
-    form_vars["rev"] = unicode(form.xml_select(u'string(*/*[@name="rev"]/@value)'))
-    form_vars["ticket"] = unicode(form.xml_select(u'string(*/*[@name="ticket"]/@value)'))
-    form_vars["editor"] = unicode(form.xml_select(u'string(*/*[@name="editor"]/@value)'))
-    #pprint.pprint(form_vars)
-    return form_vars
-
-
-def fill_attachment_form(page, attachment, wiki_id, base, opener):
-    url = absolutize(page, base)
-    request = urllib2.Request(url + '?action=AttachFile')
-    try:
-        with closing(opener.open(request)) as resp:
-            doc = htmlparse(resp)
-
-    except urllib2.URLError,e:
-        # Comment concerning the behavior of MoinMoin.  If an attempt is made to post to a page 
-        # and the user is not authenticated, you will either get a 403 or 404 error depending
-        # on whether or not the page being edited exists or not.   If it doesn't exist, 
-        # MoinMoin sends back a 404 which is misleading.   We raise MoinMustAuthenticateError
-        # to signal the error wrapper to issue a 401 back to the client
-        if e.code == 403 or e.code == 404:
-            raise MoinMustAuthenticateError(url=request.get_full_url(),target=wiki_id)
-        else:
-            raise UnexpectedResponse(url=request.get_full_url(),code=e.code,error=str(e))
-
-    form = doc.html.body.xml_select(u'.//*[@id="content"]/form')[0]
-    form_vars = {}
-    #form / dl / ... dd
-    form_vars["rename"] = unicode(attachment)
-    #FIXME: parameterize
-    form_vars["overwrite"] = u'1'
-    form_vars["action"] = unicode(form.xml_select(u'string(*/*[@name="action"]/@value)'))
-    form_vars["do"] = unicode(form.xml_select(u'string(*/*[@name="do"]/@value)'))
-    form_vars["submit"] = unicode(form.xml_select(u'string(*/*[@type="submit"]/@value)'))
-    #pprint.pprint(form_vars)
-    return form_vars
-
-@method_dispatcher(SERVICE_ID, DEFAULT_MOUNT)
-def dispatcher():
-    __doc__ = SAMPLE_QUERIES_DOC
-    return
-
-
-#def akara_xslt(body, ctype, **params):
+# HEAD handler.   Just do a GET and discard the payload.
 @dispatcher.method("HEAD")
-@errorwrapped
 def head_page(environ, start_response):
-    rbody = _get_page(environ, start_response)
+    moin_error_handler(_get_page,environ, start_response)
     return ''
 
-
-@dispatcher.method("GET")
-@errorwrapped
-def get_page(environ, start_response):
-    return _get_page(environ, start_response)
-
-
-@dispatcher.method("PUT")
-@errorwrapped
-def put_page(environ, start_response):
+# PUT handler
+def _put_page(environ, start_response):
     '''
     '''
     wiki_id, base, opener = target(environ)
@@ -564,10 +593,12 @@ def put_page(environ, start_response):
     start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url)])
     return [msg]
 
+@dispatcher.method("PUT")
+def put_page(environ, start_response):
+    return moin_error_handler(_put_page, environ, start_response)
 
-@dispatcher.method("POST")
-@errorwrapped
-def post_page(environ, start_response):
+# POST handler
+def _post_page(environ, start_response):
     '''
     Attachments use URI path params
     (for a bit of discussion see http://groups.google.com/group/comp.lang.python/browse_thread/thread/4662d41aca276d99)
@@ -610,29 +641,7 @@ def post_page(environ, start_response):
     start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url)])
     return msg
 
-CHUNKLEN = 4096
-def read_http_body_to_temp(environ, start_response):
-    '''
-    Handle the reading of a file from an HTTP message body (file pointer from wsgi.input)
-    in chunks to a temporary file
-    Returns the file path of the resulting temp file
-    '''
-    clen = int(environ.get('CONTENT_LENGTH', None))
-    if not clen:
-        raise ContentLengthRequiredError()
-    http_body = environ['wsgi.input']
-    temp = tempfile.mkstemp(suffix=".dat")
-    while clen != 0:
-        chunk_len = min(CHUNKLEN, clen)
-        data = http_body.read(chunk_len)
-        if data:
-            #assert chunk_len == os.write(temp[0], data)
-            written = os.write(temp[0], data)
-            #print >> sys.stderr, "Bytes written to file in this chunk", written
-            clen -= len(data)
-        else:
-            clen = 0
-    os.fsync(temp[0]) #is this needed with the close below?
-    os.close(temp[0])
-    return temp[1]
+@dispatcher.method("POST")
+def post_page(environ, start_response):
+    return moin_error_handler(_post_page, environ, start_response)
 
