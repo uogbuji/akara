@@ -157,7 +157,7 @@ ERROR_DOCUMENT_TEMPLATE = """<?xml version="1.0" encoding="ISO-8859-1"?>
 
 def _send_error(start_response, code, exc_info=None):
     reason, message = WSGIRequestHandler.responses[code]
-    start_response("%d %s" % (code, reason), [("Content-Type", "application/xml")],
+    start_response("%d %s" % (code, reason), [("Content-Type", "text/html")],
                    exc_info=exc_info)
     return ERROR_DOCUMENT_TEMPLATE % dict(code = code,
                                           reason = reason,

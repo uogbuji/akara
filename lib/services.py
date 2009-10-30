@@ -52,7 +52,7 @@ class _HTTPError(Exception):
         self.text = ERROR_DOCUMENT_TEMPLATE % dict(code=self.code,
                                                    reason=xml_escape(self.reason),
                                                    message=xml_escape(self.message))
-        self.headers = [("Content-Type", "application/xml")]
+        self.headers = [("Content-Type", "text/html")]
     def make_wsgi_response(self, environ, start_response):
         start_response("%s %s" % (self.code, self.reason), self.headers)
         return [self.text]

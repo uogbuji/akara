@@ -67,6 +67,7 @@ def test_404_error_message():
         raise AssertionError("that URL should not be present")
     except urllib2.HTTPError, err:
         assert err.code == 404
+        assert err.headers["Content-Type"] == "text/html", err.headers["Content-Type"]
         tree = amara.parse(err.fp)
 
 def test_405_error_message():
@@ -76,4 +77,5 @@ def test_405_error_message():
         raise AssertionError("/ is not supposed to allow a POST")
     except urllib2.HTTPError, err:
         assert err.code == 405, err.code
+        assert err.headers["Content-Type"] == "text/html", err.headers["Content-Type"]
         tree = amara.parse(err.fp)
