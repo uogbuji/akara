@@ -1,6 +1,9 @@
 from server_support import server
+import urllib2
 from urllib2 import urlopen
 from collections import defaultdict
+
+import amara
 
 # check that the servers restart after 10 calls
 # (MaxRequestsPerServer = 5 * MaxServers = 5 means no more than 25 calls)
@@ -56,3 +59,21 @@ def test_index_search_no_hits():
     xml = urlopen(url).read()
     assert xml == ('<?xml version="1.0" encoding="utf-8"?>\n'
                    '<services/>'), repr(xml)
+
+def test_404_error_message():
+    url = server() + "this_does_not_exist/I_mean_it/Anybody_want_a_peanut?"
+    try:
+        urlopen(url)
+        raise AssertionError("that URL should not be present")
+    except urllib2.HTTPError, err:
+        assert err.code == 404
+        tree = amara.parse(err.fp)
+
+def test_405_error_message():
+    url = server()
+    try:
+        urlopen(url, "blah, blah")
+        raise AssertionError("/ is not supposed to allow a POST")
+    except urllib2.HTTPError, err:
+        assert err.code == 405, err.code
+        tree = amara.parse(err.fp)
