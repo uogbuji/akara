@@ -10,6 +10,7 @@ import warnings
 import functools
 import cgi
 import inspect
+from cStringIO import StringIO
 from xml.sax.saxutils import escape as xml_escape
 
 from BaseHTTPServer import BaseHTTPRequestHandler
@@ -182,6 +183,44 @@ def _no_slashes(path):
         # Really these are more like mount points
         raise ValueError("service paths may not contain a '/'")
 
+def ignore_start_response(status, response_headers, exc_info=None):
+    pass
+
+def _handle_notify(environ, f, service_list):
+    for service_id in service_list:
+        service = registry.get_a_service_by_id(service_id)
+        service_environ = environ.copy()
+        service_environ["PATH_INFO"] = service.path
+        f.seek(0)
+        new_request(service_environ)
+        try:
+            service.handler(service_environ, ignore_start_response)
+        except Exception:
+            raise
+            # XXX
+            pass
+
+FROM_ENVIRON = object()
+def _handle_notify_before(environ, body, service_list):
+    if not service_list:
+        return
+    if body is FROM_ENVIRON:
+        body = environ["wsgi.input"].read()
+    f = StringIO(body)
+    environ["wsgi.input"] = f
+    _handle_notify(environ, f, service_list)
+    f.seek(0)
+
+def _handle_notify_after(environ, result, service_list):
+    if not service_list:
+        return result
+    f = StringIO()
+    for block in result:
+        f.write(block)
+    _handle_notify(environ, f, service_list)
+    f.seek(0)
+    return f
+
 ###### public decorators
 
 ## Guide to help in understanding
@@ -190,12 +229,17 @@ def _no_slashes(path):
 # @service(*args)  
 # def func(): pass  -> returns a wrapper() which calls func
 
+
 def service(service_id, path=None,
-            encoding="utf-8", writer="xml"):
+            encoding="utf-8", writer="xml",
+            pipelines = None,
+            notify_before = None,
+            notify_after = None):
     _no_slashes(path)
     def service_wrapper(func):
         @functools.wraps(func)
         def wrapper(environ, start_response):
+            _handle_notify_before(environ, FROM_ENVIRON, notify_before)
             # 'service' passes the WSGI request straight through
             # to the handler so there's almost no point in
             # setting up the environment. However, I can conceive
@@ -209,6 +253,7 @@ def service(service_id, path=None,
 
             # You need to make sure you sent the correct content-type!
             result, ctype, length = convert_body(result, None, encoding, writer)
+            result = _handle_notify_after(environ, result, notify_after)
             return result
 
         pth = path
@@ -227,7 +272,8 @@ def service(service_id, path=None,
 
 def simple_service(method, service_id, path=None,
                    content_type=None, encoding="utf-8", writer="xml",
-                   allow_repeated_args=False):
+                   allow_repeated_args=False,
+                   notify_before=None, notify_after=None):
     _no_slashes(path)
     """Add the function as an Akara resource
 
@@ -291,6 +337,12 @@ def simple_service(method, service_id, path=None,
                 args, kwargs = _get_function_args(environ, allow_repeated_args)
             except _HTTPError, err:
                 return err.make_wsgi_response(environ, start_response)
+            if args:
+                body = args[0]
+            else:
+                body = ""
+            _handle_notify_before(environ, body, notify_before)
+
             new_request(environ)
             try:
                 result = func(*args, **kwargs)
@@ -300,6 +352,7 @@ def simple_service(method, service_id, path=None,
 
             result, ctype, clength = convert_body(result, content_type, encoding, writer)
             send_headers(start_response, ctype, clength)
+            _handle_notify_after(environ, result, notify_after)
             clear_request()
             return result
 

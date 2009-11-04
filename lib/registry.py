@@ -78,3 +78,9 @@ def get_service(mount_point):
 
 def list_services(ident=None):
     return _current_registry.list_services(ident)
+
+def get_a_service_by_id(ident):
+    for path, service in _current_registry._registered_services.items():
+        if service.ident == ident:
+            return service
+    return None
