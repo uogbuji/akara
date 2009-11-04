@@ -217,6 +217,9 @@ def _handle_notify_after(environ, result, service_list):
     f = StringIO()
     for block in result:
         f.write(block)
+    # XXX ALso need to set the CONTENT_TYPE (and others?)
+    environ["CONTENT_LENGTH"] = f.tell()
+    environ["wsgi.input"] = f
     _handle_notify(environ, f, service_list)
     f.seek(0)
     return f
@@ -352,7 +355,7 @@ def simple_service(method, service_id, path=None,
 
             result, ctype, clength = convert_body(result, content_type, encoding, writer)
             send_headers(start_response, ctype, clength)
-            _handle_notify_after(environ, result, notify_after)
+            result = _handle_notify_after(environ, result, notify_after)
             clear_request()
             return result
 
