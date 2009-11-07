@@ -23,11 +23,41 @@ You'll need a config entry such as:
 [moinrest]
 target-xml3k=http://wiki.xml3k.org
 
-= Notes on security =
+= Notes on security and authentication =
 
-Forwards HTTP auth for requests to Moin user auth
+There are two separate aspects to authentication that moinrest
+has to consider and which may need to be configured.  First,
+if the HTTP server that is running the target wiki is configured
+with site-wide basic authentication, you will need to include
+an appropriate username and password in the target configuration
+above.  For example:
 
+[moinrest]
+target-xml3k=http://user:password@wiki.xml3k.org
+
+where "user" and "password" are filled in with the appropriate
+username and password.  If you're not sure if you need this,
+try connecting to the wiki using a browser.  If the browser
+immediately displays a pop-up window asking you for a username 
+and password, you'll need to supply that information in the
+moinrest configuration as shown.   If no pop-up window
+appears, the HTTP is not using authentication.
+
+The second form of authentication concerns access to the
+MoinMoin wiki itself. In order to modify pages, users may
+be required to log in to the wiki first using the wiki's
+"login" link.    These credentials are passed to moinrest
+using HTTP Basic Authentication.  For example, using curl
+you would type something like this:
+
+    curl -u me:passwd -p --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: text/plain" "http://localhost:8880/moin/xml3k/FooTest"
+
+Keep in mind that username and password credentials given 
+to moinrest requests are only for the target wiki.  They are
+not the same as basic authentication for the HTTP server
+hosting the wiki.
 """
+
 #Detailed license and copyright information: http://4suite.org/COPYRIGHT
 
 from __future__ import with_statement
@@ -93,9 +123,11 @@ DEFAULT_OPENER = urllib2.build_opener(
 
 #Re: HTTP basic auth: http://www.voidspace.org.uk/python/articles/urllib2.shtml#id6
 for k, v in TARGET_WIKIS.items():
+#    print >>sys.stderr,"k = %s, v = %s\n" % (k,v)
     (scheme, authority, path, query, fragment) = split_uri_ref(v)
     auth, host, port = split_authority(authority)
-    #print >> sys.stderr, (scheme, authority, path, query, fragment)
+#    print >> sys.stderr, (scheme, authority, path, query, fragment),"\n"
+#    print >> sys.stderr, (auth, host, port), "\n"
     authority = host + ':' + port if port else host
     schemeless_url = authority + path
     #print >> sys.stderr, schemeless_url
@@ -106,10 +138,9 @@ for k, v in TARGET_WIKIS.items():
         auth = auth.split(':')
         password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
         # Not setting the realm for now, so use None
-        password_mgr.add_password(None, schemeless_url, auth[0], auth[1])
-        password_handler = urllib2.HTTPDigestAuthHandler(password_mgr)
-        #password_handler = urllib2.HTTPBasicAuthHandler(password_mgr)
-
+#        password_mgr.add_password(None, schemeless_url, auth[0], auth[1])    # DB: I couldn't get this to work without the scheme
+        password_mgr.add_password(None, scheme+"://"+host+path, auth[0], auth[1])
+        password_handler = urllib2.HTTPBasicAuthHandler(password_mgr)
         TARGET_WIKI_OPENERS[k] = urllib2.build_opener(
             password_handler,
             urllib2.HTTPCookieProcessor(cookielib.CookieJar()),
@@ -145,28 +176,24 @@ def check_auth(environ, start_response, base, opener):
     '''
     Warning: mutates environ in place
     '''
-    #print >> sys.stderr, 'HTTP_AUTHORIZATION: ', environ.get('HTTP_AUTHORIZATION')
     auth = environ.get('HTTP_AUTHORIZATION')
-    if not auth: return
+    if not auth: 
+        return False
+
     scheme, data = auth.split(None, 1)
     if scheme.lower() != 'basic':
         raise RuntimeError('Unsupported HTTP auth scheme: %s'%scheme)
     username, password = data.decode('base64').split(':', 1)
-    #print >> sys.stderr, 'Auth creds: ', username, password
-    #user = self.user if user is None else user
-    #password = self.password if password is None else password
     url = absolutize('?action=login&name=%s&password=%s&login=login'%(username, password), base)
     request = urllib2.Request(url)
     try:
         with closing(opener.open(request)) as resp:
             #Don't need to do anything with the response.  The cookies will be captured automatically
             pass
-    except urllib2.URLError:
-        print >> sys.stderr, 'Error accessing: ', url
+    except urllib2.URLError,e:
+        print >> sys.stderr, 'Error accessing:', (url,e.code)
         raise
-        rbody = four_oh_four.substitute(fronturl=request_uri(environ), backurl=url)
-        start_response(status_response(httplib.NOT_FOUND), [("Content-Type", "text/html")])
-        return rbody
+
     environ['REMOTE_USER'] = username
     #print "="*60
     #doc = htmlparse(response)
@@ -175,7 +202,7 @@ def check_auth(environ, start_response, base, opener):
     #self.cookiejar.extract_cookies(response, request)
     #for c in self.cookiejar:
     #    print c
-    return
+    return True
 
 
 def _get_page(environ, start_response):
@@ -324,20 +351,41 @@ def get_page(environ, start_response):
     return _get_page(environ, start_response)
 
 
-#def check_auth(self, user=None, password=None):
 @dispatcher.method("PUT")
 def put_page(environ, start_response):
     '''
     '''
     wiki_id, base, opener = target(environ)
     page = environ['PATH_INFO'].lstrip('/')
-    check_auth(environ, start_response, base, opener)
+# Added: DB
+    if not check_auth(environ, start_response, base, opener):
+        pass
+        # Send back a 401 challenge to the client
+#        start_response(status_response(httplib.UNAUTHORIZED), [("Content-type","text/html"),("WWW-Authenticate",'Basic realm="%s"'%wiki_id)])
+#        return ["Unauthorized access. Please authenticate"]
+# --
+
     ctype = environ.get('CONTENT_TYPE', 'application/unknown')
     temp_fpath = read_http_body_to_temp(environ, start_response)
     if not temp_fpath:
         return 'Content length Required'
 
-    form_vars = fill_page_edit_form(page, wiki_id, base, opener)
+    try:
+        form_vars = fill_page_edit_form(page, wiki_id, base, opener)
+
+    except urllib2.URLError,e:
+        # Comment concerning the behavior of MoinMoin.  If an attempt is made to edit a page 
+        # and the user is not authenticated, you will either get a 403 or 404 error depending
+        # on whether or not the page being edited exists or not.   If it doesn't exist, 
+        # MoinMoin sends back a 404 which is misleading.
+        if e.code == 403 or e.code == 404:
+            #send back 401
+            start_response(status_response(httplib.UNAUTHORIZED), [("Content-Type", "text/html"), ("WWW-Authenticate", 'Basic realm="%s"'%wiki_id)])
+            return ['Unauthorized access.  Please authenticate.']
+        else:
+            print >> sys.stderr, 'Error accessing: ', (page, e.code)
+            raise
+
     form_vars["savetext"] = open(temp_fpath, "r").read()
 
     url = absolutize(page, base)
@@ -347,18 +395,13 @@ def put_page(environ, start_response):
         with closing(opener.open(request)) as resp:
             doc = htmlparse(resp)
     except urllib2.URLError:
-        print >> sys.stderr, 'Error accessing: ', url
+        print >> sys.stderr, 'Error accessing: ', (url, e.code)
         raise
-        rbody = four_oh_four.substitute(fronturl=request_uri(environ), backurl=url)
-        start_response(status_response(httplib.NOT_FOUND), [("Content-Type", "text/html")])
-        return rbody
-    #print "="*60
-    #amara.xml_print(doc)
 
     msg = 'Page updated OK: ' + url
     #response.add_header("Content-Length", str(len(msg)))
     start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url)])
-    return msg
+    return [msg]
 
 
 @dispatcher.method("POST")
