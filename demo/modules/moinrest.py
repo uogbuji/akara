@@ -93,19 +93,16 @@ from wsgiref.util import shift_path_info, request_uri
 import amara
 from amara import bindery
 from amara.lib.iri import absolutize
-from amara.writers.struct import *
+from amara.writers.struct import structwriter, E, NS, ROOT, RAW
 from amara.bindery.html import parse as htmlparse
-from amara.bindery.model import *
-from amara.lib.iri import * #split_fragment, relativize, absolutize
+#from amara.lib.iri import * #split_fragment, relativize, absolutize
+from amara.lib.iri import split_uri_ref, unsplit_uri_ref, split_authority, absolutize
 #from amara import inputsource
 
 # Akara Imports
 from akara.util import multipart_post_handler, wsgibase, http_method_handler
 from akara.services import method_dispatcher
-
 import akara.util.moin as moin
-
-from akara.util.moin import *
 from akara import response
 
 # ======================================================================
@@ -485,26 +482,26 @@ def _get_page(environ, start_response):
         #?action=fullsearch&context=180&value=foo&=Text
         url = absolutize('?'+query, base)
         request = urllib2.Request(url)
-        ctype = RDF_IMT
-    elif DOCBOOK_IMT in environ['HTTP_ACCEPT']:
+        ctype = moin.RDF_IMT
+    elif moin.DOCBOOK_IMT in environ['HTTP_ACCEPT']:
         url = absolutize(page, base)
         request = urllib2.Request(url + "?mimetype=text/docbook")
-        ctype = DOCBOOK_IMT
-    elif HTML_IMT in environ['HTTP_ACCEPT']:
+        ctype = moin.DOCBOOK_IMT
+    elif moin.HTML_IMT in environ['HTTP_ACCEPT']:
         url = absolutize(page, base)
         request = urllib2.Request(url)
-        ctype = HTML_IMT
-    elif RDF_IMT in environ['HTTP_ACCEPT']:
+        ctype = moin.HTML_IMT
+    elif moin.RDF_IMT in environ['HTTP_ACCEPT']:
         #FIXME: Make unique flag optional
         #url = base + '/RecentChanges?action=rss_rc&unique=1&ddiffs=1'
         url = absolutize('RecentChanges?action=rss_rc&unique=1&ddiffs=1', base)
         #print >> sys.stderr, (url, base, '/RecentChanges?action=rss_rc&unique=1&ddiffs=1', )
         request = urllib2.Request(url)
-        ctype = RDF_IMT
-    elif ATTACHMENTS_IMT in environ['HTTP_ACCEPT']:
+        ctype = moin.RDF_IMT
+    elif moin.ATTACHMENTS_IMT in environ['HTTP_ACCEPT']:
         url = absolutize(page + '?action=AttachFile', base)
         request = urllib2.Request(url)
-        ctype = ATTACHMENTS_IMT
+        ctype = moin.ATTACHMENTS_IMT
         def upstream_handler():
             #Sigh.  Sometimes you have to break some Tag soup eggs to make a RESTful omlette
             with closing(opener.open(request)) as resp:
@@ -535,7 +532,7 @@ def _get_page(environ, start_response):
     else:
         url = absolutize(page, base)
         request = urllib2.Request(url + "?action=raw")
-        ctype = WIKITEXT_IMT
+        ctype = moin.WIKITEXT_IMT
     try:
         if upstream_handler:
             rbody, ctype = upstream_handler()
@@ -543,8 +540,8 @@ def _get_page(environ, start_response):
             with closing(opener.open(request)) as resp:
                 rbody = resp.read()
         
-        #headers = {ORIG_BASE_HEADER: base}
-        start_response(status_response(status), [("Content-Type", ctype), (ORIG_BASE_HEADER, absolutize(wiki_id, base))])
+        #headers = {moin.ORIG_BASE_HEADER: base}
+        start_response(status_response(status), [("Content-Type", ctype), (moin.ORIG_BASE_HEADER, absolutize(wiki_id, base))])
         return rbody
     except urllib2.URLError, e:
         if e.code == 401:
