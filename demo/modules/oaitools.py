@@ -17,7 +17,8 @@ import amara
 from amara import bindery
 from amara import tree
 from amara.writers.struct import *
-from amara.bindery.model import *
+from amara.bindery.model import examplotron_model, generate_metadata
+from amara.lib import U
 
 from amara.tools.atomtools import feed
 
