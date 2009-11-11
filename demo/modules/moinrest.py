@@ -95,13 +95,15 @@ from amara import bindery
 from amara.lib.iri import absolutize
 from amara.writers.struct import structwriter, E, NS, ROOT, RAW
 from amara.bindery.html import parse as htmlparse
-#from amara.lib.iri import * #split_fragment, relativize, absolutize
+from amara.bindery.model import examplotron_model, generate_metadata
+from amara.lib.iri import split_fragment, relativize, absolutize, split_uri_ref, split_authority, unsplit_uri_ref
 from amara.lib.iri import split_uri_ref, unsplit_uri_ref, split_authority, absolutize
 #from amara import inputsource
 
 # Akara Imports
 from akara.util import multipart_post_handler, wsgibase, http_method_handler
 from akara.services import method_dispatcher
+from akara.util import status_response
 import akara.util.moin as moin
 from akara import response
 
@@ -368,6 +370,7 @@ def check_auth(environ, start_response, base, opener):
     environ['REMOTE_USER'] = username
     return True
 
+
 def fill_page_edit_form(page, wiki_id, base, opener):
     url = absolutize(page, base)
     request = urllib2.Request(url+"?action=edit&editor=text")
@@ -587,7 +590,7 @@ def _put_page(environ, start_response):
 
     msg = 'Page updated OK: ' + url
     #response.add_header("Content-Length", str(len(msg)))
-    start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url)])
+    start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url), (moin.ORIG_BASE_HEADER, base)])
     return [msg]
 
 @dispatcher.method("PUT")
@@ -635,7 +638,7 @@ def _post_page(environ, start_response):
     msg = 'Attachment updated OK: %s\n'%(url)
 
     #response.add_header("Content-Length", str(len(msg)))
-    start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url)])
+    start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url), (moin.ORIG_BASE_HEADER, base)])
     return msg
 
 @dispatcher.method("POST")
