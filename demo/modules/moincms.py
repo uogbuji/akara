@@ -15,10 +15,6 @@ Project home, documentation, distributions: http://wiki.xml3k.org/Akara
 """
 
 from __future__ import with_statement
-
-#
-#Detailed license and copyright information: http://4suite.org/COPYRIGHT
-from __future__ import with_statement
 import os
 import sys
 import re
@@ -40,16 +36,16 @@ import pytz
 import amara
 from amara import bindery, _
 from amara.namespaces import *
-from amara.bindery.model import *
+from amara.bindery.model import examplotron_model, generate_metadata
 from amara.writers.struct import *
 from amara.bindery.html import parse as htmlparse
-from amara.lib.iri import * #split_fragment, relativize, absolutize
+from amara.lib import U
+from amara.lib.iri import split_fragment, relativize, absolutize
 from amara.bindery.util import dispatcher, node_handler, property_sequence_getter
 
-from akara.util import *
-from akara.util.moin import *
-from akara.moincms import *
-from akara.services import *
+from akara.util import copy_auth
+from akara.util.moin import node, ORIG_BASE_HEADER, DOCBOOK_IMT, RDF_IMT, HTML_IMT
+from akara.services import simple_service
 
 
 #DEFAULT_TZ = pytz.timezone('UTC')
@@ -91,8 +87,6 @@ class atom_entry(node):
 
         if force_update:
             self.load()
-
-
 
         pagedate = dateparse(unicode(doc.article.articleinfo.revhistory.revision.date))
         #Note from the Moin FAQ: http://moinmo.in/MoinMoinQuestions/UsingTheWiki
@@ -162,7 +156,7 @@ class atom_entry(node):
             E((XHTML_NAMESPACE, u'html'), {(XML_NAMESPACE, u'xml:lang'): u'en'},
                 E(u'head',
                     E(u'title', title),
-                    E(u'meta', {u'content': unicode(first_item(metadata[u'ak-updated'])), u'name': u'updated'}),
+                    E(u'meta', {u'content': U(metadata[u'ak-updated']), u'name': u'updated'}),
                     #E(u'link', {u'href': unicode(uri), u'rel': u'alternate', u'title': u"Permalink"}),
                 ),
                 E(u'body',

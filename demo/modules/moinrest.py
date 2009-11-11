@@ -96,17 +96,18 @@ from wsgiref.util import shift_path_info, request_uri
 import amara
 from amara import bindery
 from amara.lib.iri import absolutize
-from amara.writers.struct import *
 from amara.bindery.html import parse as htmlparse
-from amara.bindery.model import *
-from amara.lib.iri import * #split_fragment, relativize, absolutize
+from amara.bindery.model import examplotron_model, generate_metadata
+from amara.lib.iri import split_fragment, relativize, absolutize, split_uri_ref, split_authority, unsplit_uri_ref
 #from amara import inputsource
 
 from akara.util import multipart_post_handler, wsgibase, http_method_handler
 
 from akara.services import method_dispatcher
-from akara.util.moin import *
+from akara.util import status_response
 from akara import response
+from akara.util.moin import ORIG_BASE_HEADER, WIKITEXT_IMT, DOCBOOK_IMT, RDF_IMT, HTML_IMT, ATTACHMENTS_IMT
+from akara.util.moin import ATTACHMENTS_MODEL_XML, ATTACHMENTS_MODEL, MOIN_DOCBOOK_MODEL_XML, MOIN_DOCBOOK_MODEL
 
 # 
 # ======================================================================
@@ -447,7 +448,7 @@ def _get_page(environ, start_response):
                 rbody = resp.read()
         
         #headers = {ORIG_BASE_HEADER: base}
-        start_response(status_response(status), [("Content-Type", ctype), (ORIG_BASE_HEADER, absolutize(wiki_id, base))])
+        start_response(status_response(status), [("Content-Type", ctype), (ORIG_BASE_HEADER, base)])
         return rbody
     except urllib2.URLError, e:
         if e.code == 403:
@@ -561,7 +562,7 @@ def put_page(environ, start_response):
 
     msg = 'Page updated OK: ' + url
     #response.add_header("Content-Length", str(len(msg)))
-    start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url)])
+    start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url), (ORIG_BASE_HEADER, base)])
     return [msg]
 
 
@@ -607,7 +608,7 @@ def post_page(environ, start_response):
     msg = 'Attachment updated OK: %s\n'%(url)
 
     #response.add_header("Content-Length", str(len(msg)))
-    start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url)])
+    start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url), (ORIG_BASE_HEADER, base)])
     return msg
 
 CHUNKLEN = 4096
