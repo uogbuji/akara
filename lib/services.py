@@ -152,7 +152,7 @@ def convert_body(body, content_type, encoding, writer):
                 content_type = "application/xml"
         w = writers.lookup(writer)
         body = body.xml_encode(w, encoding)
-        return body, content_type, len(body)
+        return [body], content_type, len(body)
 
     if isinstance(body, unicode):
         body = body.encode(encoding)
@@ -191,7 +191,7 @@ def _no_slashes(path):
 # def func(): pass  -> returns a wrapper() which calls func
 
 def service(service_id, path=None,
-            encoding="utf-8", writer="xml"):
+            encoding="utf-8", writer="xml", wsgi_wrapper=None):
     _no_slashes(path)
     def service_wrapper(func):
         @functools.wraps(func)
@@ -214,6 +214,11 @@ def service(service_id, path=None,
         pth = path
         if pth is None:
             pth = func.__name__
+
+        # If an outer WSGI wrapper was specified, place it around the service wrapper being created
+        if wsgi_wrapper:
+            wrapper = wsgi_wrapper(wrapper)
+
         registry.register_service(service_id, pth, wrapper)
         return wrapper
     return service_wrapper
@@ -227,8 +232,7 @@ def service(service_id, path=None,
 
 def simple_service(method, service_id, path=None,
                    content_type=None, encoding="utf-8", writer="xml",
-                   allow_repeated_args=False):
-    _no_slashes(path)
+                   allow_repeated_args=False, wsgi_wrapper=None):
     """Add the function as an Akara resource
 
     These affect how the resource is registered in Akara
@@ -273,7 +277,46 @@ def simple_service(method, service_id, path=None,
       http://localhost:8880/date
       http://localhost:8880/date?format=%25m-%25d-%25Y
 
+    Integration with other WSGI components:
+
+    The @simple_service decorator creates and returns a low-level handler 
+    function that conforms to the WSGI calling conventions. However,
+    it is not safe to directly use the resulting handler with arbitrary
+    third-party WSGI components (e.g., to wrap the Akara handler with
+    an WSGI middleware component).   This is because Akara handlers return
+    values other than sequences of byte-strings.  For example, they might
+    return XML trees, Unicode, or other data types that would not be 
+    correctly interpreted by other WSGI components.
+
+    To integrate other WSGI components with Akara, use the wsgi_wrapper
+    argument to @simple_service.  For example:
+
+    def wrapper(app):
+        # Create an WSGI wrapper around WSGI application app
+        ...
+        return wrapped_app
+
+    @simple_service("GET", "http://example.com/get_date", wsgi_wrapper=wrapper)
+    def date(format):
+        ...
+    When specified, Akara will do the following:
+
+         - Arrange to have the wsgi_wrapper placed at the outermost layer 
+           of Akara's processing.   That is, control will pass into 
+           the WSGI wrapper before any Akara-specific processing related
+           to the @simple_service handler takes place.
+
+         - Ensure that all output returned back to the WSGI wrapper
+           strictly conforms to the WSGI standard (is a sequence of bytes)
+
+    The wrapper function given with wsgi_wrapper should accept a function
+    as input and return an WSGI application as output.  This application
+    should be a callable that accepts (environ, start_response).
+
+    See implementation notes in the code below.
+
 """
+    _no_slashes(path)
     _check_is_valid_method(method)
     if method not in ("GET", "POST"):
         raise ValueError(
@@ -306,6 +349,11 @@ def simple_service(method, service_id, path=None,
         pth = path
         if pth is None:
             pth = func.__name__
+
+        # If an wsgi_wrapper was given, wrapper the service wrapper with it
+        if wsgi_wrapper:
+           wrapper = wsgi_wrapper(wrapper)
+
         registry.register_service(service_id, pth, wrapper) 
         return wrapper
     return service_wrapper
@@ -332,9 +380,12 @@ class service_method_dispatcher(object):
 
     This is an internal class. You should not need to use it.
     """
-    def __init__(self, path):
+    def __init__(self, path, wsgi_wrapper=None):
         self.path = path
-        self.method_table = {}
+        self.method_table = {
+            'HEAD' : self.head_method
+            }
+        self.wsgi_wrapper = wsgi_wrapper
     def add_handler(self, method, handler):
         if method in self.method_table:
             logger.warn("Replacing %r method handler for %r"  %
@@ -342,12 +393,24 @@ class service_method_dispatcher(object):
         else:
             logger.info("Created %r method handler for %r" %
                         (method, self.path))
+        # If an outer WSGI wrapper was specified, wrap it around the handler method
+        if self.wsgi_wrapper:
+            handler = self.wsgi_wrapper(handler)
+
         self.method_table[method] = handler
     def __call__(self, environ, start_response):
         method = environ.get("REQUEST_METHOD")
         handler = self.method_table.get(method, None)
         if handler is not None:
             return handler(environ, start_response)
+        err = _HTTP405(sorted(self.method_table.keys()))
+        return err.make_wsgi_response(environ, start_response)
+    
+    def head_method(self, environ, start_response):
+        handler = self.method_table.get("GET",None)
+        if handler is not None:
+            handler(environ, start_response)
+            return ['']
         err = _HTTP405(sorted(self.method_table.keys()))
         return err.make_wsgi_response(environ, start_response)
 
@@ -367,7 +430,7 @@ class service_method_dispatcher(object):
 # def method_func(): pass --> returns a method_wrapper which calls method_func
 
 # This is the top-level decorator
-def method_dispatcher(service_id, path=None):
+def method_dispatcher(service_id, path=None,wsgi_wrapper=None):
     """Add an Akara resource which dispatches to other functions based on the HTTP method
     
     Used for resources which handle, say, both GET and POST requests.
@@ -375,6 +438,7 @@ def method_dispatcher(service_id, path=None):
       service_id - a string which identifies this service; should be a URL
       path - the local URL path to the resource (must not at present
            contain a '/') If None, use the function's name as the path.
+      wsgi_wrapper - An outer WSGI component to be wrapped around the methods
 
     Example of use:
 
@@ -406,7 +470,7 @@ def method_dispatcher(service_id, path=None):
         pth = path
         if pth is None:
             pth = func.__name__
-        dispatcher = service_method_dispatcher(pth)
+        dispatcher = service_method_dispatcher(pth,wsgi_wrapper)
         registry.register_service(service_id, pth, dispatcher, doc)
         return service_dispatcher_decorator(dispatcher)
     return method_dispatcher_wrapper
