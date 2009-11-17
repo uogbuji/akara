@@ -550,7 +550,7 @@ class service_dispatcher_decorator(object):
     # ...
 
 # Install some built-in services
-@simple_service("GET", "http://purl.org/xml3k/akara/services/builtin/registry", "",
+@simple_service("GET", "http://purl.org/xml3k/akara/services/registry", "",
                 allow_repeated_args=False)
 def list_services(service=None):
     return registry.list_services(ident=service) # XXX 'ident' or 'service' ?

@@ -4,6 +4,9 @@ from urllib import quote
 from functools import wraps
 from amara.lib.iri import *
 
+def status_response(code):
+    return '%i %s'%(code, httplib.responses[code])
+
 class iterwrapper:
     """
     Wraps the response body iterator from the application to meet WSGI
