@@ -24,13 +24,13 @@ RESOURCE_DIR = os.path.join(os.path.dirname(__file__), "resource")
 def test_index():
     url = server()
     s = urlopen(url).read()
-    assert "http://purl.org/xml3k/akara/services/builtin/registry" in s
+    assert "http://purl.org/xml3k/akara/services/registry" in s
     assert "akara.atom.json" in s
 
 def test_index_search():
-    url = server() + "?service=http://purl.org/xml3k/akara/services/builtin/registry"
+    url = server() + "?service=http://purl.org/xml3k/akara/services/registry"
     s = urlopen(url).read()
-    assert "http://purl.org/xml3k/akara/services/builtin/registry" in s
+    assert "http://purl.org/xml3k/akara/services/registry" in s
     assert "akara.atom.json" not in s
     
 
