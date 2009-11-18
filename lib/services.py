@@ -152,7 +152,7 @@ def convert_body(body, content_type, encoding, writer):
                 content_type = "application/xml"
         w = writers.lookup(writer)
         body = body.xml_encode(w, encoding)
-        return body, content_type, len(body)
+        return [body], content_type, len(body)
 
     if isinstance(body, unicode):
         body = body.encode(encoding)
