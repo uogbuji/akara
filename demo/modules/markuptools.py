@@ -10,7 +10,7 @@ from amara.lib.util import trim_word_count
 
 from akara.services import simple_service
 
-SERVICE_ID = 'http://purl.org/akara/services/builtin/trim-word-count'
+SERVICE_ID = 'http://purl.org/akara/services/demo/trim-word-count'
 @simple_service('POST', SERVICE_ID, 'akara.twc', 'application/xml')
 def akara_twc(body, ctype, max=None, html='no'):
     '''

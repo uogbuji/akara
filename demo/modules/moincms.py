@@ -249,7 +249,7 @@ PATTERN_REQUIRED = _("The 'pattern' query parameter is mandatory.")
 DEFAULT_TRANSFORM = AKARA_MODULE_CONFIG.get('default_transform')
 #print DEFAULT_TRANSFORM
 
-SERVICE_ID = 'http://purl.org/akara/services/builtin/moincms.execute'
+SERVICE_ID = 'http://purl.org/akara/services/demo/moincms.execute'
 @simple_service('POST', SERVICE_ID, 'moincms.execute')
 def execute(top=None):
     '''

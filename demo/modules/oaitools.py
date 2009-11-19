@@ -89,7 +89,7 @@ ATOM_ENVELOPE = '''<?xml version="1.0" encoding="UTF-8"?>
 </feed>
 '''
 
-SERVICE_ID = 'http://purl.org/akara/services/builtin/oai.json'
+SERVICE_ID = 'http://purl.org/akara/services/demo/oai.json'
 @simple_service('GET', SERVICE_ID, 'akara.oai.atom', 'application/atom+xml')
 def atomize_oai_record(endpoint=None, id=None):
     '''

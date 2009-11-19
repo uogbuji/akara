@@ -12,7 +12,7 @@ Project home, documentation, distributions: http://wiki.xml3k.org/Akara
 
 = Defined REST entry points =
 
-http://purl.org/akara/services/builtin/collection (akara.collection) Handles HEAD, GET, POST, PUT
+http://purl.org/akara/services/demo/collection (akara.collection) Handles HEAD, GET, POST, PUT
 
 = Configuration =
 
@@ -82,7 +82,7 @@ four_oh_four = Template("""
   The requested URL <i>$fronturl</i> was not found (<i>$backurl</i> in the target wiki).
 </body></html>""")
 
-SERVICE_ID = 'http://purl.org/akara/services/builtin/collection'
+SERVICE_ID = 'http://purl.org/akara/services/demo/collection'
 DEFAULT_MOUNT = 'akara.collection'
 
 def status_response(code):

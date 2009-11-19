@@ -19,7 +19,7 @@ from amara.writers.struct import *
 NAME_REQUIRED = _("The 'name' query parameter is mandatory.")
 
 
-SERVICE_ID = 'http://purl.org/akara/services/builtin/unicode.charbyname'
+SERVICE_ID = 'http://purl.org/akara/services/demo/unicode.charbyname'
 #@simple_service('get', SERVICE_ID, 'akara.rdfa.json', 'application/json')
 @simple_service('GET', SERVICE_ID, 'akara.unicode.charbyname', 'text/plain')
 def charbyname(name=None):
@@ -40,7 +40,7 @@ def charbyname(name=None):
 Q_REQUIRED = _("The 'q' query parameter is mandatory.")
 UINFO_SEARCH_URL = u"http://www.fileformat.info/info/unicode/char/search.htm?preview=entity&"
 
-SERVICE_ID = 'http://purl.org/akara/services/builtin/unicode.search'
+SERVICE_ID = 'http://purl.org/akara/services/demo/unicode.search'
 @simple_service('GET', SERVICE_ID, 'akara.unicode.search', 'application/xml')
 def charsearch(q=None):
     '''

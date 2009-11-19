@@ -53,7 +53,7 @@ class Registry(object):
     def get_service(self, path):
         return self._registered_services[path]
 
-    def list_services(self, ident = None):
+    def list_services(self, ident=None):
         document = tree.entity()
         services = document.xml_append(tree.element(None, 'services'))
         for path, service in sorted(self._registered_services.iteritems()):

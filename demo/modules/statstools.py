@@ -54,7 +54,7 @@ except NameError:
 
 POR_REQUIRED = _("The 'POR' POST parameter is mandatory.")
 
-SERVICE_ID = 'http://purl.org/akara/services/builtin/spss.json'
+SERVICE_ID = 'http://purl.org/akara/services/demo/spss.json'
 @simple_service('POST', SERVICE_ID, 'spss.json', 'application/json')
 def spss2json(body, ctype, **params):
     '''

@@ -22,7 +22,7 @@ from akara.services import simple_service
 Q_REQUIRED = _("The 'q' query parameter is mandatory.")
 
 #text/uri-list from RFC 2483
-SERVICE_ID = 'http://purl.org/akara/services/builtin/luckygoogle'
+SERVICE_ID = 'http://purl.org/akara/services/demo/luckygoogle'
 @simple_service('GET', SERVICE_ID, 'akara.luckygoogle', 'text/uri-list')
 def lucky_google(q=None):
     '''

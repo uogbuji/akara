@@ -3,3 +3,4 @@
 \.pyc$
 ^akara.egg-info
 ^dist
+^scratch

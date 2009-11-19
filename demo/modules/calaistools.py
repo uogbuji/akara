@@ -19,7 +19,7 @@ APIKEY = AKARA.module_config.get('apikey')
 
 CALAIS_URL = 'http://service.semanticproxy.com/processurl/%s/rdf/'%APIKEY
 
-SERVICE_ID = 'http://purl.org/akara/services/builtin/calais.json'
+SERVICE_ID = 'http://purl.org/akara/services/demo/calais.json'
 @simple_service('GET', SERVICE_ID, 'akara.calais.json', 'application/json')
 def calais2json(url=None):
     '''

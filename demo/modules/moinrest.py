@@ -12,7 +12,7 @@ Project home, documentation, distributions: http://wiki.xml3k.org/Akara
 
 = Defined REST entry points =
 
-http://purl.org/akara/services/builtin/collection (moin)
+http://purl.org/akara/services/demo/collection (moin)
   - Under there top mount point is oen or more lower points depending on config,
     each of which handles HEAD, GET, POST, PUT
 
@@ -144,7 +144,7 @@ for k, v in TARGET_WIKIS.items():
     else:
         TARGET_WIKI_OPENERS[k] = DEFAULT_OPENER
 
-SERVICE_ID = 'http://purl.org/akara/services/builtin/moinrest'
+SERVICE_ID = 'http://purl.org/akara/services/demo/moinrest'
 DEFAULT_MOUNT = 'moin'
 
 # ======================================================================

@@ -13,7 +13,7 @@ Responds to POST with the same body content as sent in the request
 
 = Defined REST entry points =
 
-http://purl.org/akara/services/builtin/echo (akara.echo) Handles POST
+http://purl.org/akara/services/demo/echo (akara.echo) Handles POST
 
 = Configuration =
 
@@ -27,7 +27,7 @@ This module only sends information available in the request.  No security implic
 import amara
 from akara.services import simple_service
 
-ECHO_SERVICE_ID = 'http://purl.org/akara/services/builtin/echo'
+ECHO_SERVICE_ID = 'http://purl.org/akara/services/demo/echo'
 
 
 @simple_service('POST', ECHO_SERVICE_ID, 'akara.echo')

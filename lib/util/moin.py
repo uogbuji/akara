@@ -1,7 +1,26 @@
 # -*- coding: iso-8859-1 -*-
 # 
+# -*- coding: iso-8859-1 -*-
+# 
 """
+moincms.py (Akara demo)
+
+Accesses a Moin wiki (via akara.restwrap.moin) to use as a source for a Web feed
+
+See: http://wiki.xml3k.org/Akara/Services/MoinCMS
+
+Copyright 2009 Uche Ogbuji
+This file is part of the open source Akara project,
+provided under the Apache 2.0 license.
+See the files LICENSE and NOTICE for details.
+Project home, documentation, distributions: http://wiki.xml3k.org/Akara
+
+@copyright: 2009 by Uche ogbuji <uche@ogbuji.net>
+
+Can be launched from the command line, e.g.:
+    python akara/services/moincms.py -p "Site.*" http://restwrap.mywiki.example.com/ /path/to/output/dir http://localhost:8080/
 """
+
 #Detailed license and copyright information: http://4suite.org/COPYRIGHT
 
 from __future__ import with_statement
@@ -87,27 +106,6 @@ MOIN_DOCBOOK_MODEL_XML = '''<?xml version="1.0" encoding="UTF-8"?>
 MOIN_DOCBOOK_MODEL = examplotron_model(MOIN_DOCBOOK_MODEL_XML)
 
 
-# -*- coding: iso-8859-1 -*-
-# 
-"""
-moincms.py (Akara demo)
-
-Accesses a Moin wiki (via akara.restwrap.moin) to use as a source for a Web feed
-
-See: http://wiki.xml3k.org/Akara/Services/MoinCMS
-
-Copyright 2009 Uche Ogbuji
-This file is part of the open source Akara project,
-provided under the Apache 2.0 license.
-See the files LICENSE and NOTICE for details.
-Project home, documentation, distributions: http://wiki.xml3k.org/Akara
-
-@copyright: 2009 by Uche ogbuji <uche@ogbuji.net>
-
-Can be launched from the command line, e.g.:
-    python akara/services/moincms.py -p "Site.*" http://restwrap.mywiki.example.com/ /path/to/output/dir http://localhost:8080/
-"""
-
 #python akara/services/moincms.py -p "Site.*" http://localhost:8880/ ~/tmp/ http://localhost:8080/
 #
 #Detailed license and copyright information: http://4suite.org/COPYRIGHT
@@ -122,6 +120,8 @@ DEFAULT_LOCAL_TZ = pytz.timezone('UTC')
 AKARA_NS = u'http://purl.org/dc/org/xml3k/akara'
 CMS_BASE = AKARA_NS + u'/cms'
 
+def cleanup_text_blocks(text):
+    return '\n'.join([line.strip() for line in text.splitlines() ])
 
 class node(object):
     '''
@@ -183,18 +183,20 @@ class node(object):
         #FIXME: rethink this "caching" business
         doc, metadata, original_wiki_base = self.cache
         #logger.debug("section_titled: " + repr(title))
-        #logger.debug("section_titled: " + repr([U(t) for t in doc.article.xml_select(u'section/title')]))
-        #logger.debug("section_titled: " + U(doc.article.xml_select(u'section[title = "%s"]/para'%title)))
-        return U(doc.article.xml_select(u'section[title = "%s"]/para'%title))
+        return doc.article.xml_select(u'section[title = "%s"]/para'%title)
 
     #
-    def definition_list(self, xpath_to_top):
+    def definition_list(self, xpath_to_top, patterns=None):
         #FIXME: rethink this "caching" business
+        #Use defaultdict instead, for performance
+        patterns = patterns or {None: U}
         doc, metadata, original_wiki_base = self.cache
         top = doc.article.xml_select(xpath_to_top)
         #'date-created': header.xml_select(u'string(glossentry[glossterm = "date-created"]/glossdef)'),
-        result = dict((U(item.glossterm), U(item.glossdef)) for item in top[0].glossentry)
-        logger.debug("definition_list: " + repr(result))
+        #logger.debug("definition_list: " + repr(result))
+        result = dict((U(i.glossterm), patterns.get(U(i.glossterm), patterns[None])(i.glossdef))
+                      for i in top[0].glossentry)
+        #logger.debug("definition_list: " + repr(result))
         return result
 
     #    

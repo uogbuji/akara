@@ -17,7 +17,7 @@ import warnings
 
 from akara import registry
 
-SERVICE_ID = 'http://purl.org/akara/services/builtin/static'
+SERVICE_ID = 'http://purl.org/akara/services/demo/static'
 
 class MediaHandler(object):
 

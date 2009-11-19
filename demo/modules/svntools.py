@@ -24,7 +24,7 @@ SVN_ADD_CMD = AKARA.module_config.get('svn_add', 'svn add %(fpath)s')
 TARGET_SVNS = dict(( (k.split('-', 1)[1], AKARA.module_config[k].rstrip('/') + '/')
                      for k in AKARA.module_config if k.startswith('svn-')))
 
-SERVICE_ID = 'http://purl.org/akara/services/builtin/svncommit'
+SERVICE_ID = 'http://purl.org/akara/services/demo/svncommit'
 @simple_service('POST', SERVICE_ID, 'akara.svncommit', 'text/plain')
 def svncommit(body, ctype, **params):
     '''
@@ -68,7 +68,7 @@ def svncommit(body, ctype, **params):
 
 URL_REQUIRED = _("The 'URL' POST parameter is mandatory.")
 
-SERVICE_ID = 'http://purl.org/akara/services/builtin/svncheckout'
+SERVICE_ID = 'http://purl.org/akara/services/demo/svncheckout'
 @simple_service('GET', SERVICE_ID, 'akara.svncheckout')
 def svncheckout(url=None):
     '''

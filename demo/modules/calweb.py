@@ -35,7 +35,7 @@ CAL_TEMPLATE = Template('''
 </table>
 ''')
 
-SERVICE_ID = 'http://purl.org/akara/services/builtin/calendar'
+SERVICE_ID = 'http://purl.org/akara/services/demo/calendar'
 @simple_service('GET', SERVICE_ID, 'akara.calendar', 'text/html')
 def akara_calendar(): #year=0, month=0, day=0
     '''

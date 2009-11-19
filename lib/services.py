@@ -319,7 +319,7 @@ def simple_service(method, service_id, path=None,
 #def xml_service()
 
 
-## Use for services which dispatch based in HTTP method type (GET, POST, ...)
+## Use for services which dispatch based on HTTP method type (GET, POST, ...)
 
 # Nomenclature: the service is identified by its service id.
 # All handlers for a given service id implement a given protocol.
