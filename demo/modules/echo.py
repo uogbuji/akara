@@ -34,7 +34,7 @@ ECHO_SERVICE_ID = 'http://purl.org/akara/services/demo/echo'
 def akara_echo_headers(body, ctype):
     '''
     Sample request:
-    curl --request POST --data-binary "@foo.dat" --header "http://localhost:8880/akara.echo"
+    curl --request POST --data-binary "@foo.dat" --header "Content-type: text/plain" "http://localhost:8880/akara.echo"
     '''
     
     return body
