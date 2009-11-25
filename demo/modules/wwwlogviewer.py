@@ -106,7 +106,7 @@ def bot_check(match_info):
     return False
 
 
-SERVICE_ID = 'http://purl.org/akara/services/builtin/wwwlog.json'
+SERVICE_ID = 'http://purl.org/akara/services/demo/wwwlog.json'
 @simple_service('POST', SERVICE_ID, 'akara.wwwlog.json', 'application/json')
 def wwwlog2json(body, ctype, maxrecords=None, nobots=False):
     '''

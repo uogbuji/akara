@@ -20,7 +20,7 @@ except ImportError, err:
 
 from akara.services import simple_service
 
-SERVICE_ID = 'http://purl.org/akara/services/builtin/ical.json'
+SERVICE_ID = 'http://purl.org/akara/services/demo/ical.json'
 @simple_service('POST', SERVICE_ID, 'ical.json', 'application/json')
 def ical2json(body, ctype):
     '''

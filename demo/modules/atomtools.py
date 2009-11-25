@@ -23,7 +23,7 @@ from akara.services import simple_service
 
 
 #text/uri-list from RFC 2483
-SERVICE_ID = 'http://purl.org/akara/services/builtin/atom.json'
+SERVICE_ID = 'http://purl.org/akara/services/demo/atom.json'
 @simple_service('GET', SERVICE_ID, 'akara.atom.json', 'application/json')
 def atom_json(url=None):
     '''
@@ -51,7 +51,7 @@ FEED_ENVELOPE = AKARA.module_config.get('feed_envelope')
 #FIXME: use stat to check dir and apply a cache otherwise
 DOC_CACHE = None
 
-SERVICE_ID = 'http://purl.org/akara/services/builtin/aggregate.atom'
+SERVICE_ID = 'http://purl.org/akara/services/demo/aggregate.atom'
 @simple_service('GET', SERVICE_ID, 'akara.aggregate.atom', str(atomtools.ATOM_IMT))
 def aggregate_atom():
     '''
@@ -74,7 +74,7 @@ def aggregate_atom():
 
 
 #We love Atom, but for sake of practicality, here is a transform for general feeds
-SERVICE_ID = 'http://purl.org/akara/services/builtin/webfeed.json'
+SERVICE_ID = 'http://purl.org/akara/services/demo/webfeed.json'
 @simple_service('GET', SERVICE_ID, 'akara.webfeed.json', 'application/json')
 def webfeed_json(url=None):
     '''

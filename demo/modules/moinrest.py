@@ -12,7 +12,7 @@ Project home, documentation, distributions: http://wiki.xml3k.org/Akara
 
 = Defined REST entry points =
 
-http://purl.org/akara/services/builtin/collection (moin)
+http://purl.org/akara/services/demo/collection (moin)
   - Under there top mount point is oen or more lower points depending on config,
     each of which handles HEAD, GET, POST, PUT
 
@@ -88,6 +88,7 @@ from cStringIO import StringIO
 import tempfile
 from contextlib import closing
 from wsgiref.util import shift_path_info, request_uri
+from functools import wraps
 
 # Amara Imports
 import amara
@@ -144,7 +145,7 @@ for k, v in TARGET_WIKIS.items():
     else:
         TARGET_WIKI_OPENERS[k] = DEFAULT_OPENER
 
-SERVICE_ID = 'http://purl.org/akara/services/builtin/moinrest'
+SERVICE_ID = 'http://purl.org/akara/services/demo/moinrest'
 DEFAULT_MOUNT = 'moin'
 
 # ======================================================================
@@ -250,76 +251,81 @@ A POST or PUT request was made, but no data was found.
 # many of the same error conditions, faults, and responses.  Centralizing
 # the handling makes it possible to deal all of the errors in just one place.
 
-def moin_error_handler(wsgi_handler, environ, start_response):
-    status_info = {}          # Dictionary of collected status information
+def moin_error_wrapper(wsgiapp):
+    @wraps(wsgiapp)
+    def handler(environ, start_response):
+        status_info = {}          # Dictionary of collected status information
 
-    # Replacement for the WSGI start_response function.  This merely
-    # collects response data in a dictionary for later use if no errors occur
-    def local_start_response(status, headers):
-        status_info['status'] = status
-        status_info['headers'] = headers
+        # Replacement for the WSGI start_response function.  This merely
+        # collects response data in a dictionary for later use if no errors occur
+        def local_start_response(status, headers):
+            status_info['status'] = status
+            status_info['headers'] = headers
 
-    # Try to run the supplied WSGI handler
-    try:
-        body = wsgi_handler(environ, local_start_response)
-        # If control reaches here, no errors.  Proceed with normal WSGI response
-        start_response(status_info['status'],status_info['headers'])
-        return body
+        # Try to run the supplied WSGI handler
+        try:
+            body = wsgiapp(environ, local_start_response)
+            # If control reaches here, no errors.  Proceed with normal WSGI response
+            start_response(status_info['status'],status_info['headers'])
+            return body
 
-    # Error handling for specifying an invalid moin target name (i.e., not configured, misspelled)
-    except BadTargetError,e:
-        start_response(status_response(httplib.NOT_FOUND), [
-                ('Content-Type','text/plain')
-                ])
-        return error_badtarget.safe_substitute(e.parms)
+        # Error handling for specifying an invalid moin target name (i.e., not configured, misspelled)
+        except BadTargetError,e:
+            start_response(status_response(httplib.NOT_FOUND), [
+                    ('Content-Type','text/plain')
+                    ])
+            return error_badtarget.safe_substitute(e.parms)
 
-    # Error handling for back-end HTTP authorization failure.  For example,
-    # if the HTTP server hosting MoinMoin has rejected our requests due to
-    # bad HTTP authorization.
-    except HTTPAuthorizationError,e:
-        start_response(status_response(httplib.FORBIDDEN), [
-                ('Content-Type','text/plain')
-                ])
-        return error_httpforbidden.safe_substitute(e.parms)
+        # Error handling for back-end HTTP authorization failure.  For example,
+        # if the HTTP server hosting MoinMoin has rejected our requests due to
+        # bad HTTP authorization.
+        except HTTPAuthorizationError,e:
+            start_response(status_response(httplib.FORBIDDEN), [
+                    ('Content-Type','text/plain')
+                    ])
+            return error_httpforbidden.safe_substitute(e.parms)
 
-    # Error handling for MoinMoin authorization failure.  This occurs
-    # if the user and password supplied to MoinMoin is rejected.
-    except MoinAuthorizationError,e:
-        start_response(status_response(httplib.FORBIDDEN), [
-                ('Content-Type','text/plain')
-                ])
-        return error_moinauthforbidden.safe_substitute(e.parms)
+        # Error handling for MoinMoin authorization failure.  This occurs
+        # if the user and password supplied to MoinMoin is rejected.
+        except MoinAuthorizationError,e:
+            start_response(status_response(httplib.FORBIDDEN), [
+                    ('Content-Type','text/plain')
+                    ])
+            return error_moinauthforbidden.safe_substitute(e.parms)
 
-    # Error handling for unexpected HTTP status codes
-    except UnexpectedResponseError,e:
-        start_response(status_response(httplib.INTERNAL_SERVER_ERROR), [
-                ('Content-Type','text/plain')
-                ])
-        return error_unexpectedresponse.safe_substitute(e.parms)
+        # Error handling for unexpected HTTP status codes
+        except UnexpectedResponseError,e:
+            start_response(status_response(httplib.INTERNAL_SERVER_ERROR), [
+                    ('Content-Type','text/plain')
+                    ])
+            return error_unexpectedresponse.safe_substitute(e.parms)
 
-    # Authentication required by MoinMoin.  This isn't an error, but we
-    # have to translate this into a 401 response to send back to the client
-    # in order to get them to supply the appropriate username/password
-    except MoinMustAuthenticateError,e:
-        start_response(status_response(httplib.UNAUTHORIZED), [
-                ('Content-Type','text/plain'),
-                ('WWW-Authenticate','Basic realm="%s"' % e.parms.get('target',''))
-                ])
-        return error_moinmustauthenticateresponse.safe_substitute(e.parms)
+        # Authentication required by MoinMoin.  This isn't an error, but we
+        # have to translate this into a 401 response to send back to the client
+        # in order to get them to supply the appropriate username/password
+        except MoinMustAuthenticateError,e:
+            start_response(status_response(httplib.UNAUTHORIZED), [
+                    ('Content-Type','text/plain'),
+                    ('WWW-Authenticate','Basic realm="%s"' % e.parms.get('target',''))
+                    ])
+            return error_moinmustauthenticateresponse.safe_substitute(e.parms)
         
-    # Page in the target-wiki not found. 404 the client
-    except MoinNotFoundError,e:
-        start_response(status_response(httplib.NOT_FOUND), [
-                ('Content-Type','text/plain'),
-                ])
-        return error_moinnotfoundresponse.safe_substitute(e.parms)
+        # Page in the target-wiki not found. 404 the client
+        except MoinNotFoundError,e:
+            start_response(status_response(httplib.NOT_FOUND), [
+                    ('Content-Type','text/plain'),
+                    ])
+            return error_moinnotfoundresponse.safe_substitute(e.parms)
 
-    # Content-length is required for uploaded data
-    except ContentLengthRequiredError,e:
-        start_response(status_response(httplib.LENGTH_REQUIRED), [
-                ('Content-Type','text/plain')
-                ])
-        return error_contentlengthrequired.safe_substitute(e.parms)
+        # Content-length is required for uploaded data
+        except ContentLengthRequiredError,e:
+            start_response(status_response(httplib.LENGTH_REQUIRED), [
+                    ('Content-Type','text/plain')
+                    ])
+            return error_contentlengthrequired.safe_substitute(e.parms)
+
+    return handler
+
 
 # ----------------------------------------------------------------------
 #                   Support functions used by handlers
@@ -466,13 +472,13 @@ def read_http_body_to_temp(environ, start_response):
 # handling function above (moin_error_handler).   Again, this is to avoid
 # excessive duplication of error handling code.
 
-@method_dispatcher(SERVICE_ID, DEFAULT_MOUNT)
+@method_dispatcher(SERVICE_ID, DEFAULT_MOUNT, wsgi_wrapper=moin_error_wrapper)
 def dispatcher():
     __doc__ = SAMPLE_QUERIES_DOC
     return
 
-# GET handler
-def _get_page(environ, start_response):
+@dispatcher.method("GET")
+def get_page(environ, start_response):
     wiki_id, base, opener = target(environ)
     page = environ['PATH_INFO'].lstrip('/')
     check_auth(environ, start_response, base, opener)
@@ -556,17 +562,9 @@ def _get_page(environ, start_response):
         else:
             raise UnexpectedResponseError(url=url,code=e.code,error=str(e))
 
-@dispatcher.method("GET")
-def get_page(environ, start_response):
-    return moin_error_handler(_get_page,environ, start_response)
-
-# HEAD handler.   Just do a GET and discard the payload.
-@dispatcher.method("HEAD")
-def head_page(environ, start_response):
-    moin_error_handler(_get_page,environ, start_response)
-    return ''
 
 # PUT handler
+@dispatcher.method("PUT")
 def _put_page(environ, start_response):
     '''
     '''
@@ -593,12 +591,9 @@ def _put_page(environ, start_response):
     start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url), (moin.ORIG_BASE_HEADER, base)])
     return [msg]
 
-@dispatcher.method("PUT")
-def put_page(environ, start_response):
-    return moin_error_handler(_put_page, environ, start_response)
-
 # POST handler
-def _post_page(environ, start_response):
+@dispatcher.method("POST")
+def post_page(environ, start_response):
     '''
     Attachments use URI path params
     (for a bit of discussion see http://groups.google.com/group/comp.lang.python/browse_thread/thread/4662d41aca276d99)
@@ -640,8 +635,4 @@ def _post_page(environ, start_response):
     #response.add_header("Content-Length", str(len(msg)))
     start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url), (moin.ORIG_BASE_HEADER, base)])
     return msg
-
-@dispatcher.method("POST")
-def post_page(environ, start_response):
-    return moin_error_handler(_post_page, environ, start_response)
 

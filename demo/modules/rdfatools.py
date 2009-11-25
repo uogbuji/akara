@@ -15,7 +15,7 @@ from akara.services import simple_service
 
 URL_REQUIRED = _("The 'url' query parameter is mandatory.")
 
-SERVICE_ID = 'http://purl.org/akara/services/builtin/rdfa.json'
+SERVICE_ID = 'http://purl.org/akara/services/demo/rdfa.json'
 @simple_service('GET', SERVICE_ID, 'akara.rdfa.json', 'application/json')
 def rdfa2json(url=None):
     '''

@@ -3,8 +3,8 @@
 Module name: xslt
 Defined REST entry points:
 
-http://purl.org/akara/services/builtin/xslt (akara.xslt)
-http://purl.org/akara/services/builtin/xpath (akara.xpath)
+http://purl.org/akara/services/demo/xslt (akara.xslt)
+http://purl.org/akara/services/demo/xpath (akara.xpath)
 
 Notes on security:
 
@@ -22,8 +22,8 @@ from amara.lib import irihelpers, inputsource
 from akara.services import simple_service
 from akara import response
 
-XSLT_SERVICE_ID = 'http://purl.org/akara/services/builtin/xslt'
-XPATH_SERVICE_ID = 'http://purl.org/akara/services/builtin/xpath'
+XSLT_SERVICE_ID = 'http://purl.org/akara/services/demo/xslt'
+XPATH_SERVICE_ID = 'http://purl.org/akara/services/demo/xpath'
 
 #AKARA is automatically defined at global scope for a module running within Akara
 DEFAULT_TRANSFORM = AKARA.module_config.get('default_transform')
