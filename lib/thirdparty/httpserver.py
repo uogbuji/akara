@@ -324,6 +324,21 @@ class WSGIHandlerMixin:
                 self.wsgi_write_chunk("Internal Server Error\n")
             raise
 
+
+class _HTTPServer(HTTPServer):
+    def server_bind(self):
+        if self.RequestHandlerClass.protocol_version == "HTTP/1.1":
+            # Disable Nagle's Algorithm, which causes performance
+            # problems with Keep-Alive. Sometimes the server has sent
+            # a response to the client but the TCP stack buffers the
+            # response in hopes of reducing the number of packets to
+            # send. After about 200ms it gives up and sends the rest
+            # of the packet, but 0.2s is a long time to wait when
+            # there are many small, fast requests on the same
+            # connection.
+            self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        HTTPServer.server_bind(self)
+
 #
 # SSL Functionality
 #
@@ -338,7 +353,7 @@ except ImportError:
     # functionality in that case.
     SSL = None
     SocketErrors = (socket.error,)
-    class SecureHTTPServer(HTTPServer):
+    class SecureHTTPServer(_HTTPServer):
         def __init__(self, server_address, RequestHandlerClass,
                      ssl_context=None, request_queue_size=None):
             assert not ssl_context, "pyOpenSSL not installed"
@@ -356,7 +371,7 @@ else:
         def __getattr__(self, attrib):
             return getattr(self.__conn, attrib)
 
-    class SecureHTTPServer(HTTPServer):
+    class SecureHTTPServer(_HTTPServer):
         """
         Provides SSL server functionality on top of the BaseHTTPServer
         by overriding _private_ members of Python's standard
