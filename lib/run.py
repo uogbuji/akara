@@ -212,6 +212,10 @@ Does that directory exist and is it readable?""" % err)
                 sock = socket.socket()
                 # XXX Should SO_REUSEADDR be a configuration setting?
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                # Disable Nagle's algorithm, which causes problems with
+                # keep-alive. See:
+                #     http://stackoverflow.com/questions/1781766/
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 host, port = settings["server_address"]
                 if host:
                     description = "interface %r port %r" % (host, port)
