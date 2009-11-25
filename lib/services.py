@@ -281,6 +281,7 @@ def service(service_id, path=None,
 def simple_service(method, service_id, path=None,
                    content_type=None, encoding="utf-8", writer="xml",
                    allow_repeated_args=False,
+                   wsgi_wrapper=None,
                    notify_before=None, notify_after=None):
     _no_slashes(path)
     """Add the function as an Akara resource
