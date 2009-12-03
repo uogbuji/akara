@@ -1,4 +1,10 @@
-"""akara - top-level module for an Akara installation
+# -*- coding: iso-8859-1 -*-
+# 
+# akara
+# © 2008, 2009 by Uche Ogbuji and Zepheira LLC
+#
+"""
+akara - top-level module for an Akara installation
 
 Public submodules are:
   registry - direct interface to the resource handler registry
