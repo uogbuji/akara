@@ -127,9 +127,10 @@ class node(object):
     ENDPOINTS = None
     @staticmethod
     def factory(rest_uri, moin_link=None, opener=None):
+        opener = opener or urllib2.build_opener()
         logger.debug('rest_uri: ' + rest_uri)
         req = urllib2.Request(rest_uri, headers={'Accept': DOCBOOK_IMT})
-        resp = urllib2.urlopen(req)
+        resp = opener.open(req)
         doc = bindery.parse(resp, standalone=True, model=MOIN_DOCBOOK_MODEL)
         original_wiki_base = dict(resp.info())[ORIG_BASE_HEADER]
         #self.original_wiki_base = dict(resp.info())[ORIG_BASE_HEADER]
