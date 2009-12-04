@@ -12,7 +12,7 @@ import signal
 from akara import read_config
 from akara import logger, logger_config
 from akara.multiprocess_http import AkaraPreforkServer, load_modules
-
+from akara import global_config
 
 def save_pid(pid_file):
     "Save the current pid to the given PID filename"
@@ -112,6 +112,10 @@ def demonize():
         raise
     return notify_parent
 
+# Sets up the global_config module contents
+def set_global_config(settings):
+    for name, value in settings.items():
+        setattr(global_config,name,value)
 
 def main(args):
     config_filename = args.config_filename
@@ -137,6 +141,9 @@ def main(args):
                 raise SystemExit("Cannot start Akara. Exiting.")
             else:
                 raise SystemExit("Cannot restart Akara. Exiting.")
+
+        # Establish the global configuration module
+        set_global_config(settings)
 
         # In debug mode (-X), display all log messages.
         # Otherwise, use the configuration level

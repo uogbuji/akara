@@ -48,7 +48,8 @@ class Registry(object):
             logger.warn("Replacing mount point %r (%r)" % (path, ident))
         else:
             logger.debug("Created new mount point %r (%r)" % (path, ident))
-        self._registered_services[path] = Service(handler, path, ident, doc)
+        serv = Service(handler, path, ident, doc)
+        self._registered_services[path] = serv
 
     def get_service(self, path):
         return self._registered_services[path]
