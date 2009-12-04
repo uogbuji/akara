@@ -41,6 +41,7 @@ successful requests (200 OK) are stored.
 
 import urllib, urllib2
 import os
+import shutil
 import sys
 import base64
 import hashlib
@@ -70,14 +71,13 @@ class CacheFile(file):
 # Utility function to remove the oldest entry from a cache directory.
 # Look at the modification dates for metadata files
 def remove_oldest(cachedir):
-    files = (name for name in os.listdir(cachedir) if name.endswith(".m"))
+    files = (name for name in os.listdir(cachedir) if name.endswith(".p"))
     paths = (os.path.join(cachedir,name) for name in files)
     time_and_paths = ((os.path.getmtime(path),path) for path in paths)
     oldest_time, path = min(time_and_paths)
     
     # Remove the oldest entry
     os.remove(path)
-    os.remove(path[:-2])     # Content file
     
 class cache(object):
     def __init__(self,ident,maxentries=65536,expires=15*60,opener=None):
@@ -202,37 +202,28 @@ class cache(object):
                 pass    # Here for possible race condition
             assert os.path.exists(cache_subdir), "Failed to make directory %s" % cache_subdir
             
-        # Check for existence of cache metadata file
-        metadata_file = os.path.join(cache_subdir,filename+".m")
-        cache_datafile = os.path.join(cache_subdir,filename)
-        if os.path.exists(metadata_file):
+        # Check for existence of cache file
+        cache_file= os.path.join(cache_subdir,filename+".p")
+        if os.path.exists(cache_file):
             # A cache hit. Load the metadata file to get the cache information and return it.
-            f = open(metadata_file,"rb")
-            try:
-                metaquery,timestamp,url,headers = pickle.load(f)
-            except EOFError:
-                # This is a rare situation that might arise.  Metadata file might be writing in another process.
-                # Back off slightly and try one more time.
-                f.close()
-                time.sleep(0.1)
-                f = open(metadata_file,"rb")
-                metaquery,timestamp,url,headers = pickle.load(f)
-            f.close()
+            f = CacheFile(cache_file,"rb")
+            metaquery,timestamp,url,headers = pickle.load(f)
 
             # Check to make sure the query string exactly matches the meta data
             # and that the cache data is not too old
             if metaquery == query and (timestamp + self.expires > time.time()):
-                # A cache hit and the query matches.  Open up the content file and return it
-                f = CacheFile(cache_datafile,"rb")
+                # A cache hit and the query matches.  Just return the file we opened.
+                # the file pointer should be set to imemdiately after the pickled
+                # metadata at the front
                 f.headers = headers
                 f.url = url
                 return f
+
             # There was a cache hit, but the cache metadata is for a different query (a collision)
             # or the timestamp is out of date.   We're going to remove the cache file and 
             # proceed as if there was a cache miss
             try:
-                os.remove(metadata_file)
-                os.remove(cache_datafile)
+                os.remove(cache_file)
             except OSError:
                 pass   # Ignore.  If the files don't exist, who cares?
             
@@ -243,7 +234,7 @@ class cache(object):
 
         # Before adding a new cache entry. Check the number of entries in the cache subdirectory.
         # If there are too many entries, remove the oldest entry to make room.
-        if len(os.listdir(cache_subdir))/2 >= self.maxperdirectory:
+        if len(os.listdir(cache_subdir)) >= self.maxperdirectory:
             remove_oldest(cache_subdir)
 
         # Make an akara request
@@ -251,24 +242,25 @@ class cache(object):
         u = self.opener(url)
         
         # If successful, we'll make it here.  Read data from u and store in the cache
-        if not os.path.exists(cache_datafile):
-            f = open(cache_datafile,"wb")
-            while True:
-                chunk = u.read(65536)
-                if not chunk: break
-                f.write(chunk)
-            f.close()
+        # This is done by initially creating a file with a different filename, fully
+        # populating it, and then renaming it to the correct cache file when done.
+        cache_tempfile = cache_file + ".%d" % os.getpid()
+        f = open(cache_tempfile,"wb")
+        pickle.dump((query,time.time(),url,u.info()),f,-1)
 
-        # Write request metadata. 
-        if not os.path.exists(metadata_file):
-            f = open(metadata_file,"wb")
-            pickle.dump((query,time.time(),url,u.info()),f,-1)
-            f.close()
+        # Write content into the file
+        while True:
+            chunk = u.read(65536)
+            if not chunk: break
+            f.write(chunk)
+        f.close()
+
+        # Rename the file, open, and return
+        shutil.move(cache_tempfile, cache_file)
 
         # Return a file-like object back to the client
-        f = CacheFile(cache_datafile,"rb")
-        f.headers = u.info()
-        f.url = u.url
+        f = CacheFile(cache_file,"rb")
+        metaquery,timestamp,f.url,f.headers = pickle.load(f)
         return f
 
 
