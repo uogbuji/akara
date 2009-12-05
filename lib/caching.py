@@ -99,8 +99,6 @@ class cache(object):
         self.serv = None
         self.initialized = False
 
-        print >>sys.stderr,dir(global_config),"\n"
-
     # Internal method that locates the Akara service description and sets up a
     # base-URL for making requests.   This can not be done in __init__() since
     # not all Akara services have been initialized at the same __init__() executes.
@@ -112,13 +110,13 @@ class cache(object):
         self.serv = registry.get_a_service_by_id(self.ident)
         if not self.serv:
             raise KeyError("Nothing known about service %s" % ident)
-        print >>sys.stderr,"CACHE: %s at %s\n" % (self.ident, self.serv.path)
+#        print >>sys.stderr,"CACHE: %s at %s\n" % (self.ident, self.serv.path)
 
         hostname,port = global_config.server_address
         if not hostname:
             hostname = "localhost"
         self.baseurl = "http://%s:%d/%s" % (hostname, port, self.serv.path)
-        print >>sys.stderr,"CACHE: %s\n" % self.baseurl
+#        print >>sys.stderr,"CACHE: %s\n" % self.baseurl
 
     # Method that makes the cache directory if it doesn't yet exist
     def _make_cache(self):
