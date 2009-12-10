@@ -4,28 +4,28 @@ See also:
 '''
 
 import re, os, time
-import sets
 import calendar
-from cStringIO import StringIO
-from datetime import *; from dateutil.relativedelta import *
-#from cgi import parse_qs
+from datetime import date; from dateutil.relativedelta import *
 from itertools import *
+from wsgiref.util import shift_path_info, request_uri
 
 from dateutil.parser import parse
 
 import amara
 
 from akara.services import simple_service
+from akara import request
+from akara import logger
 
 from string import Template
 
 CAL_TEMPLATE = Template('''
-<table class="bcCalendar" xmlns="http://www.w3.org/1999/xhtml">
+<table class="akaraCalCalendar" xmlns="http://www.w3.org/1999/xhtml">
   <thead>
-    <tr class="bcCalendarTopHeaders">
+    <tr class="akaraCalCalendarTopHeaders">
       $prevmonth<th colspan="5">$monthname, $year</th>$nextmonth
     </tr>
-    <tr class="bcCalendarWeekHeaders">
+    <tr class="akaraCalCalendarWeekHeaders">
       $dayheaders
     </tr>
   </thead>
@@ -35,9 +35,9 @@ CAL_TEMPLATE = Template('''
 </table>
 ''')
 
-SERVICE_ID = 'http://purl.org/akara/services/demo/calendar'
-@simple_service('GET', SERVICE_ID, 'akara.calendar', 'text/html')
-def akara_calendar(): #year=0, month=0, day=0
+SERVICE_ID = 'http://purl.org/xml3k/akara/services/demo/calendar'
+@simple_service('GET', SERVICE_ID, 'akara.calendar', 'text/html') #application/xhtml+xml
+def akara_calendar(highlight=None):
     '''
     Return a calendar in HTML
     Generates a calendar along the lines of:
@@ -54,39 +54,48 @@ def akara_calendar(): #year=0, month=0, day=0
 
     Defines the following classes (for use in CSS customization):
 
-      - bcCalendar
+      - akaraCalCalendar
         - calendar table (note: month/year header e.g. January 2007 is in table/th)
-      - bcCalendarWeekHeaders
+      - akaraCalCalendarWeekHeaders
         - week header (Su, Mo, Tu, ...)
-      - bcCalendarEmpty
+      - akaraCalCalendarEmpty
         - filler cell (e.g. days after Jan 31)
-      - bcCalendarLive
+      - akaraCalCalendarLive
         - day for which there is an entry (also has links to that day's archives)
 
     And the following IDs:
 
-      - bcCalendarToday
+      - akaraCalCalendarToday
         - today's calendar day
-      - bcCalendarSpecificDay
+      - akaraCalCalendarSpecificDay
         - specific day being rendered (if any)
 
     Some ideas (e.g. CSS styling of the table) from pycalendar.py by Will Guaraldi
 
     Sample request:
     curl http://localhost:8880/akara.calendar
+    curl http://localhost:8880/akara.calendar/2008/12
+    curl http://localhost:8880/akara.calendar/2008/12?highlight=2008-12-03
     '''
-
-    #year, month, day = tuple([
-    #    int(req.urlvars.get('year', '0')),
-    #    int(req.urlvars.get('month', '0')),
-    #    int(req.urlvars.get('day', '0')),
-    #])
     today = date.today()
-    specific_day = today.day
-    #specific_day = day
-    #if not (year and month and day):
-    #    year, month, day = today.year, today.month, today.day
-    year, month, day = today.year, today.month, today.day
+    year = shift_path_info(request.environ)
+    month = shift_path_info(request.environ)
+    if highlight:
+        #Fun axiom: date(*map(int, date.today().isoformat().split('-')))
+        highlight = date(*map(int, highlight.split('-')))
+    if year and month:
+        #Use specified year & month
+        year, month = int(year), int(month)
+        if (year, month) == (today.year, today.month):
+            present_day = today.day
+        else:
+            present_day = None
+    else:
+        #XXX We might want to return Bad Request of they specified year but not day
+        #Use present year & month
+        year, month = today.year, today.month
+        present_day = today.day
+    #logger.debug("year: " + repr(year))
 
     dayheaders = ''.join(
         ['<td>%s</td>' % dh
@@ -102,23 +111,23 @@ def akara_calendar(): #year=0, month=0, day=0
             if d_int < 1:
                 d = '&#160;'
                 fulldate = date.max #never to be found in archives
-                attrs += ' class="bcCalendarEmpty"'
+                attrs += ' class="akaraCalCalendarEmpty"'
             else:
                 fulldate = date(year, month, d_int)
             # "today" trumps "specific day"
-            if d_int == today.day:
-                attrs += ' id="bcCalendarToday"'
-            elif d_int == specific_day:
-                attrs += ' id="bcCalendarSpecificDay"'
+            if d_int == present_day:
+                attrs += ' id="akaraCalCalendarToday"'
+            elif highlight and d_int == highlight.day:
+                attrs += ' id="akaraCalCalendarSpecificDay"'
             #if fulldate in archives:
-            #    attrs += ' class="bcCalendarLive"'
+            #    attrs += ' class="akaraCalCalendarLive"'
                 #d = '<a href="%s%i/%i/%s/">%s</a>'%(self.weblog_base_url, year, month, d, d)
             #    d = '%s'%(d)
             c.append('\t<td%s>%s</td>\n' % (attrs, d))
         c.append('\n</tr>\n')
     monthname =  calendar.month_name[month]
-    prevmonth = date(year, month, day) + relativedelta(months=-1)
-    nextmonth = date(year, month, day) + relativedelta(months=+1)
+    prevmonth = date(year, month, 1) + relativedelta(months=-1)
+    nextmonth = date(year, month, 1) + relativedelta(months=+1)
     #Yes, even checking if prevmonth > today, so if someone surfs
     #3 month in the future, there will be no month nav links
     if prevmonth > today:
@@ -132,6 +141,5 @@ def akara_calendar(): #year=0, month=0, day=0
         nextmonth = '<th><a href="%s%i/%i/">&gt;&gt;</a></th>'%('/', nextmonth.year, nextmonth.month)
     month = ''.join(c)
     cal = CAL_TEMPLATE.safe_substitute(locals())
-    #response.content_type = 'application/xhtml+xml'
     return cal
 

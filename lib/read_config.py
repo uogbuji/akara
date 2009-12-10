@@ -24,6 +24,7 @@ SERVER_CONFIG_DEFAULTS = {
         'MaxRequestsPerServer': '10000',
 
         'ModuleDir': 'modules',
+        'ModuleCache' : 'caches',
         'ErrorLog': 'logs/error.log',
         'AccessLog': 'logs/access.log',
         'LogLevel': 'INFO',
@@ -129,6 +130,9 @@ def _extract_settings(config):
 
     module_dir = config.get("global", "ModuleDir")
     settings["module_dir"] = os.path.join(server_root, module_dir)
+
+    module_cache = config.get("global","ModuleCache")
+    settings["module_cache"] = os.path.join(server_root, module_cache)
 
     log_level_orig = config.get('global', 'LogLevel')
     log_level_s = log_level_orig.upper()
