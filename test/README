@@ -1,5 +1,7 @@
 To run these tests use "nose" from
   http://somethingaboutorange.com/mrl/projects/nose/0.11.1/
 
-or "easy_install nose".
+or "easy_install nose". Once it's installed, run
+
+  nostests
 
