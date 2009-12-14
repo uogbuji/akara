@@ -52,7 +52,6 @@ class Pipeline(object):
         # Help capture the response of a WSGI request,
         # so I can forward it as input to the next request.
         captured_response = [None, None, None]
-        captured_body = _StringIO()
         captured_body_length = None
         def capture_start_response(status, headers, exc_info=None):
             if exc_info is None:
@@ -115,8 +114,7 @@ class Pipeline(object):
             if is_last:
                 return service.handler(stage_environ, start_response)
             else:
-                captured_body.seek(0)
-                captured_body.truncate()
+                captured_body = _StringIO()
                 result = service.handler(stage_environ, capture_start_response)
 
                 # Did start_response get an exc_info term? (It might not
