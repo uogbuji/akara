@@ -361,6 +361,26 @@ def test_multimethod_unknown():
     terms.sort()
     assert terms == ["DELETE", "GET", "HEAD", "POST", "TEAPOT"], terms
 
+def test_head_vs_get():
+    h = httplib_server()
+    h.request("GET", "/test_add_headers")
+    r = h.getresponse()
+    assert r.status == 200, r.status
+    get_headers = r.getheaders()
+    content_length = r.getheader("content-length")
+    assert content_length == "33", content_length
+    get_body = r.read()
+    assert len(get_body) == 33, (get_body, content_length)
+
+    h.request("HEAD", "/test_add_headers")
+    r = h.getresponse()
+    assert r.status == 200, r.status
+    head_headers = r.getheaders()
+    head_body = r.read()
+    assert head_body == "", head_body
+
+    assert get_headers == head_headers, (get_headers, head_headers)
+
 
 # Unicode and XML encoding
 def test_method_unicode_latin1():
