@@ -332,7 +332,7 @@ def test_multimethod_post_with_bad_arg():
 def test_multimethod_delete():
     h = httplib_server()
     h.request("DELETE", "/test_multimethod", "[U235]",
-              {"Content-Length": 9, "Content-Type": "chemical/x-daylight-smiles"})
+              {"Content-Length": 6, "Content-Type": "chemical/x-daylight-smiles"})
     r = h.getresponse()
     assert r.status == 202, r.status
 
