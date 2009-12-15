@@ -246,16 +246,14 @@ class AkaraWSGIDispatcher(object):
             headers = list(headers)
             for i, (k, v) in enumerate(headers):
                 s = k.lower()
-                print "PROCESS", i, k, v
                 if s == "content-length":
                     access_data["content_length"] = v
                 elif s == "allow":
                     # Append a HEAD if a GET is allowed.
-                    # Can't simply test for:  if "GET" in s
+                    # Can't simply test:  if "GET" in s
                     #  since the Allow might be for "GET2".
                     # Parse and test the fields.
                     terms = [term.strip() for term in v.split(",")]
-                    print "TERMS", terms
                     if "GET" in terms:
                         terms.append("HEAD")
                         headers[i] = (k, ", ".join(terms))
