@@ -219,6 +219,25 @@ class AkaraWSGIDispatcher(object):
         self.server_address = settings["server_address"]
 
     def wsgi_application(self, environ, start_response):
+        # There's some sort of problem if the application
+        # hasn't read any data. This can occur, for example,
+        # when sending a POST to a GET service, returning
+        # a 405 message.
+        wsgi_input = environ["wsgi.input"]
+        try:
+            return self._wsgi_application(environ, start_response)
+        finally:
+            # change the "if 1" to "if 0" and run
+            #   test_server.test_405_error_message_mega
+            # You should get socket.error "Connection reset by peer" errors.
+            if 1 and isinstance(wsgi_input, httpserver.LimitedLengthFile):
+                # Consume something if nothing was consumed *and* work
+                # around a bug where paste.httpserver allows negative lengths
+                if (wsgi_input._consumed == 0 and wsgi_input.length > 0):
+                    # This seems to work even if there's 10K of input.
+                    wsgi_input.read(1)
+            
+    def _wsgi_application(self, environ, start_response):
         # Get information used for access logging
         request_uri = urllib.quote(environ.get("SCRIPT_NAME", "") +
                                    environ.get("PATH_INFO", ""))
