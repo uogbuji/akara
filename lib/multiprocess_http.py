@@ -245,7 +245,8 @@ class AkaraWSGIDispatcher(object):
             request_uri += "?" + environ["QUERY_STRING"]
         # Convert all HEAD requests to GET requests before sending
         # them through the stack. Process the result to conform to
-        # requirements for HEAD. This follows the Apache approach. See
+        # requirements for HEAD then strip out the body. This
+        # follows the Apache/mod_wsgi approach. See
         # http://blog.dscpl.com.au/2009/10/wsgi-issues-with-http-head-requests.html
         is_head_request = environ.get("REQUEST_METHOD") == "HEAD"
         if is_head_request:
