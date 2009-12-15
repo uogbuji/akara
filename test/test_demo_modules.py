@@ -61,11 +61,11 @@ def test_webfeedjson():
 # calweb.py
 
 # Frankly, this module doesn't seem that useful, so I'll only check
-# to see that I get a response and that it contains a "bcCalendarToday"
+# to see that I get a response and that it contains a "akaraCalendarToday"
 def test_calendar():
     url = server() + "akara.calendar"
     s = urlopen(url).read()
-    assert "bcCalendarToday" in s
+    assert "akaraCalCalendarToday" in s
 
 
 # icaltools.py
