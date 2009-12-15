@@ -177,7 +177,13 @@ def test_echo_simple_get(**kwargs):
     for k, v in sorted(kwargs.items()):
         yield "%r -> %r\n" % (k, v)
 
-@simple_service("POST", "http://example.com/test_echo")
+# This exists only to get two hits in the "/" index
+@simple_service("GET", "http://example.com/test_echo")
+def test_echo_simple_get2(**kwargs):
+    "Hi test_server.py!"
+    return test_echo_simple_get(**kwargs)
+
+@simple_service("POST", "http://example.com/test_echo_post")
 def test_echo_simple_post(query_body, query_content_type, **kwargs):
     "This echos a POST request, including the query body"
     yield "Content-Type: %r\n" % query_content_type

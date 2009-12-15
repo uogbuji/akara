@@ -49,8 +49,8 @@ def test_index_search():
             '</service>') in xml
     
     assert ('<service ident="http://example.com/test_echo">'
-            '<path>test_echo_simple_post</path>'
-            '<description>This echos a POST request, including the query body</description>'
+            '<path>test_echo_simple_get2</path>'
+            '<description>Hi test_server.py!</description>'
             '</service>') in xml
     assert xml.count("<service ") == 2, xml.count("<service ")
 
