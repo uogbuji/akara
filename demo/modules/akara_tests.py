@@ -191,6 +191,20 @@ def test_echo_simple_post(query_body, query_content_type, **kwargs):
     yield "Body:\n"
     yield repr(query_body) + "\n"
 
+
+@simple_service("POST", "http://echo_request_headers")
+def test_echo_post_headers(query_body, ignore):
+    from akara import request
+    environ = request.environ
+    def go():
+        for k, v in environ.items():
+            if k.startswith("HTTP_"):
+                k = k[5:]
+                yield "%s -> %s\n" % (k, v)
+        yield "== End of the headers ==\n"
+    return go()
+
+
 #### '@service' tests
 
 # the 'service' decorator is a thin wrapper over the standard WSGI
