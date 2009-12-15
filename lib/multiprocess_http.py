@@ -224,6 +224,13 @@ class AkaraWSGIDispatcher(object):
                                    environ.get("PATH_INFO", ""))
         if environ.get("QUERY_STRING"):
             request_uri += "?" + environ["QUERY_STRING"]
+        # Convert all HEAD requests to GET requests before sending
+        # them through the stack. Process the result to conform to
+        # requirements for HEAD. This follows the Apache approach. See
+        # http://blog.dscpl.com.au/2009/10/wsgi-issues-with-http-head-requests.html
+        is_head_request = environ.get("REQUEST_METHOD") == "HEAD"
+        if is_head_request:
+            environ["REQUEST_METHOD"] = "GET"
 
         access_data = dict(start_time = _get_time(),
                            request_uri = request_uri,
@@ -236,9 +243,24 @@ class AkaraWSGIDispatcher(object):
             access_data["status"] = status.split(" ", 1)[0]
             access_data["content_length"] = "-"
             content_length = None
-            for k, v in headers:
-                if k.lower() == "content-length":
+            headers = list(headers)
+            for i, (k, v) in enumerate(headers):
+                s = k.lower()
+                print "PROCESS", i, k, v
+                if s == "content-length":
                     access_data["content_length"] = v
+                elif s == "allow":
+                    # Append a HEAD if a GET is allowed.
+                    # Can't simply test for:  if "GET" in s
+                    #  since the Allow might be for "GET2".
+                    # Parse and test the fields.
+                    terms = [term.strip() for term in v.split(",")]
+                    print "TERMS", terms
+                    if "GET" in terms:
+                        terms.append("HEAD")
+                        headers[i] = (k, ", ".join(terms))
+                    
+            
             # Forward things to the real start_response
             return start_response(status, headers, exc_info)
 
@@ -257,7 +279,11 @@ class AkaraWSGIDispatcher(object):
                 # Not found. Report something semi-nice to the user
                 return _send_error(start_response_, 404)
             try:
-                return service.handler(environ, start_response_)
+                result = service.handler(environ, start_response_)
+                if is_head_request:
+                    # successful HEAD requests MUST return an empty message-body
+                    return []
+                return result
             except Exception, err:
                 exc_info = sys.exc_info()
                 try:

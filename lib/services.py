@@ -380,7 +380,7 @@ def simple_service(method, service_id, path=None,
             try:
                 if environ.get("REQUEST_METHOD") != method:
                     if method == "GET":
-                        raise _HTTP405(["GET", "HEAD"])
+                        raise _HTTP405(["GET"])
                     else:
                         raise _HTTP405(["POST"])
                 args, kwargs = _get_function_args(environ, allow_repeated_args)
@@ -441,9 +441,7 @@ class service_method_dispatcher(object):
     """
     def __init__(self, path, wsgi_wrapper=None):
         self.path = path
-        self.method_table = {
-            'HEAD' : self.head_method
-            }
+        self.method_table = {}
         self.wsgi_wrapper = wsgi_wrapper
     def add_handler(self, method, handler):
         if method in self.method_table:

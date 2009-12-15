@@ -175,6 +175,7 @@ def test_echo_simple_post_with_GET():
         assert err.code == 405
         assert "405: Method Not Allowed" in str(err)
         # Required by the HTTP spec
+        # Also checks that HEAD wasn't added to the header by accident.
         assert err.headers["Allow"] == "POST", err.headers
 
 def test_echo_simple_post_negative_content_length():
@@ -347,6 +348,18 @@ def test_multimethod_teapot():
     assert r.status == 418, r.status
     s = r.read()
     assert s == "short and stout", repr(s)
+
+# Make a bad request type, see if we get the right responses
+def test_multimethod_unknown():
+    h = httplib_server()
+    # This one isn't supported on the server
+    h.request("COFFEEPOT", "/test_multimethod")
+    r = h.getresponse()
+    assert r.status == 405, r.status
+    accept = r.getheader("Allow")
+    terms = [s.strip() for s in accept.split(",")]
+    terms.sort()
+    assert terms == ["DELETE", "GET", "HEAD", "POST", "TEAPOT"], terms
 
 
 # Unicode and XML encoding
