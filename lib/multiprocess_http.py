@@ -219,11 +219,38 @@ class AkaraWSGIDispatcher(object):
         self.server_address = settings["server_address"]
 
     def wsgi_application(self, environ, start_response):
+        # There's some sort of problem if the application
+        # hasn't read any data. This can occur, for example,
+        # when sending a POST to a GET service, returning
+        # a 405 message.
+        wsgi_input = environ["wsgi.input"]
+        try:
+            return self._wsgi_application(environ, start_response)
+        finally:
+            # change the "if 1" to "if 0" and run
+            #   test_server.test_405_error_message_mega
+            # You should get socket.error "Connection reset by peer" errors.
+            if 1 and isinstance(wsgi_input, httpserver.LimitedLengthFile):
+                # Consume something if nothing was consumed *and* work
+                # around a bug where paste.httpserver allows negative lengths
+                if (wsgi_input._consumed == 0 and wsgi_input.length > 0):
+                    # This seems to work even if there's 10K of input.
+                    wsgi_input.read(1)
+            
+    def _wsgi_application(self, environ, start_response):
         # Get information used for access logging
         request_uri = urllib.quote(environ.get("SCRIPT_NAME", "") +
                                    environ.get("PATH_INFO", ""))
         if environ.get("QUERY_STRING"):
             request_uri += "?" + environ["QUERY_STRING"]
+        # Convert all HEAD requests to GET requests before sending
+        # them through the stack. Process the result to conform to
+        # requirements for HEAD then strip out the body. This
+        # follows the Apache/mod_wsgi approach. See
+        # http://blog.dscpl.com.au/2009/10/wsgi-issues-with-http-head-requests.html
+        is_head_request = environ.get("REQUEST_METHOD") == "HEAD"
+        if is_head_request:
+            environ["REQUEST_METHOD"] = "GET"
 
         access_data = dict(start_time = _get_time(),
                            request_uri = request_uri,
@@ -236,9 +263,22 @@ class AkaraWSGIDispatcher(object):
             access_data["status"] = status.split(" ", 1)[0]
             access_data["content_length"] = "-"
             content_length = None
-            for k, v in headers:
-                if k.lower() == "content-length":
+            headers = list(headers)
+            for i, (k, v) in enumerate(headers):
+                s = k.lower()
+                if s == "content-length":
                     access_data["content_length"] = v
+                elif s == "allow":
+                    # Append a HEAD if a GET is allowed.
+                    # Can't simply test:  if "GET" in s
+                    #  since the Allow might be for "GET2".
+                    # Parse and test the fields.
+                    terms = [term.strip() for term in v.split(",")]
+                    if "GET" in terms:
+                        terms.append("HEAD")
+                        headers[i] = (k, ", ".join(terms))
+                    
+            
             # Forward things to the real start_response
             return start_response(status, headers, exc_info)
 
@@ -257,7 +297,11 @@ class AkaraWSGIDispatcher(object):
                 # Not found. Report something semi-nice to the user
                 return _send_error(start_response_, 404)
             try:
-                return service.handler(environ, start_response_)
+                result = service.handler(environ, start_response_)
+                if is_head_request:
+                    # successful HEAD requests MUST return an empty message-body
+                    return []
+                return result
             except Exception, err:
                 exc_info = sys.exc_info()
                 try:

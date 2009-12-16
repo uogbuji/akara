@@ -175,6 +175,7 @@ def test_echo_simple_post_with_GET():
         assert err.code == 405
         assert "405: Method Not Allowed" in str(err)
         # Required by the HTTP spec
+        # Also checks that HEAD wasn't added to the header by accident.
         assert err.headers["Allow"] == "POST", err.headers
 
 def test_echo_simple_post_negative_content_length():
@@ -331,7 +332,7 @@ def test_multimethod_post_with_bad_arg():
 def test_multimethod_delete():
     h = httplib_server()
     h.request("DELETE", "/test_multimethod", "[U235]",
-              {"Content-Length": 9, "Content-Type": "chemical/x-daylight-smiles"})
+              {"Content-Length": 6, "Content-Type": "chemical/x-daylight-smiles"})
     r = h.getresponse()
     assert r.status == 202, r.status
 
@@ -347,6 +348,38 @@ def test_multimethod_teapot():
     assert r.status == 418, r.status
     s = r.read()
     assert s == "short and stout", repr(s)
+
+# Make a bad request type, see if we get the right responses
+def test_multimethod_unknown():
+    h = httplib_server()
+    # This one isn't supported on the server
+    h.request("COFFEEPOT", "/test_multimethod")
+    r = h.getresponse()
+    assert r.status == 405, r.status
+    accept = r.getheader("Allow")
+    terms = [s.strip() for s in accept.split(",")]
+    terms.sort()
+    assert terms == ["DELETE", "GET", "HEAD", "POST", "TEAPOT"], terms
+
+def test_head_vs_get():
+    h = httplib_server()
+    h.request("GET", "/test_add_headers")
+    r = h.getresponse()
+    assert r.status == 200, r.status
+    get_headers = r.getheaders()
+    content_length = r.getheader("content-length")
+    assert content_length == "33", content_length
+    get_body = r.read()
+    assert len(get_body) == 33, (get_body, content_length)
+
+    h.request("HEAD", "/test_add_headers")
+    r = h.getresponse()
+    assert r.status == 200, r.status
+    head_headers = r.getheaders()
+    head_body = r.read()
+    assert head_body == "", head_body
+
+    assert get_headers == head_headers, (get_headers, head_headers)
 
 
 # Unicode and XML encoding

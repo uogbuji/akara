@@ -177,6 +177,12 @@ def test_echo_simple_get(**kwargs):
     for k, v in sorted(kwargs.items()):
         yield "%r -> %r\n" % (k, v)
 
+# This exists only to get two hits in the "/" index
+@simple_service("GET", "http://example.com/test_echo")
+def test_echo_simple_get2(**kwargs):
+    "Hi test_server.py!"
+    return test_echo_simple_get(**kwargs)
+
 @simple_service("POST", "http://example.com/test_echo_post")
 def test_echo_simple_post(query_body, query_content_type, **kwargs):
     "This echos a POST request, including the query body"
@@ -184,6 +190,20 @@ def test_echo_simple_post(query_body, query_content_type, **kwargs):
     yield "Length: %s\n" % len(query_body)
     yield "Body:\n"
     yield repr(query_body) + "\n"
+
+
+@simple_service("POST", "http://echo_request_headers")
+def test_echo_post_headers(query_body, ignore):
+    from akara import request
+    environ = request.environ
+    def go():
+        for k, v in environ.items():
+            if k.startswith("HTTP_"):
+                k = k[5:]
+                yield "%s -> %s\n" % (k, v)
+        yield "== End of the headers ==\n"
+    return go()
+
 
 #### '@service' tests
 

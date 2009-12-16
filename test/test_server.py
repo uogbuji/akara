@@ -49,8 +49,8 @@ def test_index_search():
             '</service>') in xml
     
     assert ('<service ident="http://example.com/test_echo">'
-            '<path>test_echo_simple_post</path>'
-            '<description>This echos a POST request, including the query body</description>'
+            '<path>test_echo_simple_get2</path>'
+            '<description>Hi test_server.py!</description>'
             '</service>') in xml
     assert xml.count("<service ") == 2, xml.count("<service ")
 
@@ -68,14 +68,31 @@ def test_404_error_message():
     except urllib2.HTTPError, err:
         assert err.code == 404
         assert err.headers["Content-Type"] == "text/html", err.headers["Content-Type"]
-        tree = amara.parse(err.fp)
+        tree = amara.parse(err.fp, standalone=True)
 
 def test_405_error_message():
     url = server()
     try:
-        urlopen(url, "blah, blah")
+        f = urlopen(url, "The server ignores this text")
         raise AssertionError("/ is not supposed to allow a POST")
     except urllib2.HTTPError, err:
         assert err.code == 405, err.code
         assert err.headers["Content-Type"] == "text/html", err.headers["Content-Type"]
-        tree = amara.parse(err.fp)
+        tree = amara.parse(err.fp, standalone=True)
+
+def test_405_error_message_mega(n=100):
+    import time
+    t1=time.time()
+    for i in range(n):
+        test_405_error_message()
+    t2=time.time()
+    # This catches an error in the error handling code where I did
+    # not parse in standalone mode, causing a 0.75s network load.
+    if n / (t2-t1+0.00001) < 2:
+        raise AssertionError("Should be able to handle more than 2 failure requests/seconds")
+
+if __name__ == "__main__":
+    def server():
+        #return "http://192.168.2.101:8880/"
+        return "http://localhost:8880/"
+    test_405_error_message_mega(1000)
