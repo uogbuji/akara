@@ -14,6 +14,19 @@ from akara import logger, logger_config
 from akara.multiprocess_http import AkaraPreforkServer, load_modules
 from akara import global_config
 
+
+# Need this in order to install "/" as service.list_services.  I think
+# this code is somewhat clunky. There should be no reason to need the
+# import here, but something has to install the top-level search
+# handler, and doing it via a simple_service just makes things, well,
+# simple. But the registry can't import services because services
+# needs a fully-loaded registry to register things.
+# Threw my hands up in the sky and broke the reference here.
+# Caveat emptor.
+
+from akara import services
+
+
 def save_pid(pid_file):
     "Save the current pid to the given PID filename"
     # One line, newline terminated
