@@ -38,7 +38,7 @@ with --akara-config, as in
 
   % python setup.py install --akara-config ~/my_akara.conf
 
-or specify the installation directory direclty with
+or specify the installation directory directly with
 --akara-modules-dir, as in
 
   % python setup.py install --akara-modules-dir ~/local/modules
