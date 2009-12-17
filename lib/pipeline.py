@@ -235,7 +235,7 @@ def register_pipeline(ident, path=None, stages=None, doc=None):
         raise TypeError("a pipeline must have stages")
     stages = [_normalize_stage(stage) for stage in stages]
 
-    # Check that the stages exist?
+    # Should I check that the dependent stages are already registered?
 
     pipeline = Pipeline(ident, path, stages, doc)
     registry.register_service(ident, path, pipeline, doc)
