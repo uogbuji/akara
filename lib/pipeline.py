@@ -68,7 +68,7 @@ class Pipeline(object):
                 logger.error("Pipeline %r(%r) could not find a %r service",
                               self.ident, self.path, stage.ident)
                 start_response("500 Internal server error", [("Content-Type", "text/plain")])
-                return ["Broken internal pipeline."]
+                return ["Broken internal pipeline.\n"]
 
             # Construct a new environ for each stage in the pipeline.
             # We have to make a new one since a stage is free to
@@ -112,8 +112,10 @@ class Pipeline(object):
             logger.debug("Pipeline %r(%r) at stage %r (%d/%d)",
                          self.ident, self.path, stage.ident, stage_index+1, num_stages)
             if is_last:
+                # End of the pipeline. Let someone else deal with the response
                 return service.handler(stage_environ, start_response)
             else:
+                # Intermediate stage output. Collect to forward to the next stage
                 captured_body = StringIO()
                 result = service.handler(stage_environ, capture_start_response)
 
@@ -130,7 +132,7 @@ class Pipeline(object):
                 # Was there some sort of HTTP error?
                 status = captured_response[0].split(None, 1)[0]
                 # XXX What counts as an error?
-                if status != "200":
+                if status not in ("200", "201"):
                     logger.debug(
                         "Pipeline %r(%r) start_response received status %r from stage %r. Stopping.",
                         self.ident, self.path, status, stage.ident)
@@ -140,10 +142,14 @@ class Pipeline(object):
 
                 # Save the response to the cStringIO
                 try:
-                    # Support wsgi.file_wrapper?
+                    # We might be able to get some better performance using
+                    # a wsgi.file_wrapper. If the chunks come from a file-like
+                    # object then we can reach in and get that file-like object
+                    # instead of copying it to a new one
                     for chunk in result:
                         captured_body.write(chunk)
                 finally:
+                    # Part of the WSGI spec
                     if hasattr(result, "close"):
                         result.close()
                 captured_body_length = captured_body.tell()
@@ -160,23 +166,29 @@ class Pipeline(object):
 # that urlencode knows how to process.
 
 def _flatten_kwargs_values(kwargs):
-    for k,v in kwargs.items():
+    result = []
+    if isinstance(kwargs, dict):
+        args = kwargs.items()
+    else:
+        args = kwargs
+    for k,v in args:
         if isinstance(v, basestring):
-            yield (k,v)
+            result.append( (k,v) )
         else:
             for item in v:
-                yield (k, item)
+                result.append( (k, item) )
+    return result
 
 def _build_query_string(query_args, kwargs):
     if query_args is None:
-        if kwargs is None:
+        if kwargs is None or kwargs == {}:
             return ""
         # all kwargs MUST be url-encodable
-        return urllib.urlencode(list(_flatten_kwargs_values(kwargs)))
+        return urllib.urlencode(_flatten_kwargs_values(kwargs))
 
-    if kwargs is None:
+    if kwargs is None or kwargs == {}:
         # query_args MUST be url-encodable
-        return urllib.urlencode(query_args)
+        return urllib.urlencode(_flatten_kwargs_values(query_args))
     raise TypeError("Cannot specify both 'query_args' and keyword arguments")
 
 

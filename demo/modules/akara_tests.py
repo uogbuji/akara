@@ -7,6 +7,7 @@ import os
 from amara import tree
 
 from akara.services import *
+from akara.pipeline import *
 from akara import request, response
 
 ## These are all errors in the simple_service definition.
@@ -339,3 +340,63 @@ def test_get_call_count():
     s = "%s %s" % (_call_count, os.getpid())
     _call_count += 1
     return s
+
+#### pipelines
+
+@simple_service("POST", "service:rot13")
+def test_rot13(query_body, query_content_type):
+    return query_body.encode("rot13")
+
+@simple_service("POST", "service:base64-encode")
+def test_base64_encode(query_body, query_content_type):
+    return query_body.encode("base64")
+
+@simple_service("POST", "service:base64-decode")
+def test_base64_decode(query_body, query_content_type):
+    return query_body.decode("base64")
+
+import hashlib
+
+@simple_service("POST", "service:md5-hash")
+def test_md5(query_body, query_content_type, key=""):
+    x = hashlib.md5(key)
+    x.update(query_body)
+    return x.digest()
+
+
+register_pipeline("http://dalkescientific.com/hash_encode",
+                  "hash_encode",
+                  stages = [Stage("service:md5-hash", key="secret"),
+                            "service:base64-encode",
+                            ])
+
+# This pipeline depends on another pipeline
+register_pipeline("http://dalkescientific.com/hash_encode_rot13",
+                  "hash_encode_rot13",
+                  stages = ["http://dalkescientific.com/hash_encode",
+                            "service:rot13",
+                            ])
+
+# This pipeline takes a GET as input
+@simple_service("GET", "service:get_name")
+def test_repeat_get(text="Andrew"):
+    return text
+
+register_pipeline("http://dalkescientific.com/get_hash",
+                  "get_hash",
+                  stages = ["service:get_name",
+                            "service:md5-hash",
+                            "service:base64-encode",
+                            ])
+
+register_pipeline("http://dalkescientific.com/broken_pipeline",
+                  "broken_pipeline1",
+                  stages = ["null:missing:stage",
+                            "service:rot13",
+                            ])
+
+register_pipeline("http://dalkescientific.com/broken_pipeline",
+                  "broken_pipeline2",
+                  stages = ["http://dalkescientific.com/hash_encode",
+                            "null:missing:stage",
+                            ])
