@@ -1,6 +1,50 @@
 """Support code for dealing with distutils and (eventually) Distribute.
 
+This is a helper module for installing Akara extensions. It extends
+the standard distutils installer. Please read 
+  http://docs.python.org/distutils/
+for a detailed description of how to use and distribute software
+packages iwth distutils.
+
+This version of setup() supports the "akara_extensions" option, which
+is a list of Python files to install into the Akara extension module
+directory. Your setup.py file might look like this:
+
+  from akara.dist import setup
+
+  setup(name = "MyAkaraExtension",
+        version = "9.8",
+        description = "An example Akara extension",
+        akara_extensions = ["module1.py", "module2.py"],
+        )
+
+and here is an example of it in use:
+
+  % python setup.py install
+
+
+All of the normal distutils options, like the ability to install
+Python modules, C-based extensions, and data files, are still
+available. This does mean that all packages will create an egg, even
+if no other Python code is installed.
+
+The Akara extension directory is not a versioned directory. Extensions
+placed in that directory are not managed by the Python egg system and
+will not work under virtualenv or similar tools.
+
+The default extension directory location comes from the default Akara
+configuration file. You can specify an alternate configuration file
+with --akara-config, as in
+
+  % python setup.py install --akara-config ~/my_akara.conf
+
+or specify the installation directory direclty with
+--akara-modules-dir, as in
+
+  % python setup.py install --akara-modules-dir ~/local/modules
+
 """
+import os
 import shutil
 
 from distutils.core import setup as _setup
@@ -75,8 +119,14 @@ def setup(**kwargs):
         user_options = EXTENSION_OPTIONS
 
         def initialize_options(self):
-            self.akara_config = None
-            self.akara_modules_dir = None
+            # I so don't know what I'm doing here, but it seems to work.
+            args =  self.distribution.command_options["install"]
+            self.akara_modules_dir = self.akara_config = None
+            for key, value in args.items():
+                if key == "akara_modules_dir":
+                    self.akara_modules_dir = value[1]
+                elif key == "akara_config":
+                    self.akara_config = value[1]
 
         def finalize_options(self):
             if self.akara_modules_dir is None:
@@ -92,6 +142,8 @@ def setup(**kwargs):
                     log.info("Installing Akara %s %r in %r" %
                              (description, filename, self.akara_modules_dir))
                     if not self.dry_run:
+                        if not os.path.isdir(self.akara_modules_dir):
+                            os.makedirs(self.akara_modules_dir) # Make sure the directory exists
                         shutil.copy(filename, self.akara_modules_dir)
 
     new_cmdclass = {}
