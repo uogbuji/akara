@@ -4,7 +4,7 @@ This is a helper module for installing Akara extensions. It extends
 the standard distutils installer. Please read 
   http://docs.python.org/distutils/
 for a detailed description of how to use and distribute software
-packages iwth distutils.
+packages with distutils.
 
 This version of setup() supports the "akara_extensions" option, which
 is a list of Python files to install into the Akara extension module
