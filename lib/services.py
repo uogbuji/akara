@@ -106,13 +106,6 @@ def new_request(environ):
     response.code = "200 OK"
     response.headers = []
 
-def clear_request():
-    "reset the akara.request and akara.response environment"
-    from akara import request, response
-    request.environ = None
-    response.code = None
-    response.headers = None
-
 def send_headers(start_response, default_content_type, content_length):
     "Send the WSGI headers, using values from akara.request.*"
     from akara import response
@@ -250,10 +243,7 @@ def service(service_id, path=None,
             # of tools which might access 'environ' directly, and
             # I want to be consistent with the simple* interfaces.
             new_request(environ)
-            try:
-                result = func(environ, start_response)
-            finally:
-                clear_request()
+            result = func(environ, start_response)
 
             # You need to make sure you sent the correct content-type!
             result, ctype, length = convert_body(result, None, encoding, writer)
@@ -393,16 +383,11 @@ def simple_service(method, service_id, path=None,
             _handle_notify_before(environ, body, notify_before)
 
             new_request(environ)
-            try:
-                result = func(*args, **kwargs)
-            except:
-                clear_request()
-                raise
+            result = func(*args, **kwargs)
 
             result, ctype, clength = convert_body(result, content_type, encoding, writer)
             send_headers(start_response, ctype, clength)
             result = _handle_notify_after(environ, result, notify_after)
-            clear_request()
             return result
 
         pth = path
@@ -567,10 +552,7 @@ class service_dispatcher_decorator(object):
                 # of tools which might access 'environ' directly, and
                 # I want to be consistent with the simple* interfaces.
                 new_request(environ)
-                try:
-                    result = func(environ, start_response)
-                finally:
-                    clear_request()
+                result = func(environ, start_response)
                 
                 # You need to make sure you sent the correct content-type!
                 result, ctype, clength = convert_body(result, None, encoding, writer)
@@ -596,14 +578,10 @@ class service_dispatcher_decorator(object):
                 except _HTTPError, err:
                     return err.make_wsgi_response(environ, start_response)
                 new_request(environ)
-                try:
-                    result = func(*args, **kwargs)
-                except:
-                    clear_request()
-                    raise
+                result = func(*args, **kwargs)
+
                 result, ctype, clength = convert_body(result, content_type, encoding, writer)
                 send_headers(start_response, ctype, clength)
-                clear_request()
                 return result
 
             self.dispatcher.add_handler(method, simple_method_wrapper)

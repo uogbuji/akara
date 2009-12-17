@@ -238,6 +238,12 @@ def test_service_with_a_path():
     except urllib2.HTTPError, err:
         assert err.code == 404
 
+## Test that a generator response can still access the query headers
+def test_echo_post_headers():
+    body = GET("test_echo_post_headers", data="make this a POST")
+    assert "HOST ->" in body, body
+
+
 ## Tests for '@method_dispatcher'
 
 def test_dispatching_with_no_methods():
