@@ -10,13 +10,13 @@ convert the WSGI response into the successive WSGI query.
 
 """
 
-# Import these carefully, since people will do "from akara.Pipeline import *"
-from urllib import urlencode as _urlencode
-from cStringIO import StringIO as _StringIO
+__all__ = ["Pipeline", "Stage", "register_pipeline"]
 
-from akara import logger as _logger
-from akara.registry import register_service as _register_service, get_a_service_by_id as _get_service
-from akara.registry import get_a_service_by_id as _get_a_service_by_id
+import urllib
+from cStringIO import StringIO
+
+from akara import logger
+from akara import registry
 
 # Helper function to figure out which stage is the first and/or last stage
 #  [X] -> [ (1,1,X])
@@ -47,7 +47,7 @@ class Pipeline(object):
     def __call__(self, environ, start_response):
         # The WSGI entry point for the pipeline
         
-        _logger.debug("Started the %s (%s) pipeline", self.ident, self.path)
+        logger.debug("Started the %s (%s) pipeline", self.ident, self.path)
 
         # Help capture the response of a WSGI request,
         # so I can forward it as input to the next request.
@@ -63,9 +63,9 @@ class Pipeline(object):
 
         num_stages = len(self.stages)
         for stage_index, is_first, is_last, stage in _flag_position(self.stages):
-            service = _get_a_service_by_id(stage.ident)
+            service = registry.get_a_service_by_id(stage.ident)
             if service is None:
-                _logger.error("Pipeline %r(%r) could not find a %r service",
+                logger.error("Pipeline %r(%r) could not find a %r service",
                               self.ident, self.path, stage.ident)
                 start_response("500 Internal server error", [("Content-Type", "text/plain")])
                 return ["Broken internal pipeline."]
@@ -109,12 +109,12 @@ class Pipeline(object):
                 # Make the previous response headers available to the next stage
                 stage_environ["akara.pipeline_headers"] = captured_response[1]
 
-            _logger.debug("Pipeline %r(%r) at stage %r (%d/%d)",
-                          self.ident, self.path, stage.ident, stage_index+1, num_stages)
+            logger.debug("Pipeline %r(%r) at stage %r (%d/%d)",
+                         self.ident, self.path, stage.ident, stage_index+1, num_stages)
             if is_last:
                 return service.handler(stage_environ, start_response)
             else:
-                captured_body = _StringIO()
+                captured_body = StringIO()
                 result = service.handler(stage_environ, capture_start_response)
 
                 # Did start_response get an exc_info term? (It might not
@@ -122,7 +122,7 @@ class Pipeline(object):
                 if captured_response[2]:
                     # It didn't raise an exception. Assume the response contains
                     # the error message. Forward it and stop the pipeline.
-                    _logger.debug(
+                    logger.debug(
                         "Pipeline %r(%r) start_response received exc_info from stage %r. Stopping.",
                         self.ident, self.path, stage.ident)
                     return result
@@ -131,7 +131,7 @@ class Pipeline(object):
                 status = captured_response[0].split(None, 1)[0]
                 # XXX What counts as an error?
                 if status != "200":
-                    _logger.debug(
+                    logger.debug(
                         "Pipeline %r(%r) start_response received status %r from stage %r. Stopping.",
                         self.ident, self.path, status, stage.ident)
                     start_response(captured_response[0], captured_response[1])
@@ -157,7 +157,7 @@ class Pipeline(object):
 #   dict(a=1, z=9)      -> "a=1&z=9"
 #   dict(a=[1,2, z=9])  -> "a=1&a=2&z=9"
 # This function helps flatten the values, producing a tuple-stream
-# that urlencode knows how to process
+# that urlencode knows how to process.
 
 def _flatten_kwargs_values(kwargs):
     for k,v in kwargs.items():
@@ -172,11 +172,11 @@ def _build_query_string(query_args, kwargs):
         if kwargs is None:
             return ""
         # all kwargs MUST be url-encodable
-        return _urlencode(list(_flatten_kwargs_values(kwargs)))
+        return urllib.urlencode(list(_flatten_kwargs_values(kwargs)))
 
     if kwargs is None:
         # query_args MUST be url-encodable
-        return _urlencode(query_args)
+        return urllib.urlencode(query_args)
     raise TypeError("Cannot specify both 'query_args' and keyword arguments")
 
 
@@ -238,4 +238,4 @@ def register_pipeline(ident, path=None, stages=None, doc=None):
     # Check that the stages exist?
 
     pipeline = Pipeline(ident, path, stages, doc)
-    _register_service(ident, path, pipeline, doc)
+    registry.register_service(ident, path, pipeline, doc)
