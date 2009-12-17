@@ -10,11 +10,17 @@ from akara import dist
 class SetupException(Exception):
     pass
 
+# Do a bit of extra work since nosetests might run in the top-level
+# Akara directory or in test/ .
+dirname = os.path.dirname(__file__)
+setup_scripts_dir = os.path.join(dirname, "setup_scripts")
+assert os.path.isdir(setup_scripts_dir), setup_scripts_dir
+
 def call_setup(args):
     p = subprocess.Popen([sys.executable] + args,
                          stdout = subprocess.PIPE,
                          stderr = subprocess.STDOUT,
-                         cwd="setup_scripts/")
+                         cwd=setup_scripts_dir)
     stdout = p.stdout.read()
     p.wait()
     if p.returncode != 0:
