@@ -99,10 +99,6 @@ def test_luckygoogle():
 
 
 # markuptools.py
-def SKIP(f):
-    pass
-
-@SKIP
 def test_akara_twc():
     url = server() + "akara.twc?max=5" # max 5 words in the result
 
@@ -112,13 +108,13 @@ def test_akara_twc():
     data = "<a>one two <b>three four </b><c>five <d>six seven</d> eight</c> nine</a>"
     
     result = urllib2.urlopen(req, data).read()
-    assert result == """\
-<?xml version="1.0" encoding="UTF-8"?>
-<html><head/><body><a>one two <b>three four </b><c>five</c></a></body></html>""", repr(result)
+    assert "one" in result, repr(result)
+    assert "five" in result, repr(result)
+    assert "six" not in result, repr(result)
+    assert "nine" not in result, repr(result)
 
-@SKIP
 def test_akara_twc_html():
-    url = server() + "akara.twc?html=yes&max=10" # max 500 words
+    url = server() + "akara.twc?html=yes&max=11" # max 11 words
 
     req = urllib2.Request(url)
     req.add_header('Content-Type', 'application/xml')
@@ -126,9 +122,8 @@ def test_akara_twc_html():
     data = ("<html><head/><body>" + " ".join(map(str, range(510))) + "</body></html>")
     
     result = urllib2.urlopen(req, data).read()
-    assert result == """\
-<?xml version="1.0" encoding="UTF-8"?>
-<html><head/><body>0 1 2 3 4 5 6 7 8 9</body></html>""", repr(result)
+    assert "7 8 9 10" in result, repr(result)
+    assert "11" not in result, repr(result)
 
 # method_dispatcher.py
 
