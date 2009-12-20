@@ -11,7 +11,8 @@ from amara.lib.util import trim_word_count
 from akara.services import simple_service
 
 SERVICE_ID = 'http://purl.org/akara/services/demo/trim-word-count'
-@simple_service('POST', SERVICE_ID, 'akara.twc', 'application/xml')
+@simple_service('POST', SERVICE_ID, 'akara.twc', 'application/xml',
+                writer="xml-indent")
 def akara_twc(body, ctype, max=None, html='no'):
     '''
     Take some POSTed markup and return a version with words trimmed, but intelligently,
@@ -27,12 +28,9 @@ def akara_twc(body, ctype, max=None, html='no'):
     #Raises ValueError
     #Is there a monadic approach we can provide for Akara for error handling?  This cries out for "Maybe"
     #(OK OK, the idea of Maybe, but more of the simple expressiveness of assert)
-    max_ = int(max[0]) if max else 500
-    if html != "no":
-        html = html[0]
+    max_ = int(max) if max else 500
     if html == 'yes':
         doc = amara.parse(body)
     else:
         doc = htmldoc.parse(body)
-    return trim_word_count(doc, max_).xml_encode('xml-indent')
-
+    return trim_word_count(doc, max_)
