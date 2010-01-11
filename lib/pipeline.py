@@ -79,7 +79,7 @@ class Pipeline(object):
                 # The first stage gets the HTTP request method
                 # Everything else gets a POST.
                 stage_environ["REQUEST_METHOD"] = "POST"
-            assert service.path # Can some services/pipelines not be mounted?
+            assert service.path is not None # Can some services/pipelines not be mounted?
             stage_environ["SCRIPT_NAME"] = service.path
             #stage_environ["PATH_INFO"] = ... # I think  this is best left unchanged. XXX
 
