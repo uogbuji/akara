@@ -76,6 +76,7 @@ def test_get_hash2():
 def test_broken_pipeline1():
     try:
         result = GET("broken_pipeline1")
+        raise AssertionError("should not get here")
     except urllib2.HTTPError, err:
         assert err.code == 500
         msg = err.read()
@@ -84,7 +85,12 @@ def test_broken_pipeline1():
 def test_broken_pipeline2():
     try:
         result = GET("broken_pipeline2", data="feed the pipeline")
+        raise AssertionError("should not get here")
     except urllib2.HTTPError, err:
         assert err.code == 500, err.code
         msg = err.read()
         assert "Broken internal pipeline" in msg, msg
+
+def test_registry_size():
+    result = GET("test_count_registry")
+    assert int(result) > 30, "What?! Did you remove elements from the registry?"

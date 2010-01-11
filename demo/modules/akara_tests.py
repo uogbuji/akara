@@ -4,7 +4,7 @@ They test functionality from the akara.services modules
 """
 import os
 
-from amara import tree
+from amara import tree, parse
 
 from akara.services import *
 from akara.pipeline import *
@@ -382,6 +382,12 @@ register_pipeline("http://dalkescientific.com/hash_encode_rot13",
 def test_repeat_get(text="Andrew"):
     return text
 
+@simple_service("POST", "service:count_children")
+def test_count_matches(query_body, query_content_type, xslt="*/*"):
+    doc = parse(query_body)
+    n = len(doc.xml_select(xslt))
+    return str(n)
+
 register_pipeline("http://dalkescientific.com/get_hash",
                   "get_hash",
                   stages = ["service:get_name",
@@ -400,3 +406,7 @@ register_pipeline("http://dalkescientific.com/broken_pipeline",
                   stages = ["http://dalkescientific.com/hash_encode",
                             "null:missing:stage",
                             ])
+register_pipeline("http://dalkescientific.com/count_registry",
+                  "test_count_registry",
+                  stages = ["http://purl.org/xml3k/akara/services/registry",
+                            "service:count_children"])
