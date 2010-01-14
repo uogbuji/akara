@@ -1,4 +1,5 @@
 import sys
+import httplib
 import urllib2
 from urllib import quote
 from functools import wraps

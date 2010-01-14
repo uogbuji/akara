@@ -18,6 +18,10 @@ says it does.
 At any time you can call set_logfile(f) again to log the messages to a
 different file.
 
+Note: for a recipe for filtering the log entries, see:
+
+ * http://stackoverflow.com/questions/1383254/logging-streamhandler-and-standard-streams
+
 """
 
 import sys

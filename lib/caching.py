@@ -85,7 +85,7 @@ class cache(object):
 
            ident is the Akara service ID
            maxentries is the maximum number of cache entries (approximate)
-           expires is the time after which entries expire
+           expires is the time in seconds after which entries expire
            opener is an alternative URL opener.  By default urllib2.urlopen is used.
         """
 

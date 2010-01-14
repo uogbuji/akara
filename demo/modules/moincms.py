@@ -31,7 +31,6 @@ from contextlib import closing
 
 import simplejson
 from dateutil.parser import parse as dateparse
-import pytz
 
 import amara
 from amara import bindery, _
@@ -41,6 +40,7 @@ from amara.writers.struct import *
 from amara.bindery.html import parse as htmlparse
 from amara.lib import U
 from amara.lib.iri import split_fragment, relativize, absolutize
+from amara.lib.date import timezone, UTC
 from amara.bindery.util import dispatcher, node_handler, property_sequence_getter
 
 from akara.util import copy_auth
@@ -109,14 +109,14 @@ class webcms_node(node):
             self.load()
         doc, metadata, original_wiki_base = self.cache
         entrydate = dateparse(unicode(doc.article.articleinfo.revhistory.revision.date))
-        if entrydate.tzinfo == None: entrydate = entrydate.replace(tzinfo=DEFAULT_LOCAL_TZ)
+        if entrydate.tzinfo == None: entrydate = entrydate.replace(tzinfo=UTC)
         if not os.access(self.output, os.R_OK):
             return False
         try:
             lastrev = dateparse(unicode(bindery.parse(self.output).entry.updated))
         except amara.ReaderError:
             return False
-        if lastrev.tzinfo == None: lastrev = lastrev.replace(tzinfo=DEFAULT_LOCAL_TZ)
+        if lastrev.tzinfo == None: lastrev = lastrev.replace(tzinfo=UTC)
         if (entrydate == lastrev):
             #print >> sys.stderr, 'Not updated.  Skipped...'
             return False
@@ -161,7 +161,7 @@ class page(webcms_node):
         #    lastrev = dateparse(datestr)
         #except amara.ReaderError:
         #    return False
-        if lastrev.tzinfo == None: lastrev = lastrev.replace(tzinfo=DEFAULT_LOCAL_TZ)
+        if lastrev.tzinfo == None: lastrev = lastrev.replace(tzinfo=UTC)
         if (lastrev > pagedate):
             return True
         return False
@@ -204,7 +204,7 @@ class page(webcms_node):
         #title = article.xml_select(u'section[@title = ]')
 
         #revdate = dateparse(unicode(page.article.articleinfo.revhistory.revision.date))
-        #if revdate.tzinfo == None: revdate = revdate.replace(tzinfo=DEFAULT_LOCAL_TZ)
+        #if revdate.tzinfo == None: revdate = revdate.replace(tzinfo=UTC)
         
         #Create ouput file
         #print >> sys.stderr, 'Writing to ', self.output
@@ -412,12 +412,6 @@ def main(argv=None):
     return
 
 
-
-#DEFAULT_TZ = pytz.timezone('UTC')
-UTC = pytz.timezone('UTC')
-DEFAULT_LOCAL_TZ = pytz.timezone('UTC')
-
-
 #aname = partial(property_sequence_getter, u"name")
 #aemail = partial(property_sequence_getter, u"email")
 #auri = partial(property_sequence_getter, u"uri")
@@ -440,11 +434,11 @@ class atom_entry(node):
         '''
         doc, metadata, original_wiki_base = self.cache
         entrydate = dateparse(unicode(doc.article.articleinfo.revhistory.revision.date))
-        if entrydate.tzinfo == None: entrydate = entrydate.replace(tzinfo=DEFAULT_TZ)
+        if entrydate.tzinfo == None: entrydate = entrydate.replace(tzinfo=UTC)
         output = os.path.join(outputdir, self.OUTPUTPATTERN%pathsegment(relative))
         if os.access(output, os.R_OK):
             lastrev = dateparse(unicode(bindery.parse(output).entry.updated))
-            if lastrev.tzinfo == None: lastrev = lastrev.replace(tzinfo=DEFAULT_TZ)
+            if lastrev.tzinfo == None: lastrev = lastrev.replace(tzinfo=UTC)
             if (entrydate == lastrev):
                 print >> sys.stderr, 'Not updated.  Skipped...'
                 # continue
@@ -467,7 +461,7 @@ class atom_entry(node):
         #    lastrev = dateparse(datestr)
         #except amara.ReaderError:
         #    return False
-        if lastrev.tzinfo == None: lastrev = lastrev.replace(tzinfo=DEFAULT_LOCAL_TZ)
+        if lastrev.tzinfo == None: lastrev = lastrev.replace(tzinfo=UTC)
         if (lastrev > pagedate):
             return True
         return False
@@ -510,7 +504,7 @@ class atom_entry(node):
         #title = article.xml_select(u'section[@title = ]')
 
         #revdate = dateparse(unicode(page.article.articleinfo.revhistory.revision.date))
-        #if revdate.tzinfo == None: revdate = revdate.replace(tzinfo=DEFAULT_LOCAL_TZ)
+        #if revdate.tzinfo == None: revdate = revdate.replace(tzinfo=UTC)
         
         #Create ouput file
         print >> sys.stderr, 'Writing to ', self.output
