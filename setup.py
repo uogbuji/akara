@@ -89,7 +89,7 @@ def renamed_packages():
 
 setuptools_extras["packages"] = renamed_packages()
 
-setup(name = "akara",
+setup(name = "Akara",
       version = "2.0a1",
       description='Web components for Amara 2.x',
       author='Uche Ogbuji and others',
