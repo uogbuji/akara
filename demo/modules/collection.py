@@ -24,11 +24,11 @@ folder = /tmp/collection
 = Notes on security =
 
 This module is a very simple demo, and does not pay much attention to security at all.
-The directory you expose to the Web will be exposed to the URL, although
-measures are taken to prevent obvious hierarchical manipulation to access
+The directory you specify in the config will be exposed to the Web, and thus to attack,
+although measures are taken to prevent obvious hierarchical manipulation to access
 outside that folder
 
-Use this with care.
+Use with great care.
 
 """
 #Detailed license and copyright information: http://4suite.org/COPYRIGHT

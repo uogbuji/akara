@@ -27,7 +27,7 @@ This module only sends information available in the request.  No security implic
 import amara
 from akara.services import simple_service
 
-ECHO_SERVICE_ID = 'http://purl.org/akara/services/demo/echo'
+ECHO_SERVICE_ID = 'http://purl.org/xml3k/akara/services/demo/echo'
 
 
 @simple_service('POST', ECHO_SERVICE_ID, 'akara.echo')

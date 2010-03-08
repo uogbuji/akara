@@ -35,7 +35,8 @@ from dateutil.parser import parse as dateparse
 import amara
 from amara import bindery, _
 from amara.namespaces import *
-from amara.bindery.model import examplotron_model, generate_metadata
+from amara.bindery.model import generate_metadata
+from amara.bindery.model.examplotron import examplotron_model
 from amara.writers.struct import *
 from amara.bindery.html import parse as htmlparse
 from amara.lib import U

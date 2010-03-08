@@ -1,0 +1,23 @@
+These demos are intended to be useful in their own right, and to help with ideas for writing your own modules.
+
+akara_tests.py - a special module used for unit testing
+atomtools.py - tools for working with Atom Web feed syntax.  Exercises Bindery XML parser, inline metadata annotations and JSON generation
+calaistools.py - tools for working with ThomsonReuters OpenCalais service.  Pretty simple, exercising JSON generation
+calweb.py - service to render an HTML calendar.  Exercises hierarchical path URL dispatch and XML generation through string concatenation (which will be fixed soon ;) )
+collection.py
+echo.py
+icaltools.py
+luckygoogle.py
+markuptools.py
+method_dispatcher.py
+moin2atomentries.py
+moincms.py
+moinrest.py
+oaitools.py
+rdfatools.py
+static.py
+statstools.py
+svntools.py
+unicodetools.py
+wwwlogviewer.py
+xslt.py

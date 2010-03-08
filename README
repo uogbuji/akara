@@ -1,7 +1,11 @@
-Akara
-=====
+Akara 2.0a1
+===========
 
 http://wiki.xml3k.org/Akara
 
-Akara 2.0 is a set of components for providing the capabilities of Amara to those developing services over a network protocol, particularly the Web. In effect it's a set of WSGI middleware and utilities libraries for XML/RDF processing.
+Akara 2.0 is an open-source (Apache2 license) Web framework specialized for RESTful data services, especially involving XML and other semi-structured formats. You express data models and create transforms based on these data models, plugging required inputs and outputs (XML, JSON, CSV, Atom, etc.) together into pipelines which implement the desired services. You then make these services available on the Web using simple wrappers. The wrappers are based on REST concepts and among other things make it easy to discover and reuse the services, and to connect them to local and remote systems using Web triggers (AKA Web hooks).
+
+Akara simplifies extract-transform-load (ETL), data-driven integration of systems, and makes it easy to wrap Web sites and services, turning tag soup and painful APIs into clean, RESTful end-points.
+
+For past and present 4Suite and Amara users, Akara is a set of components for providing the capabilities of Amara 2.0 to those developing services over a network protocol, particularly the Web. In effect it's a set of WSGI middleware and utilities libraries for XML and other data processing.
 

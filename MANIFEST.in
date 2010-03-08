@@ -1,0 +1,7 @@
+#include MANIFEST CHANGES LICENSE NOTICE
+include MANIFEST LICENSE
+
+# Recursively add contents of named directory
+graft demo
+graft test
+
