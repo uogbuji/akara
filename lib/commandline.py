@@ -140,6 +140,33 @@ def setup(args):
     print
     print "Akara environment set up. To start Akara use:"
     print "    akara start"
+
+
+# This function is not multi-process safe. It's meant to be
+# called by hand during the development process
+def error_log_rotate(args):
+    import datetime
+    settings, config = read_config.read_config(args.config_filename)
+    error_log = settings["error_log"]
+
+    ext  = ""
+    i = 0
+    timestamp = datetime.datetime.now().isoformat().split(".")[0]
+    template = error_log + "." + timestamp
+    archived_error_log = template
+    while os.path.exists(archived_error_log):
+        i += 1
+        archived_error_log = template + "_" + str(i)
+
+    try:
+        os.rename(error_log, archived_error_log)
+    except OSError, err:
+        if not os.path.exists(error_log):
+            print "No error log found at %r" % error_log
+        else:
+            raise
+    else:
+        print "Rotated log file from %r to %r" % (error_log, archived_error_log)
     
 
 ######################################################################
@@ -185,6 +212,16 @@ parser_status.set_defaults(func=status)
 parser_setup = subparsers.add_parser("setup", help="set up directories and files for Akara")
 parser_setup.set_defaults(func=setup)
 
+# There may be an "akara log rotate" in the future, along perhaps with
+# "akara log tail", "akara log filename" and other options. There's
+# not yet enough call for those and the following doesn't interfere
+# with the possibility (excepting non-orthagonality).
+
+parser_setup = subparsers.add_parser("rotate_error_log",
+                                     help="rotate out the current Akara error log")
+parser_setup.set_defaults(func=error_log_rotate)
+
+
 def main(argv):
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     args.func(args)

@@ -176,3 +176,52 @@ def test_setup(server_root):
     
     assert os.path.exists(os.path.join(server_root, "logs"))
     assert os.path.exists(os.path.join(server_root, "modules"))
+
+@tmpdir
+def test_log_rotate(server_root):
+    config = Config(server_root)
+    capture = CaptureStdout()
+    error_log_filename = os.path.join(server_root, "testing.log")
+    
+    def find_backup_logs():
+        return [name for name in os.listdir(server_root)
+                   if name.startswith("testing.log.")]
+    
+    with open(config.config_filename, "w") as f:
+        f.write("[global]\nServerRoot = %s\nErrorLog=%s\n" %
+                (server_root, error_log_filename))
+
+    # No log file present
+    with capture:
+        commandline.main(["-f", config.config_filename, "rotate_error_log"])
+    assert "No log file"
+
+    MESSAGE = "It was the best of times it was the worst of times.\n"
+    with open(error_log_filename, "w") as f:
+        f.write(MESSAGE)
+
+    # Existing log file is present. Rotate
+    with capture:
+        commandline.main(["-f", config.config_filename, "rotate_error_log"])
+    assert "testing.log.2" in capture.content, capture.content
+    assert "Rotated log" in capture.content, capture.content
+
+    filenames = find_backup_logs()
+    assert len(filenames) == 1, ("should have one backup", filenames)
+
+    # Check that the content rotated
+    content = open(os.path.join(server_root, filenames[0])).read()
+    assert content == MESSAGE, (content, MESSAGE)
+
+    # The log file should not be present
+    assert not os.path.exists(error_log_filename)
+    MESSAGE = "When shall we three meet again?\n"
+    with open(error_log_filename, "w") as f:
+        f.write(MESSAGE)
+
+    # And rotate again. Should now have two backups
+    commandline.main(["-f", config.config_filename, "rotate_error_log"])    
+    filenames = find_backup_logs()
+    assert len(filenames) == 2, ("should have two backups", filenames)
+
+    assert not os.path.exists(error_log_filename)
