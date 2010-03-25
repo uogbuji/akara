@@ -217,7 +217,7 @@ parser_setup.set_defaults(func=setup)
 # not yet enough call for those and the following doesn't interfere
 # with the possibility (excepting non-orthagonality).
 
-parser_setup = subparsers.add_parser("rotate_error_log",
+parser_setup = subparsers.add_parser("rotate",
                                      help="rotate out the current Akara error log")
 parser_setup.set_defaults(func=error_log_rotate)
 

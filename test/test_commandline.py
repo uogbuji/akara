@@ -193,7 +193,7 @@ def test_log_rotate(server_root):
 
     # No log file present
     with capture:
-        commandline.main(["-f", config.config_filename, "rotate_error_log"])
+        commandline.main(["-f", config.config_filename, "rotate"])
     assert "No log file"
 
     MESSAGE = "It was the best of times it was the worst of times.\n"
@@ -202,7 +202,7 @@ def test_log_rotate(server_root):
 
     # Existing log file is present. Rotate
     with capture:
-        commandline.main(["-f", config.config_filename, "rotate_error_log"])
+        commandline.main(["-f", config.config_filename, "rotate"])
     assert "testing.log.2" in capture.content, capture.content
     assert "Rotated log" in capture.content, capture.content
 
@@ -220,7 +220,7 @@ def test_log_rotate(server_root):
         f.write(MESSAGE)
 
     # And rotate again. Should now have two backups
-    commandline.main(["-f", config.config_filename, "rotate_error_log"])    
+    commandline.main(["-f", config.config_filename, "rotate"])    
     filenames = find_backup_logs()
     assert len(filenames) == 2, ("should have two backups", filenames)
 
