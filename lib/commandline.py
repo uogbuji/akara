@@ -223,5 +223,5 @@ parser_setup.set_defaults(func=error_log_rotate)
 
 
 def main(argv):
-    args = parser.parse_args(argv)
+    args = parser.parse_args(argv[1:])
     args.func(args)
