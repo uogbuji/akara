@@ -205,6 +205,7 @@ def _parse_netloc(netloc, xnetloc):
     # If it's just a number, return the number (and the ":" I had removed)
     if port.isdigit():
         yield ":" + port
+        return
 
     # Otherwise it's a parameter. Make sure it's only a paramter
     m = tparameter_pat.match(port)
@@ -386,12 +387,6 @@ class Tests(unittest.TestCase):
                                    hostname="example")
         assert err.startswith("URI hostname cannot contain an optional template variable")
 
-    def test_port(self):
-        self.assertEquals(apply_template("http://example.com:{port}/", port="80"),
-                          "http://example.com:80/")
-        self.assertEquals(apply_template("http://example.com:{port?}/", port="80"),
-                          "http://example.com:80/")
-
 
     def test_unicode_failures(self):
         # Scheme cannot include Unicode
@@ -502,6 +497,8 @@ class Tests(unittest.TestCase):
         assert err.startswith("Port template parameter 'port' is not an integer ('-80')")
 
     def test_port(self):
+        self.assertEquals(apply_template("http://localhost:8765/"),
+                          "http://localhost:8765/")
         self.assertEquals(apply_template("http://localhost:{port}/", port=8080),
                           "http://localhost:8080/")
         self.assertEquals(apply_template("http://localhost:{port}/", port="8080"),
