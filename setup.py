@@ -82,7 +82,7 @@ def renamed_packages():
     names = []
     for package in find_packages():
         if package.startswith("lib"):
-            names.append(package.replace("lib", "akara"))
+            names.append(package.replace("lib", "akara", 1))
         else:
             raise AssertionError("Unknown package %r" % (package,))
     return names
