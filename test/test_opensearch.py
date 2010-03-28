@@ -176,6 +176,6 @@ class Tests(unittest.TestCase):
                           "http://localhost/?q")
         self.assertEquals(apply_template("http://localhost:{port?}/?q", port="123"),
                           "http://localhost:123/?q")
-        
+
 if __name__ == "__main__":
     unittest.main()

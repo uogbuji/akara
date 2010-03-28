@@ -9,57 +9,14 @@ import urlparse
 import urllib
 
 
-### Some examples from various sources (mostly the spec document)
-# http://example.com/search?q={searchTerms}
-# http://example.com/feed/{startPage?}
-# http://example.com?q={searchTerms}&amp;c={example:color?}
-# http://example.com?q={a:localname?}
-# http://example.com?f={example:format?}
-# http://example.com/search?color={custom:color?}
-# http://example.com/?q={searchTerms}&amp;pw={startPage?}
-# http://example.com/?q={searchTerms}&amp;pw={startPage?}&amp;format=rss
-# http://example.com/?q={searchTerms}&amp;pw={startPage?}&amp;format=atom
-# http://example.com/osd.xml
+__all__ = ["make_template", "apply_template"]
 
-# http://example.com/ab{name?}/with?arg={arg}
-# http://{country}.example.com/
-
-### Syntax definitions from the relevant specs
-
-# tparameter     = "{" tqname [ tmodifier ] "}"
-# tqname = [ tprefix ":" ] tlname
-# tprefix = *pchar
-# tlname = *pchar
-
-# pchar = unreserved / pct-encoded / sub-delims / ":" / "@"
-
-# unreserved    = ALPHA / DIGIT / "-" / "." / "_" / "~"
-# pct-encoded   = "%" HEXDIG HEXDIG
-# sub-delims    = "!" / "$" / "&" / "'" / "(" / ")"
-#                 / "*" / "+" / "," / ";" / "="
-
-# tmodifier      = "?"
-
-pchar = r"""([A-Za-z0-9._~!$&''()*+,;=""-]|(%[0-9A-Fa-f]{2}))*"""
-scheme = r"[a-zA-Z0-9+.-]+"
-tparameter = r"""
-(?: {{
-       ((?P<tprefix> {pchar} ) : )?
-       (?P<tlname> {pchar} )
-       (?P<tmodifier>\?)?
-    }} )
-""".format(pchar=pchar)
-
-
-scheme_pat = re.compile(r"""( {scheme} | {tparameter}):""".format(
-    scheme=scheme, tparameter=tparameter), re.X)
-
-tparameter_pat = re.compile(r"""
-{{((?P<tprefix> {pchar} ) : )? (?P<tlname> {pchar} ) (?P<tmodifier>\?)? }}
-""".format(pchar=pchar), re.X)
-
-# Match either a tparameter or things which aren't in a template
-template_pat = re.compile(r"({tparameter}|[^{{]+)".format(tparameter=tparameter), re.X)
+# The OpenSearch format is documented at
+#   http://www.opensearch.org/Specifications/OpenSearch/1.1/Draft_4
+# it references the URI spec at
+#   http://www.ietf.org/rfc/rfc3986.txt
+# Note a proposed extension to OpenSearch at:
+#   http://www.snellspace.com/wp/?p=369
 
 
 ###############
@@ -102,12 +59,55 @@ template_pat = re.compile(r"({tparameter}|[^{{]+)".format(tparameter=tparameter)
 # Template substitution is a merger of either the byte string or the
 # result of calling the function with the input parameters.
 
+### Syntax definitions from the relevant specs
 
-def is_optional(m):
+# tparameter     = "{" tqname [ tmodifier ] "}"
+# tqname = [ tprefix ":" ] tlname
+# tprefix = *pchar
+# tlname = *pchar
+
+# pchar = unreserved / pct-encoded / sub-delims / ":" / "@"
+
+# unreserved    = ALPHA / DIGIT / "-" / "." / "_" / "~"
+# pct-encoded   = "%" HEXDIG HEXDIG
+# sub-delims    = "!" / "$" / "&" / "'" / "(" / ")"
+#                 / "*" / "+" / "," / ";" / "="
+
+# tmodifier      = "?"
+
+pchar = r"""([A-Za-z0-9._~!$&''()*+,;=""-]|(%[0-9A-Fa-f]{2}))*"""
+scheme = r"[a-zA-Z0-9+.-]+"
+tparameter = r"""
+(?: {{
+       ((?P<tprefix> {pchar} ) : )?
+       (?P<tlname> {pchar} )
+       (?P<tmodifier>\?)?
+    }} )
+""".format(pchar=pchar)
+
+
+scheme_pat = re.compile(r"""( {scheme} | {tparameter}):""".format(
+    scheme=scheme, tparameter=tparameter), re.X)
+
+tparameter_pat = re.compile(r"""
+{{((?P<tprefix> {pchar} ) : )? (?P<tlname> {pchar} ) (?P<tmodifier>\?)? }}
+""".format(pchar=pchar), re.X)
+
+# Match either a tparameter or things which aren't in a template
+template_pat = re.compile(r"({tparameter}|[^{{]+)".format(tparameter=tparameter), re.X)
+
+# Test if the re match group contains the '?' tmodifier field
+def _is_optional(m):
     return m.group("tmodifier") == "?"
 
+##################
+
+
+# Parse the URI scheme field.
+# Looks something like "http:", "ftp:", or "{scheme}:"
+# This parses up to the ':' and returns the offset to the ':' and a
+# list of template parts.
 def _parse_scheme(uri):
-    # Something like "http:", "ftp:", or "{scheme}:"
     m = scheme_pat.match(uri)
     if m is None:
         i = uri.find(":")
@@ -119,10 +119,10 @@ def _parse_scheme(uri):
         raise TypeError(msg % (uri,))
 
     if m.group("tlname") is None:
-        # Just text
+        # Just text. This must be an ASCII byte string.
         return m.end(), [m.group(0).encode("ascii")]
 
-    if is_optional(m):
+    if _is_optional(m):
         raise TypeError("URI scheme cannot be an optional template variable")
     def convert_scheme(params, tlname=m.group("tlname")):
         # I could make this a more rigorous test for the legal scheme characters
@@ -131,10 +131,11 @@ def _parse_scheme(uri):
     return m.end(), [convert_scheme, ":"]
 
 # Find the end of the network location field. The start is just after the '//'.
-# To make things easier, this must be a string with all {names} removed!
+# To make things easier, this must be a string with all template {names} removed!
 # That's the "xuri", which uses "X"s to replace the template names.
 def _find_netloc(xuri, start):
     end = len(xuri)
+    # This is the same test in urllib.urlsplit
     for c in "/?#":
         offset = xuri.find(c, start)
         if offset >= 0 and offset < end:
@@ -142,9 +143,12 @@ def _find_netloc(xuri, start):
     return end
 
 def _parse_netloc(netloc, xnetloc):
+    # Check to see if there's a username/password field.
+    # These happen before the '@', if one exists.
     i = xnetloc.find("@")
     if i >= 0:
-        # Use the normal utf-8 encoding
+        # Username/password fields use the normal utf-8 encoding
+        # so handle that with the normal template parser.
         for part in _parse_template(netloc[:i]):
             yield part
         yield "@"
@@ -154,11 +158,14 @@ def _parse_netloc(netloc, xnetloc):
         hostname = netloc
         xhostname = xnetloc
 
+    # There could be a port after the hostname. 
+    # Starts with ":", as in  http://localhost:8080/path/
     i = xhostname.find(":")
     if i >= 0:
         port = hostname[i+1:]
         hostname = hostname[:i]
     else:
+        # No port specified
         port = None
 
     if not hostname:
@@ -214,10 +221,11 @@ def _parse_netloc(netloc, xnetloc):
     if m.end() != len(port):
         raise TypeError("Port may not contain anything after the template name")
     tlname = m.group("tlname")
-    if is_optional(m):
+    if _is_optional(m):
         extract = lambda params, tlname=tlname: params.get(tlname, "")
     else:
         extract = lambda params, tlname=tlname: params[tlname]
+        
     def convert_port(params, extract=extract, tlname=tlname):
         value = extract(params)
         if isinstance(value, int):
@@ -232,14 +240,14 @@ def _parse_netloc(netloc, xnetloc):
                         (tlname, value))
     yield convert_port
             
-
+# Handle the text fields which are escaped via URL-encoded UTF-8
 def _parse_template(template):
     for m in template_pat.finditer(template):
         if m.group("tlname") is None:
             # "ascii" to ensure that no Unicode characters are in the template
-            yield m.group(0).encode("ascii")
+            yield m.group(0).encode("ascii") # You must pre-encode non-ASCII text yourself
         else:
-            if is_optional(m):
+            if _is_optional(m):
                 def convert_scheme(params, tlname=m.group("tlname")):
                     return urllib.quote_plus(params.get(tlname, "").encode("utf8"))
             else:
@@ -249,6 +257,7 @@ def _parse_template(template):
 
 
 def decompose_template(uri):
+    """Internal function to break down an OpenSearch template into its Template terms"""
     # For use in Akara, the scheme and host name are required, and the
     # "uri" syntax is defined from RFC 3986 + OpenSearch templates.
 
@@ -310,10 +319,19 @@ def decompose_template(uri):
 
 
 class Template(object):
+    """A parsed OpenSearch Template object.
+
+    Use 'make_template(template_string)' to make a Template instance.
+    """
     def __init__(self, template, terms):
+        """You should not call this constructor directly."""
         self.template = template
         self.terms = terms
     def substitute(self, **kwargs):
+        """Use the kwargs to fill in the template fields.
+
+        Unknown kwargs are ignored.
+        """
         results = []
         for term in self.terms:
             if isinstance(term, basestring):
@@ -323,12 +341,23 @@ class Template(object):
         return "".join(results)
 
 def make_template(template):
+    """Given an OpenSearch template, return a Template instance for it.
+
+    >>> template = make_template('http://localhost/search?q={term}')
+    >>> template.substitute(term='opensearch syntax')
+    'http://localhost/search?q=opensearch+syntax'
+    >>>
+    """
     terms = decompose_template(template)
     return Template(template, terms)
 
-# API still shaky. This is for testing
-
 def apply_template(template, **kwargs):
+    """Apply the kwargs to the template fields and return the result
+
+    >>> apply_template('http://{userid}.example.com/status', userid='anonymous')
+    'http://anonymous.example.com/status'
+    >>>
+    """
     t = make_template(template)
     return t.substitute(**kwargs)
 
