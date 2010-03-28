@@ -1,6 +1,13 @@
+"""Support library for OpenSearch templates
+
+This is an internal module to Akara. The API may change in the future.
+
+"""
+
 import re
 import urlparse
 import urllib
+
 
 ### Some examples from various sources (mostly the spec document)
 # http://example.com/search?q={searchTerms}
@@ -17,62 +24,7 @@ import urllib
 # http://example.com/ab{name?}/with?arg={arg}
 # http://{country}.example.com/
 
-###############
-
-# I started implementing a parser from the spec then realized the spec
-# grammar isn't correctly defined. For example, it has:
-
-#  thost = *( host / tparameter )
-#   where
-#  host  = IP-literal / IPv4address / reg-name
-
-# which means it allows 127.0.0.1127.0.0.1 as an address.
-
-# I can't simply punt and use Python's urllib.urlsplit because "?"
-# is allowed inside of the {} fields,
-#  >>> urllib.urlsplit("http://example.com/{spam?}/eggs")
-#  SplitResult(scheme='http', netloc='example.com',
-#               path='/{spam', query='}/eggs', fragment='')
-
-# I decided to cheat, and rewrite the {}s as {0}, {1}, etc.
-# Then split, then search and put those fields back into place.
-
-#### This came from urlparse.urlsplit
-# Copied because I have to add "{}" to the following
-scheme_chars = urlparse.scheme_chars + "{}"  # tweaked!
-
-# TODO: review and check that I handle the uses_* checks correctly.
-
-def urlsplit(url, scheme='', allow_fragments=True):
-    netloc = query = fragment = ''
-    i = url.find(':')
-    if i > 0:
-        if url[:i] == 'http': # optimize the common case
-            scheme = url[:i].lower()
-            url = url[i+1:]
-            if url[:2] == '//':
-                netloc, url = urlparse._splitnetloc(url, 2)
-            if allow_fragments and '#' in url:
-                url, fragment = url.split('#', 1)
-            if '?' in url:
-                url, query = url.split('?', 1)
-            v = urlparse.SplitResult(scheme, netloc, url, query, fragment)
-            return v
-        for c in url[:i]:
-            if c not in scheme_chars:
-                break
-        else:
-            scheme, url = url[:i].lower(), url[i+1:]
-    # XXX How to handle this for {} substitutions?
-    if (scheme in urlparse.uses_netloc or "{" in scheme) and url[:2] == '//':
-        netloc, url = urlparse._splitnetloc(url, 2)
-    if allow_fragments and (scheme in urlparse.uses_fragment or "{" in scheme) and '#' in url:
-        url, fragment = url.split('#', 1)
-    if (scheme in urlparse.uses_query or "{" in scheme) and '?' in url:
-        url, query = url.split('?', 1)
-    v = urlparse.SplitResult(scheme, netloc, url, query, fragment)
-    return v
-
+### Syntax definitions from the relevant specs
 
 # tparameter     = "{" tqname [ tmodifier ] "}"
 # tqname = [ tprefix ":" ] tlname
@@ -87,141 +39,315 @@ def urlsplit(url, scheme='', allow_fragments=True):
 #                 / "*" / "+" / "," / ";" / "="
 
 # tmodifier      = "?"
+
 pchar = r"""([A-Za-z0-9._~!$&''()*+,;=""-]|(%[0-9A-Fa-f]{2}))*"""
+scheme = r"[a-zA-Z0-9+.-]+"
+tparameter = r"""
+(?: {{
+       ((?P<tprefix> {pchar} ) : )?
+       (?P<tlname> {pchar} )
+       (?P<tmodifier>\?)?
+    }} )
+""".format(pchar=pchar)
 
 
-# TODO: how should I check for and handle illegal {fields} ?
+scheme_pat = re.compile(r"""( {scheme} | {tparameter}):""".format(
+    scheme=scheme, tparameter=tparameter), re.X)
 
 tparameter_pat = re.compile(r"""
 {{((?P<tprefix> {pchar} ) : )? (?P<tlname> {pchar} ) (?P<tmodifier>\?)? }}
 """.format(pchar=pchar), re.X)
 
-assert tparameter_pat.match("{Andrew}")
+# Match either a tparameter or things which aren't in a template
+template_pat = re.compile(r"({tparameter}|[^{{]+)".format(tparameter=tparameter), re.X)
 
 
-# Simple intermediate storage
-class TemplateVariable(object):
-    def __init__(self, tprefix, tlname, is_optional):
-        self.tprefix = tprefix
-        self.tlname = tlname
-        self.is_optional = is_optional
+###############
 
-# Convert something like:
-#   http://example.com?q={searchTerms}&amp;c={color?}
-# into
-#   modified_template = http://example.com?q={0}&amp;c={1}
-#   variables = [TemplateVariable(None, "searchTerms", 0),
-#                TemplateVariable(None, "color", 1)]
-#   split_result = SplitResult(scheme = "http", netloc="example.com",
-#                              path="", query="q={0}&amp;c={1}")
-#
+# I started by looking for existing OpenSearch implementations but
+# they didn't work correctly. For example, one tool uses
+# urllib.urlsplit to parse the fields, then does template substitution
+# of each field. That works only because the library didn't support
+# optional "?" fields. That is, consider:
+
+#  >>> urllib.urlsplit("http://example.com/{spam?}/eggs")
+#  SplitResult(scheme='http', netloc='example.com',
+#               path='/{spam', query='}/eggs', fragment='')
+
+# I started implementing a parser from the spec then realized the spec
+# grammar isn't correctly defined. For example, it has:
+
+#  thost = *( host / tparameter )
+#   where
+#  host  = IP-literal / IPv4address / reg-name
+
+# which means it allows 127.0.0.1127.0.0.1 as an address. While the
+# grammar isn't that bad, it's easier to use an approach more like
+# what Python's urllib.urlsplit does.
+
+# I also noticed the grammar doesn't allow http://{userid}.myopenid.com/
+# as a template, which seemed important for some cases.
+
+# I can't treat this as a simple template grammar and just search for
+# the {...} tokens because of Unicode issues. The encoding is field
+# specific. The hostname uses IDNA while most of the rest of the
+# encoding uses URL-encoded UTF-8.
+
+# The algorithm breaks the template up into parts. Each part is either
+# a string (should be a byte string since URLs are not Unicode) or a
+# function corresponding to a template lookup. The function will get a
+# dictionary of input parameters and it must returns the correctly
+# encoded value.
+
+# Template substitution is a merger of either the byte string or the
+# result of calling the function with the input parameters.
 
 
-def make_template(template):
-    variables = []
+def is_optional(m):
+    return m.group("tmodifier") == "?"
 
-    # regex substitution function, used when replacing the tparameter values
-    def handle_match(m):
-        i = len(variables)
-        variables.append( TemplateVariable(m.group("tprefix"),
-                                           m.group("tlname"),
-                                           m.group("tmodifier") == "?") )
-        if variables[-1].tprefix is not None:
-            raise AssertionError("namespaces are not supported")
-        return "{%d}" % i
+def _parse_scheme(uri):
+    # Something like "http:", "ftp:", or "{scheme}:"
+    m = scheme_pat.match(uri)
+    if m is None:
+        i = uri.find(":")
+        if i >= 0:
+            msg = "URI scheme must be either text or a single template field: %r"
+        else:
+            msg = "Missing or unparsable URI scheme: %r"
+            
+        raise TypeError(msg % (uri,))
 
-    # Replace the terms with {0}, {1}, ...
-    modified_template = tparameter_pat.sub(handle_match, template)
+    if m.group("tlname") is None:
+        # Just text
+        return m.end(), [m.group(0).encode("ascii")]
 
-    # Based on Python's lenient parser (does not verify, for example,
-    # that the scheme contains only valid characters)
-    split_result = urlsplit(modified_template)
+    if is_optional(m):
+        raise TypeError("URI scheme cannot be an optional template variable")
+    def convert_scheme(params, tlname=m.group("tlname")):
+        # I could make this a more rigorous test for the legal scheme characters
+        return params[tlname].encode("ascii")  # the scheme can only be ASCII
 
-    return Template(template, variables, split_result)
+    return m.end(), [convert_scheme, ":"]
+
+# Find the end of the network location field. The start is just after the '//'.
+# To make things easier, this must be a string with all {names} removed!
+# That's the "xuri", which uses "X"s to replace the template names.
+def _find_netloc(xuri, start):
+    end = len(xuri)
+    for c in "/?#":
+        offset = xuri.find(c, start)
+        if offset >= 0 and offset < end:
+            end = offset
+    return end
+
+def _parse_netloc(netloc, xnetloc):
+    i = xnetloc.find("@")
+    if i >= 0:
+        # Use the normal utf-8 encoding
+        for part in _parse_template(netloc[:i]):
+            yield part
+        yield "@"
+        hostname = netloc[i+1:]
+        xhostname = xnetloc[i+1:]
+    else:
+        hostname = netloc
+        xhostname = xnetloc
+
+    i = xhostname.find(":")
+    if i >= 0:
+        port = hostname[i+1:]
+        hostname = hostname[:i]
+    else:
+        port = None
+
+    if not hostname:
+        raise TypeError("Akara requires a hostname in the template")
+
+    # This is tricky. I have to join all of the subfields before doing
+    # the idna encoding. This allows u"{hostname}.Espa\u00F1a.com"
+    # since the u".Espa\u00F1a.com" does not encode on its own.
+
+    # Create a list of subparts, either:
+    #    - strings which are *not* encoded
+    #    - a function to look up the value in the dictionary
+    subparts = []
+    for m in template_pat.finditer(hostname):
+        tlname = m.group("tlname")
+        if tlname is None:
+            subparts.append(m.group(0))
+        else:
+            if m.group("tmodifier") == "?":
+                raise TypeError("URI hostname cannot contain an optional template variable")
+            subparts.append(lambda d, tlname=tlname: d[tlname])
+
+    # In the common case this is a string. No need for the extra overhead.
+    if len(subparts) == 1 and isinstance(subparts[0], basestring):
+        yield subparts[0].encode("idna")
+
+    else:
+        # Function to convert, join, and encode based the parts
+        def convert_hostname(params, parts=subparts):
+            results = []
+            for part in parts:
+                if isinstance(part, basestring):
+                    results.append(part)
+                else:
+                    results.append(part(params))
+            result = "".join(results)
+            return result.encode("idna")
+        yield convert_hostname
+
+    # And finally, the port.
+    if port is None:
+        return
+
+    # If it's just a number, return the number (and the ":" I had removed)
+    if port.isdigit():
+        yield ":" + port
+
+    # Otherwise it's a parameter. Make sure it's only a paramter
+    m = tparameter_pat.match(port)
+    if m is None:
+        raise TypeError("Port must be either a number or a template name")
+    if m.end() != len(port):
+        raise TypeError("Port may not contain anything after the template name")
+    tlname = m.group("tlname")
+    if is_optional(m):
+        extract = lambda params, tlname=tlname: params.get(tlname, "")
+    else:
+        extract = lambda params, tlname=tlname: params[tlname]
+    def convert_port(params, extract=extract, tlname=tlname):
+        value = extract(params)
+        if isinstance(value, int):
+            # Allow people to pass in a port number as an integer
+            return ":%d" % (value,)
+        if value == "":
+            # No port given? Use the default. (Don't include the ':' here.)
+            return ""
+        if value.isdigit():
+            return ":" + value
+        raise TypeError("Port template parameter %r is not an integer (%r)" %
+                        (tlname, value))
+    yield convert_port
+            
+
+def _parse_template(template):
+    for m in template_pat.finditer(template):
+        if m.group("tlname") is None:
+            # "ascii" to ensure that no Unicode characters are in the template
+            yield m.group(0).encode("ascii")
+        else:
+            if is_optional(m):
+                def convert_scheme(params, tlname=m.group("tlname")):
+                    return urllib.quote_plus(params.get(tlname, "").encode("utf8"))
+            else:
+                def convert_scheme(params, tlname=m.group("tlname")):
+                    return urllib.quote_plus(params[tlname].encode("utf8"))
+            yield convert_scheme
 
 
-# Match {0}, {1}, ...
-_simple = re.compile(r"{\d+}")
+def decompose_template(uri):
+    # For use in Akara, the scheme and host name are required, and the
+    # "uri" syntax is defined from RFC 3986 + OpenSearch templates.
 
-# Used to convert unicode or byte strings into URLs
-# Different encoders are needed for different parts
+    # I'll make life easier by working with a string without the {} templates.
+    def check_and_replace_template_field(m):
+        if m.group("tprefix") is not None:
+            raise TypeError("Template prefix not supported in Akara (in %r)" % (m.group(0),))
+        
+        if m.group("tlname") == "":
+            raise TypeError("Empty template variable in %r" % (uri,))
+        return "X" * (m.end() - m.start())
+            
+    xuri = tparameter_pat.sub(check_and_replace_template_field, uri)
 
-# This is for the scheme
-def ascii_encoder(s):
-    return s.encode("ascii")
+    # Make sure that no "{" or "}" characters are present!
+    if "{" in xuri:
+        raise TypeError(
+            "Unexpected '{' found in URI at position %d)" % (xuri.index("{")+1,))
+    if "}" in xuri:
+        raise TypeError(
+            "Unexpected '}' found in URI at position %d" % (xuri.index("}")+1,))
 
-# This is for the host name
-def idna_encoder(s):
-    return s.encode("idna")
+    parts = []
 
-# These are for everything else
-def unicode_to_quote_plus(s):
-    return urllib.quote_plus(s.encode("utf8"))
+    # "http:", "ftp:", "{scheme}:"
+    start, subparts = _parse_scheme(uri)
+    parts.extend(subparts)
 
-def byte_to_quote_plus(s):
-    return urllib.quote_plus(s)
+    # Check for the "//" in things like "http://example.com"
+    if uri[start:start+2] != "//":
+        raise TypeError("Missing required '//' in URI (scheme and hostname must be given)")
+    assert isinstance(parts[-1], basestring)
+    # This is either something like ["http:"] or something like [<function>. ":"]
+    # Optimize by merging the last item with the "//"
+    parts[-1] += "//"
+    start += 2
 
-_encoders = [(ascii_encoder, ascii_encoder),
-             (idna_encoder, idna_encoder),
-             (unicode_to_quote_plus, byte_to_quote_plus)]
+    # [tuserinfo "@"] thost [ ":" tport ]
+    # The OpenSearch template makes this harder to find. I have to consider:
+    #    http://example.com?spam
+    #    http://{host?}?spam
+    #    http://example.com/spam
+    #    http://example.com#spam
+    #    ftp://userid:password@ftp
+    #    ftp://{userid?}:{password?}@{userid}.example.com/
 
-#print ascii_encoder(u"Espa\u00F1a")
+    # Since I've replaced the templates with "X"s, this becomes a lot easier.
+    end = _find_netloc(xuri, start)
+    netloc  =  uri[start:end]
+    xnetloc = xuri[start:end]
+
+    # The userid portion is encoded different than the hostname
+    parts.extend(_parse_netloc(netloc, xnetloc))
+
+    # And the rest is a simple encoding
+    parts.extend(_parse_template(uri[end:]))
+
+    return parts
+
 
 class Template(object):
-    def __init__(self, template, variables, split_result):
+    def __init__(self, template, terms):
         self.template = template
-        self.variables = variables
-        self.split_result = split_result
-
-        # Make lookup a bit easier
-        self._lookup = _lookup = {}
-        for i, variable in enumerate(variables):
-            _lookup["{%d}" % i] = variable
-        
+        self.terms = terms
     def substitute(self, **kwargs):
-        # template substitute function used when replacing the
-        # shorten {0}, {1}, ... substrings. Map those back to
-        # the TemplateVariable
-        def expand(m):
-            variable = self._lookup[m.group(0)]
-            name = variable.tlname
-            if variable.is_optional:
-                s = kwargs.get(name, "")
+        results = []
+        for term in self.terms:
+            if isinstance(term, basestring):
+                results.append(term)
             else:
-                s = kwargs[name]
-            #print "I have", repr(s)
-            # Encode correctly
-            if isinstance(s, unicode):
-                return unicode_encoder(s)
-            return byte_encoder(s)
+                results.append(term(kwargs))
+        return "".join(results)
 
-        #print self.split_result
-        unicode_encoder, byte_encoder = _encoders[0]
-        scheme = _simple.sub(expand, self.split_result.scheme)
-
-        unicode_encoder, byte_encoder = _encoders[1]
-        netloc = _simple.sub(expand, self.split_result.netloc)
-
-        unicode_encoder, byte_encoder = _encoders[2]
-        path = _simple.sub(expand, self.split_result.path)
-        query = _simple.sub(expand, self.split_result.query)
-        fragment = _simple.sub(expand, self.split_result.fragment)
-
-        return urlparse.SplitResult(scheme, netloc, path, query, fragment)
+def make_template(template):
+    terms = decompose_template(template)
+    return Template(template, terms)
 
 # API still shaky. This is for testing
 
 def apply_template(template, **kwargs):
     t = make_template(template)
-    return t.substitute(**kwargs).geturl()
-    
+    return t.substitute(**kwargs)
+
 
 import unittest
 
 class Tests(unittest.TestCase):
+    def raisesTypeError(self, f, *args, **kwargs):
+        try:
+            raise AssertionError( f(*args, **kwargs) )
+        except TypeError, err:
+            return str(err)
+
+    #### These test the public API
     def test_no_expansion(self):
         self.assertEquals(apply_template("http://example.com/osd.xml"),
                           "http://example.com/osd.xml")
+        self.assertEquals(apply_template(u"http://example.com/osd.xml"),
+                          "http://example.com/osd.xml")
+        
     def test_single_term(self):
         self.assertEquals(apply_template("http://example.com/search?q={searchTerms}",
                                          searchTerms="Andrew"),
@@ -243,26 +369,149 @@ class Tests(unittest.TestCase):
         self.assertRaises(KeyError, apply_template, "http://{host}/")
 
     def test_optional(self):
-        # Although the opensearch spec does not allow this
-        # XXX check for the required scheme and host fields?
-        apply_template("http://{host?}/")
+        self.assertEquals(apply_template("http://example.com/{arg?}"),
+                          "http://example.com/")
+        self.assertEquals(apply_template("http://example.com/{arg?}{arg?}"),
+                          "http://example.com/")
+        self.assertEquals(apply_template("http://example.com/{arg?}{arg?}", arg="X"),
+                          "http://example.com/XX")
 
-    def test_unicode_in_scheme(self):
+    def test_optional_in_scheme(self):
+        err = self.raisesTypeError(apply_template, "{scheme?}://example.com/",
+                                   scheme="gopher")
+        assert err.startswith("URI scheme cannot be an optional template variable")
+
+    def test_optional_in_hostname(self):
+        err = self.raisesTypeError(apply_template, "scheme://{hostname?}.com/",
+                                   hostname="example")
+        assert err.startswith("URI hostname cannot contain an optional template variable")
+
+    def test_port(self):
+        self.assertEquals(apply_template("http://example.com:{port}/", port="80"),
+                          "http://example.com:80/")
+        self.assertEquals(apply_template("http://example.com:{port?}/", port="80"),
+                          "http://example.com:80/")
+
+
+    def test_unicode_failures(self):
+        # Scheme cannot include Unicode
         self.assertRaises(UnicodeEncodeError, apply_template,
                           "{scheme}://blah", scheme=u"Espa\u00F1a")
+        # Don't allow non-ascii characters except in the domain
+        self.assertRaises(UnicodeEncodeError, apply_template,
+                          u"http://google.com/search?q=Espa\u00F1a")
+        self.assertRaises(UnicodeEncodeError, apply_template,
+                          u"http://\u00F1{q}@example.com")
+        
+
+    def test_multiple_args_in_scheme(self):
+        for (target, expected_err) in (
+            ("{scheme}{scheme}://example.com/", "text or a single template field"),
+            ("blah{scheme}://example.com", "text or a single template field"),
+            ("blah/", "Missing or unparsable"),
+            ):
+            err = self.raisesTypeError(apply_template, target, scheme="http")
+            assert expected_err in err, (target, expected_err, err)
 
     def test_unicode_in_host(self):
         # OpenSearch template does not allow this. I do.
         self.assertEquals(apply_template("https://{host}.name/", host=u"Espa\u00F1a"),
                           "https://xn--espaa-rta.name/")
+        # I also allow Unicode in the host name (but only there!)
+        self.assertEquals(apply_template(u"https://{host}.name/", host=u"Espa\u00F1a"),
+                          "https://xn--espaa-rta.name/")
+        self.assertEquals(apply_template(u"https://{host}.a\u00F1o/",
+                                         host=u"Espa\u00F1a"),
+                          "https://xn--espaa-rta.xn--ao-zja/")
+
+    def test_unicode_in_host_part(self):
+        # I double checked the encoding with Safari. Seems to be right
+        self.assertEquals(apply_template(u"https://{host}.Espa\u00F1a/", host=u"a\u00F1o"),
+                          "https://xn--ao-zja.xn--espaa-rta/")
+        self.assertEquals(apply_template(u"http://{host}.\u00F1.name/", host=u"Espa\u00F1a"),
+                          "http://xn--espaa-rta.xn--ida.name/")
 
     def test_unicode_in_path(self):
         # I double checked the encoding with Safari. Seems to be right
         self.assertEquals(apply_template("http://google.com/search?q={q}",
                                          q=u"Espa\u00F1a"),
                           "http://google.com/search?q=Espa%C3%B1a")
+        self.assertEquals(apply_template(u"http://google.com/search?q={q}",
+                                         q=u"Espa\u00F1a"),
+                          "http://google.com/search?q=Espa%C3%B1a")
 
 
+    def test_unicode_in_username(self):
+        self.assertEquals(apply_template("http://{q}@example.com",
+                                         q=u"Espa\u00F1a"),
+                          "http://Espa%C3%B1a@example.com")
+
+
+    def test_using_prefix(self):
+        for uri in ("{spam:x}://dalke:blah@example.com/something",
+                    "HTTP://{spam:x}:blah@example.com/something",
+                    "HTTP://{spam:x}:blah@example.com/something",
+                    "HTTP://dalke:{spam:x}@example.com/something",
+                    "HTTP://dalke:blah@{spam:x}.com/something",
+                    "HTTP://dalke:blah@example.com/{spam:x}"):
+            err = self.raisesTypeError(apply_template, uri)
+            assert err.startswith("Template prefix not supported in Akara (in '"), err
+            # While this should work just fine
+            t = apply_template(uri.replace("spam:", ""), x="123")
+
+    def test_missing_slashes(self):
+        for uri in ("http:spam",
+                    "http:/spam",
+                    "http:/?spam"):
+            err = self.raisesTypeError(apply_template, uri)
+            assert err.startswith("Missing required '//' in URI"), err
+    def test_missing_hostname(self):
+        for uri in ("http:///spam/",
+                    "http:///spam",
+                    "http://dalke@/spam",
+                    "http://:@/spam",
+                    "http://?spam"):
+            err = self.raisesTypeError(apply_template, uri)
+            assert err.startswith("Akara requires a hostname in the template"), err
+
+    def test_empty_template_name(self):
+        for uri in ("{}://example.com/",
+                    "http://{}/",
+                    "http://example.com?{}"):
+            err = self.raisesTypeError(apply_template, uri)
+            assert err.startswith("Empty template variable in '")
+                    
+    def test_bad_templates(self):
+        for uri, c in (("{scheme://example.com/whatever}", "{"),
+                       ("{scheme}://example.com/whatever}", "}"),
+                       ("http://example.com?whatever=asdf#}", "}"),
+                       ("http://example.com?whatever=asdf#{", "{")):
+            err = self.raisesTypeError(apply_template, uri)
+            assert err.startswith("Unexpected '" + c + "' found in URI"), err
+
+    def test_port_errors(self):
+        err = self.raisesTypeError(apply_template, "http://localhost:/")
+        assert err.startswith("Port must be either a number or a template name")
+        err = self.raisesTypeError(apply_template, "http://localhost:/a")
+        assert err.startswith("Port must be either a number or a template name")
+        err = self.raisesTypeError(apply_template, "http://localhost:{port}a/")
+        assert err.startswith("Port may not contain anything after the template name"), err
+        err = self.raisesTypeError(apply_template, "http://localhost:{port}/", port="q")
+        assert err.startswith("Port template parameter 'port' is not an integer ('q')"), err
+        err = self.raisesTypeError(apply_template, "http://localhost:{port}/", port="-80")
+        assert err.startswith("Port template parameter 'port' is not an integer ('-80')")
+
+    def test_port(self):
+        self.assertEquals(apply_template("http://localhost:{port}/", port=8080),
+                          "http://localhost:8080/")
+        self.assertEquals(apply_template("http://localhost:{port}/", port="8080"),
+                          "http://localhost:8080/")
+        self.assertEquals(apply_template("http://localhost:{port}/abc", port=""),
+                          "http://localhost/abc")
+        self.assertEquals(apply_template("http://localhost:{port?}/?q"),
+                          "http://localhost/?q")
+        self.assertEquals(apply_template("http://localhost:{port?}/?q", port="123"),
+                          "http://localhost:123/?q")
         
 if __name__ == "__main__":
     unittest.main()
