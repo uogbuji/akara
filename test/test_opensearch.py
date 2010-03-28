@@ -1,3 +1,4 @@
+from akara.opensearch import apply_template
 
 import unittest
 
