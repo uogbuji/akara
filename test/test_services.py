@@ -1,3 +1,4 @@
+import server_support
 from server_support import server, httplib_server
 
 import urllib, urllib2
@@ -442,3 +443,10 @@ def test_templates():
     template = (tree.xml_select(
         "//service[@ident='urn:akara.test:template-4']/path/@template")[0].xml_value)
     assert template.endswith("/test.template4"), template
+
+def test_template_expansion():
+    body = GET("test_template5")
+    lines = body.splitlines()
+    print lines
+    expected = []
+    assert lines == expected

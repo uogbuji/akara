@@ -435,3 +435,34 @@ def test_template3(name="Ant", language=None, os="unix"):
 @simple_service("GET", "urn:akara.test:template-4", path="test.template4")
 def test_template4():
     return "Here"
+
+
+@simple_service("GET", "urn:akara.test:template-5")
+def test_template5():
+    from akara.registry import get_service_url
+    try:
+        params = dict(name="Matt", language="C++", os="Linux", lang="kd")
+        yield get_service_url("urn:akara.test:template-1", **params) + "\n"
+        yield get_service_url("urn:akara.test:template-2", **params) + "\n"
+        yield get_service_url("urn:akara.test:template-3", **params) + "\n"
+        yield get_service_url("urn:akara.test:template-4", **params) + "\n"
+
+        params = dict(name=u"\xc5sa", language="C&C#", os= u"G\xf6teborg")
+        yield get_service_url("urn:akara.test:template-1", **params) + "\n"
+        yield get_service_url("urn:akara.test:template-2", **params) + "\n"
+        yield get_service_url("urn:akara.test:template-4", **params) + "\n"
+
+        yield get_service_url("urn:akara.test:template-1", name=u"\xc5sa") + "\n"
+        try:
+            yield get_service_url("urn:akara.test:template-1", lang=u"\xc5sa") + "\n"
+            raise AssertionError
+        except KeyError, err:
+            assert "name" in str(err)
+    except Exception, err:
+        yield "Error!"
+        yield str(err)
+        import traceback, sys
+        for line in traceback.format_exception(*sys.exc_info()):
+            yield line
+        yield "spam"
+        
