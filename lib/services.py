@@ -184,7 +184,7 @@ def _make_query_template(func):
     if not argspec.args:
         return ""
     num_required = len(argspec.args) - len(argspec.defaults or ())
-    arg_info = [(arg, i < num_required) for (i, arg) in enumerate(argspec.args)]
+    arg_info = [(arg, i >= num_required) for (i, arg) in enumerate(argspec.args)]
     # I present these in alphabetical order to reduce template changes
     # should the parameter list change.
     arg_info.sort()
@@ -195,7 +195,7 @@ def _make_query_template(func):
         else:
             fmt = "%s={%s}"
         terms.append( fmt % (arg, arg) )
-    return "?" + "".join(terms)
+    return "?" + "&".join(terms)
 
 
 def _handle_notify(environ, f, service_list):
