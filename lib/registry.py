@@ -6,6 +6,7 @@ Add WSGI handlers to the Akara HTTP dispatch registry.
 
 import inspect
 
+import amara
 from amara import tree
 
 from akara import logger
@@ -135,18 +136,40 @@ def get_a_service_by_id(ident):
             return service
     return None
 
-def get_service_url(ident, **kwargs):
-    service = get_a_service_by_id(ident)
-    template = service.template
+
+# ident -> template
+_registered_templates = {}
+
+# Split this up to make it easier to test
+def _register_services(uri):
+    new_templates = {}
+    tree = amara.parse(uri)
+    for path in tree.xml_select("//service[@ident]/path[@template]"):
+        ident = path.xml_parent.xml_attributes["ident"]
+        template = path.xml_attributes["template"]
+        new_templates[ident] = opensearch.make_template(template)
+    return new_templates
+
+def register_services(uri):
+    new_templates = _register_services(uri)
+    _registered_templates.update(new_templates)
+
+def register_template(ident, template):
+    if isinstance(template, basestring):
+        template = make_template(template)
+    _registered_templates[ident] = template
+
+def _get_url(ident, template_attr, kwargs):
+    template = _registered_templates.get(ident, None)
     if template is None:
-        # XXX What's a good default? Just put them as kwargs at the end?
-        raise TypeError("service does not have a query template")
+        template = getattr(get_a_service_by_id(ident), template_attr)
+        if template is None:
+            # XXX What's a good default? Just put them as kwargs at the end?
+            raise TypeError("service %r does not have a query template" % (ident,))
     return template.substitute(**kwargs)
 
+def get_service_url(ident, **kwargs):
+    return _get_url(ident, "template", kwargs)
+
 def get_internal_service_url(ident, **kwargs):
-    service = get_a_service_by_id(ident)
-    template = service.internal_template
-    if template is None:
-        # XXX What's a good default? Just put them as kwargs at the end?
-        raise TypeError("service does not have a query template")
-    return template.substitute(**kwargs)
+    return _get_url(ident, "internal_template", kwargs)
