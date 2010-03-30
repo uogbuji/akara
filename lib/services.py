@@ -181,6 +181,9 @@ def ignore_start_response(status, response_headers, exc_info=None):
 
 def _make_query_template(func):
     argspec = inspect.getargspec(func)
+    if argspec.varargs is not None or argspec.keywords is not None:
+        # Can't handle *args or **kwargs in the parameter list
+        return None
     if not argspec.args:
         return ""
     num_required = len(argspec.args) - len(argspec.defaults or ())
