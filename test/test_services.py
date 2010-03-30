@@ -469,3 +469,17 @@ def test_template_expansion():
         assert expected_line == got_line, (expected_line, got_line)
     # This is to check line length mismatch
     assert expected == lines, (expected, lines)
+
+## Test the additionally registered external services
+def test_additional_services():
+    body = GET("test_extra_call", dict(service_id="urn:service_reg:1", x="Andrew"))
+    expected = ("URL: %stest.template1?name=Andrew&language=FORTRAN\n"
+                "Andrew uses FORTRAN on unix") % (server_support.SERVER_URI,)
+    assert body == expected, (body, expected)
+
+    # As a side-effect, the previous called akara_tests.py:_delayed_install()
+    body = GET("test_extra_call", dict(service_id="urn:akara.test:extra_echo",
+                                       bar="baz"))
+    expected = ("URL: %stest_echo_simple_get?foo=baz\n"
+                "'foo' -> 'baz'\n") % (server_support.SERVER_URI,)
+    assert body == expected, (body, expected)
