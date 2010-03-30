@@ -8,6 +8,7 @@ from amara import tree, parse
 
 from akara.services import *
 from akara.pipeline import *
+from akara.registry import register_template, register_services, get_internal_service_url
 from akara import request, response
 
 ## These are all errors in the simple_service definition.
@@ -479,3 +480,49 @@ def test_template5():
         yield repr(err)+"\n"
         yield "spam"
         
+
+##### extra service registration
+
+import akara.global_config
+
+@simple_service("GET", "urn:akara.test:extra_registration")
+def extra_registration():
+    return """\
+<?xml version="1.0" encoding="utf-8"?>
+<services>
+  <service ident="urn:akara.test:extra_echo">
+     <path template="%stest_echo_simple_get?foo={bar}">test_echo_simple_get</path>
+  </service>
+</services>
+""" % (akara.global_config.internal_server_path,)
+
+
+register_template("urn:service_reg:1",
+                  akara.global_config.internal_server_path +
+                  "test.template1?name={x}&language=FORTRAN")
+
+# Attempt to override a local handler.
+# (Won't be able to. Local handlers always have priority over external ones.)
+register_template("http://purl.org/xml3k/akara/services/registry",
+                  "http://qerwerw.eryqp:0/")
+
+# GRR! This doesn't work. I can't register myself during import
+# time because the server isn't running during import.
+def _delayed_install():
+    register_services(akara.global_config.internal_server_path + "extra_registration")
+
+@simple_service("GET", "urn.akara.test:extra_call")
+def test_extra_call(service_id, **kwargs):
+    try:
+        # Hack solution so I can call myself.
+        _delayed_install()
+        
+        import urllib
+        url = get_internal_service_url(service_id, **kwargs)
+        f = urllib.urlopen(url)
+        body = f.read()
+        yield "URL: " + url + "\n"
+        yield body
+    except Exception, err:
+        yield str(err)
+        raise
