@@ -139,14 +139,14 @@ def get_service_url(ident, **kwargs):
     service = get_a_service_by_id(ident)
     template = service.template
     if template is None:
-        # What's a good default? Just put them as kwargs at the end?
-        raise NotImplementedError
+        # XXX What's a good default? Just put them as kwargs at the end?
+        raise TypeError("service does not have a query template")
     return template.substitute(**kwargs)
 
 def get_internal_service_url(ident, **kwargs):
     service = get_a_service_by_id(ident)
     template = service.internal_template
     if template is None:
-        # What's a good default? Just put them as kwargs at the end?
-        raise NotImplementedError
+        # XXX What's a good default? Just put them as kwargs at the end?
+        raise TypeError("service does not have a query template")
     return template.substitute(**kwargs)
