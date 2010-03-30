@@ -156,14 +156,16 @@ def register_services(uri):
 
 def register_template(ident, template):
     if isinstance(template, basestring):
-        template = make_template(template)
+        template = opensearch.make_template(template)
     _registered_templates[ident] = template
 
 def _get_url(ident, template_attr, kwargs):
     # Get the local service first
-    template = getattr(get_a_service_by_id(ident), template_attr)
-    if template is None:
-        # and then look for the other registered templates
+    service = get_a_service_by_id(ident)
+    if service is not None:
+        template = getattr(service, template_attr)
+    else:
+        # Still not here? Look for the other registered templates.
         template = _registered_templates.get(ident, None)
 
     if template is None:
