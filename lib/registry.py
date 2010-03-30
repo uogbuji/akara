@@ -137,7 +137,7 @@ def get_a_service_by_id(ident):
 
 def get_service_url(ident, **kwargs):
     service = get_a_service_by_id(ident)
-    query_template = service.template
+    template = service.template
     if template is None:
         # What's a good default? Just put them as kwargs at the end?
         raise NotImplementedError
@@ -145,7 +145,7 @@ def get_service_url(ident, **kwargs):
 
 def get_internal_service_url(ident, **kwargs):
     service = get_a_service_by_id(ident)
-    query_template = service.internal_template
+    template = service.internal_template
     if template is None:
         # What's a good default? Just put them as kwargs at the end?
         raise NotImplementedError
