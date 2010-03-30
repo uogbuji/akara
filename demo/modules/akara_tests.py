@@ -413,6 +413,7 @@ register_pipeline("http://dalkescientific.com/count_registry",
 
 ##### Templates
 
+# Define my own template, with the params not in alphabetical order
 @simple_service("GET", "urn:akara.test:template-1", path="test.template1",
                 query_template = "?name={name}&language={lang?}")
 def test_template1(name="Pat", language=None, os="unix"):
@@ -420,18 +421,21 @@ def test_template1(name="Pat", language=None, os="unix"):
     assert os == "unix"
     return "%s uses %s on %s" % (name, language, os)
 
+# Get the query_template from parameter inspection
 @simple_service("GET", "urn:akara.test:template-2", path="test.template2")
 def test_template2(name, language=None, os="unix"):
     assert language is not None
     assert os == "unix"
     return "%s uses %s on %s" % (name, language, os)
 
+# Do not get args - this is a POST
 @simple_service("POST", "urn:akara.test:template-3")
 def test_template3(name="Ant", language=None, os="unix"):
     assert language is not None
     assert os == "unix"
     return "%s uses %s on %s" % (name, language, os)
 
+# Should not have the "?"
 @simple_service("GET", "urn:akara.test:template-4", path="test.template4")
 def test_template4():
     return "Here"
@@ -439,30 +443,32 @@ def test_template4():
 
 @simple_service("GET", "urn:akara.test:template-5")
 def test_template5():
-    from akara.registry import get_service_url
+    from akara.registry import get_internal_service_url
     try:
         params = dict(name="Matt", language="C++", os="Linux", lang="kd")
-        yield get_service_url("urn:akara.test:template-1", **params) + "\n"
-        yield get_service_url("urn:akara.test:template-2", **params) + "\n"
-        yield get_service_url("urn:akara.test:template-3", **params) + "\n"
-        yield get_service_url("urn:akara.test:template-4", **params) + "\n"
+        yield get_internal_service_url("urn:akara.test:template-1", **params) + "\n"
+        yield get_internal_service_url("urn:akara.test:template-2", **params) + "\n"
+        try:
+            get_internal_service_url("urn:akara.test:template-3", **params)
+            assert AssertError("Should not get here-3")
+        except TypeError:
+            pass
+        yield get_internal_service_url("urn:akara.test:template-4", **params) + "\n"
 
         params = dict(name=u"\xc5sa", language="C&C#", os= u"G\xf6teborg")
-        yield get_service_url("urn:akara.test:template-1", **params) + "\n"
-        yield get_service_url("urn:akara.test:template-2", **params) + "\n"
-        yield get_service_url("urn:akara.test:template-4", **params) + "\n"
+        yield get_internal_service_url("urn:akara.test:template-1", **params) + "\n"
+        yield get_internal_service_url("urn:akara.test:template-2", **params) + "\n"
+        yield get_internal_service_url("urn:akara.test:template-4", **params) + "\n"
 
-        yield get_service_url("urn:akara.test:template-1", name=u"\xc5sa") + "\n"
+        yield get_internal_service_url("urn:akara.test:template-1", name=u"\xc5sa") + "\n"
         try:
-            yield get_service_url("urn:akara.test:template-1", lang=u"\xc5sa") + "\n"
+            yield get_internal_service_url("urn:akara.test:template-1",
+                                           lang=u"\xc5sa") + "\n"
             raise AssertionError
         except KeyError, err:
             assert "name" in str(err)
     except Exception, err:
         yield "Error!"
-        yield str(err)
-        import traceback, sys
-        for line in traceback.format_exception(*sys.exc_info()):
-            yield line
+        yield repr(err)+"\n"
         yield "spam"
         
