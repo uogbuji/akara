@@ -179,6 +179,25 @@ def _no_slashes(path):
 def ignore_start_response(status, response_headers, exc_info=None):
     pass
 
+def _make_query_template(func):
+    argspec = inspect.getargspec(func)
+    if not argspec.args:
+        return ""
+    num_required = len(argspec.args) - len(argspec.defaults or ())
+    arg_info = [(arg, i < num_required) for (i, arg) in enumerate(argspec.args)]
+    # I present these in alphabetical order to reduce template changes
+    # should the parameter list change.
+    arg_info.sort()
+    terms = []
+    for arg, is_optional in arg_info:
+        if is_optional:
+            fmt = "%s={%s?}"
+        else:
+            fmt = "%s={%s}"
+        terms.append( fmt % (arg, arg) )
+    return "?" + "".join(terms)
+
+
 def _handle_notify(environ, f, service_list):
     for service_id in service_list:
         service = registry.get_a_service_by_id(service_id)
@@ -229,6 +248,7 @@ def _handle_notify_after(environ, result, service_list):
 def service(service_id, path=None,
             encoding="utf-8", writer="xml",
             pipelines = None,
+            query_template = None,
             wsgi_wrapper=None,
             notify_before = None,
             notify_after = None):
@@ -258,7 +278,7 @@ def service(service_id, path=None,
         if wsgi_wrapper:
             wrapper = wsgi_wrapper(wrapper)
 
-        registry.register_service(service_id, pth, wrapper)
+        registry.register_service(service_id, pth, wrapper, query_template=query_template)
         return wrapper
     return service_wrapper
 
@@ -272,6 +292,7 @@ def service(service_id, path=None,
 def simple_service(method, service_id, path=None,
                    content_type=None, encoding="utf-8", writer="xml",
                    allow_repeated_args=False,
+                   query_template=None,
                    wsgi_wrapper=None,
                    notify_before=None, notify_after=None):
     _no_slashes(path)
@@ -394,11 +415,18 @@ def simple_service(method, service_id, path=None,
         if pth is None:
             pth = func.__name__
 
+        # Construct the default query template, if needed and possible.
+        qt = query_template
+        if qt is None and method == "GET" and not allow_repeated_args:
+            qt = _make_query_template(func)
+        if qt is not None:
+            qt = pth + qt
+
         # If an wsgi_wrapper was given, wrapper the service wrapper with it
         if wsgi_wrapper:
            wrapper = wsgi_wrapper(wrapper)
 
-        registry.register_service(service_id, pth, wrapper) 
+        registry.register_service(service_id, pth, wrapper, query_template=qt) 
         return wrapper
     return service_wrapper
 
@@ -472,7 +500,7 @@ class service_method_dispatcher(object):
 # def method_func(): pass --> returns a method_wrapper which calls method_func
 
 # This is the top-level decorator
-def method_dispatcher(service_id, path=None,wsgi_wrapper=None):
+def method_dispatcher(service_id, path=None, wsgi_wrapper=None):
     """Add an Akara resource which dispatches to other functions based on the HTTP method
     
     Used for resources which handle, say, both GET and POST requests.
@@ -512,7 +540,7 @@ def method_dispatcher(service_id, path=None,wsgi_wrapper=None):
         pth = path
         if pth is None:
             pth = func.__name__
-        dispatcher = service_method_dispatcher(pth,wsgi_wrapper)
+        dispatcher = service_method_dispatcher(pth, wsgi_wrapper)
         registry.register_service(service_id, pth, dispatcher, doc)
         return service_dispatcher_decorator(dispatcher)
     return method_dispatcher_wrapper

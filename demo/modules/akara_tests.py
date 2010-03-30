@@ -410,3 +410,28 @@ register_pipeline("http://dalkescientific.com/count_registry",
                   "test_count_registry",
                   stages = ["http://purl.org/xml3k/akara/services/registry",
                             "service:count_children"])
+
+##### Templates
+
+@simple_service("GET", "urn:akara.test:template-1", path="test.template1",
+                query_template = "?name={name}&language={lang?}")
+def test_template1(name="Pat", language=None, os="unix"):
+    assert language is not None
+    assert os == "unix"
+    return "%s uses %s on %s" % (name, language, os)
+
+@simple_service("GET", "urn:akara.test:template-2", path="test.template2")
+def test_template2(name, language=None, os="unix"):
+    assert language is not None
+    assert os == "unix"
+    return "%s uses %s on %s" % (name, language, os)
+
+@simple_service("POST", "urn:akara.test:template-3")
+def test_template3(name="Ant", language=None, os="unix"):
+    assert language is not None
+    assert os == "unix"
+    return "%s uses %s on %s" % (name, language, os)
+
+@simple_service("GET", "urn:akara.test:template-4", path="test.template4")
+def test_template4():
+    return "Here"

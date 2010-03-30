@@ -16,6 +16,8 @@ SERVER_CONFIG_DEFAULTS = {
     'global': {
         'Listen': '8880',
         'ServerRoot': '~/.local/lib/akara',
+        #'ServerPath': None,
+        #'InternalServerPath': None,
         'PidFile': 'logs/akara.pid',
 
         'MinSpareServers': '5',
@@ -114,6 +116,31 @@ def _extract_settings(config):
         raise Error("Listen port must be a positive integer, not %r" % port_s)
 
     settings["server_address"] = (host, port)
+
+    # Used to contract the full OpenSearch template to a given service.
+    # If not present, use the Listen host and port.
+    #  (And if the host isn't present, use 'localhost'. It's not a good
+    #  default but I'm not going to do a FQDN lookup here since that has
+    #  side effects. Basically, if you need the name right, then set it.)
+    try:
+        server_path = config.get('global', 'ServerPath')
+    except ConfigParser.NoOptionError:
+        if port == 80:
+            fmt = "http://%(host)s/"
+        else:
+            fmt = "http://%(host)s:%(port)s/"
+        server_path = fmt % dict(host = (host or "localhost"), port = port)
+        
+    # Uses only when an Akara service wants to call another Akara service.
+    # Needed for the (rare) cases when the listen server has a different
+    # local name than the published server.
+    try:
+        internal_server_path = config.get('global', 'InternalServerPath')
+    except ConfigParser.NoOptionError:
+        internal_server_path = server_path
+        
+    settings["server_path"] = server_path
+    settings["internal_server_path"] = server_path
 
     server_root = config.get('global', 'ServerRoot')
     server_root = os.path.expanduser(server_root)

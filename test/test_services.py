@@ -3,6 +3,8 @@ from server_support import server, httplib_server
 import urllib, urllib2
 from urllib2 import urlopen
 
+import amara
+
 def GET3(name, args=None, data=None):
     url = server() + name
     if args:
@@ -417,3 +419,26 @@ def test_method_xml_indent_utf16():
     expected = "\x00".join(expected_utf16) + "\x00"
     assert body == ("\xfe\xff" + expected), repr(body)
 
+
+# Test the templates
+def test_templates():
+    url = server()
+    f = urlopen(url)
+    tree = amara.parse(f)
+    nodes = tree.xml_select("//service[@ident='urn:akara.test:template-1']")
+    template = (tree.xml_select(
+        "//service[@ident='urn:akara.test:template-1']/path/@template")[0].xml_value)
+    assert template.endswith("/test.template1?name={name}&language={lang?}"), template
+
+    template = (tree.xml_select(
+        "//service[@ident='urn:akara.test:template-2']/path/@template")[0].xml_value)
+    assert template.endswith(
+        "/test.template2?language={language?}&name={name}&os={os?}"), template
+
+    nodes = (tree.xml_select(
+        "//service[@ident='urn:akara.test:template-3']/path/@template"))
+    assert len(nodes) == 0, nodes
+             
+    template = (tree.xml_select(
+        "//service[@ident='urn:akara.test:template-4']/path/@template")[0].xml_value)
+    assert template.endswith("/test.template4"), template
