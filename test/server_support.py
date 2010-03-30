@@ -60,6 +60,8 @@ def create_server_dir(port):
     f = open(config_filename, "w")
     f.write("""[global]
 ServerRoot = %(server_root)s
+ServerPath = http://dalkescientific.com/
+InternalServerPath = http://localhost:%(port)s/
 ModuleDir = %(module_dir)s
 Listen = localhost:%(port)s
 LogLevel = DEBUG

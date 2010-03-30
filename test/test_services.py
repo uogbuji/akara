@@ -447,20 +447,25 @@ def test_templates():
 def test_template_expansion():
     body = GET("test_template5")
     lines = body.splitlines()
-    print lines
-    expected = [server_support.SERVER_URI + uri for uri in (
-        "test.template1?name=Matt&language=kd",
-        "test.template2?language=C%2B%2B&name=Matt&os=Linux",
-        "test.template4",
-        "test.template1?name=%C3%85sa&language=",
-        "test.template2?language=C%26C%23&name=%C3%85sa&os=G%C3%B6teborg",
-        "test.template4",
-        "test.template1?name=%C3%85sa&language=",
-        )]
+    expected = ["server_path: http://dalkescientific.com/",
+                "internal_server_path: " + server_support.SERVER_URI]
+    for base_uri in (server_support.SERVER_URI,
+                     "http://dalkescientific.com/"):
+        for suffix in (
+            "test.template1?name=Matt&language=kd",
+            "test.template2?language=C%2B%2B&name=Matt&os=Linux",
+            "test.template4",
+            "test.template1?name=%C3%85sa&language=",
+            "test.template2?language=C%26C%23&name=%C3%85sa&os=G%C3%B6teborg",
+            "test.template4",
+            "test.template1?name=%C3%85sa&language=",
+            ):
+            expected.append( base_uri + suffix )
 
     assert len(lines) == len(expected), (len(lines), len(expected))
 
     for expected_line, got_line in zip(expected, lines):
+        print repr(expected_line), repr(got_line)
         assert expected_line == got_line, (expected_line, got_line)
     # This is to check line length mismatch
     assert expected == lines, (expected, lines)

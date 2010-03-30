@@ -443,30 +443,37 @@ def test_template4():
 
 @simple_service("GET", "urn:akara.test:template-5")
 def test_template5():
-    from akara.registry import get_internal_service_url
+    from akara.registry import get_internal_service_url, get_service_url
+    import akara.global_config
+
+    yield "server_path: " + akara.global_config.server_path + "\n"
+    yield "internal_server_path: " + akara.global_config.internal_server_path + "\n"
+
     try:
-        params = dict(name="Matt", language="C++", os="Linux", lang="kd")
-        yield get_internal_service_url("urn:akara.test:template-1", **params) + "\n"
-        yield get_internal_service_url("urn:akara.test:template-2", **params) + "\n"
-        try:
-            get_internal_service_url("urn:akara.test:template-3", **params)
-            assert AssertError("Should not get here-3")
-        except TypeError:
-            pass
-        yield get_internal_service_url("urn:akara.test:template-4", **params) + "\n"
+        # Check that the substitution works as expected
+    
+        for get_url in (get_internal_service_url, get_service_url):
+            params = dict(name="Matt", language="C++", os="Linux", lang="kd")
+            yield get_url("urn:akara.test:template-1", **params) + "\n"
+            yield get_url("urn:akara.test:template-2", **params) + "\n"
+            try:
+                get_url("urn:akara.test:template-3", **params)
+                assert AssertError("Should not get here-3")
+            except TypeError:
+                pass
+            yield get_url("urn:akara.test:template-4", **params) + "\n"
 
-        params = dict(name=u"\xc5sa", language="C&C#", os= u"G\xf6teborg")
-        yield get_internal_service_url("urn:akara.test:template-1", **params) + "\n"
-        yield get_internal_service_url("urn:akara.test:template-2", **params) + "\n"
-        yield get_internal_service_url("urn:akara.test:template-4", **params) + "\n"
+            params = dict(name=u"\xc5sa", language="C&C#", os= u"G\xf6teborg")
+            yield get_url("urn:akara.test:template-1", **params) + "\n"
+            yield get_url("urn:akara.test:template-2", **params) + "\n"
+            yield get_url("urn:akara.test:template-4", **params) + "\n"
 
-        yield get_internal_service_url("urn:akara.test:template-1", name=u"\xc5sa") + "\n"
-        try:
-            yield get_internal_service_url("urn:akara.test:template-1",
-                                           lang=u"\xc5sa") + "\n"
-            raise AssertionError
-        except KeyError, err:
-            assert "name" in str(err)
+            yield get_url("urn:akara.test:template-1", name=u"\xc5sa") + "\n"
+            try:
+                yield get_url("urn:akara.test:template-1", lang=u"\xc5sa") + "\n"
+                raise AssertionError
+            except KeyError, err:
+                assert "name" in str(err)
     except Exception, err:
         yield "Error!"
         yield repr(err)+"\n"
