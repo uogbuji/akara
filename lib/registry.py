@@ -160,10 +160,13 @@ def register_template(ident, template):
     _registered_templates[ident] = template
 
 def _get_url(ident, template_attr, kwargs):
-    template = _registered_templates.get(ident, None)
+    # Get the local service first
+    template = getattr(get_a_service_by_id(ident), template_attr)
     if template is None:
-        template = getattr(get_a_service_by_id(ident), template_attr)
-        if template is None:
+        # and then look for the other registered templates
+        template = _registered_templates.get(ident, None)
+
+    if template is None:
             # XXX What's a good default? Just put them as kwargs at the end?
             raise TypeError("service %r does not have a query template" % (ident,))
     return template.substitute(**kwargs)
