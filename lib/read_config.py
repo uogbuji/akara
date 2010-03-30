@@ -140,7 +140,7 @@ def _extract_settings(config):
         internal_server_path = server_path
         
     settings["server_path"] = server_path
-    settings["internal_server_path"] = server_path
+    settings["internal_server_path"] = internal_server_path
 
     server_root = config.get('global', 'ServerRoot')
     server_root = os.path.expanduser(server_root)
