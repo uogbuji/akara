@@ -164,4 +164,3 @@ def copy_auth(environ, top, realm=None):
     password_handler = urllib2.HTTPBasicAuthHandler(password_mgr)
     return password_handler
 
-

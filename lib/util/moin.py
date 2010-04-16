@@ -13,10 +13,6 @@ Project home, documentation, distributions: http://wiki.xml3k.org/Akara
 @copyright: 2009 by Uche ogbuji <uche@ogbuji.net>
 """
 
-#Detailed license and copyright information: http://4suite.org/COPYRIGHT
-
-from __future__ import with_statement
-
 __all__ = [
     "WIKITEXT_IMT", "DOCBOOK_IMT", "RDF_IMT", "HTML_IMT", "ATTACHMENTS_IMT",
     "ORIG_BASE_HEADER", "ATTACHMENTS_MODEL_XML", "ATTACHMENTS_MODEL",
@@ -214,4 +210,26 @@ node.NODES[node.AKARA_TYPE] = node
 def register_node_type(type_id, nclass):
     node.NODES[type_id] = nclass
 
+
+def wiki_uri(original_base, wrapped_base, link, relative_to=None):
+    '''
+    Constructs absolute URLs to the original and REST-wrapper for a page, given a link from another page
+    
+    original_base - The base URI of the actual Moin instance
+    wrapped_base - The base URI of the REST-wrapped proxy of the Moin instance
+    link - the relative link, generally from one wiki page to another
+    relative_to - the REST-wrapped version of the page from which the relative link came, defaults to same as wrapped_base
+    '''
+    #rel_link = relativize(abs_link, original_wiki_base)
+    #e.g. original wiki base is http://myhost:8080/mywiki/ and link is /a/b
+    #abs_link is http://myhost:8080/mywiki/a/b note the need to strip the leading / to get that
+    if link.startswith('/'):
+        rel_link = link.lstrip('/')
+        abs_link = absolutize(rel_link, original_base.rstrip('/')+'/')
+        rest_uri = absolutize(rel_link, wrapped_base.rstrip('/')+'/')
+    else:
+        rel_link = link.lstrip('/')
+        abs_link = absolutize(rel_link, original_base.rstrip('/')+'/')
+        rest_uri = absolutize(rel_link, relative_to)
+    return rest_uri, abs_link
 

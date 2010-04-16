@@ -89,11 +89,13 @@ import tempfile
 from contextlib import closing
 from wsgiref.util import shift_path_info, request_uri
 from functools import wraps
+from itertools import dropwhile
 
 # Amara Imports
 import amara
 from amara import bindery
-from amara.lib.iri import absolutize
+from amara.lib.util import first_item
+from amara.lib.iri import absolutize, relativize
 from amara.writers.struct import structwriter, E, NS, ROOT, RAW
 from amara.bindery.html import parse as htmlparse
 from amara.bindery.model import examplotron_model, generate_metadata
@@ -107,6 +109,7 @@ from akara.services import method_dispatcher
 from akara.util import status_response
 import akara.util.moin as moin
 from akara import response
+from akara import logger
 
 # ======================================================================
 #                         Module Configruation
@@ -335,13 +338,18 @@ def moin_error_wrapper(wsgiapp):
 def status_response(code):
     return '%i %s'%(code, httplib.responses[code])
 
+
 # Returns information about the target wiki. Raises BadTargetError if nothing
 # is known about the target name
 def target(environ):
     wiki_id = shift_path_info(environ)
+    full_incoming_request = request_uri(environ)
+    original_page = absolutize(environ['PATH_INFO'], TARGET_WIKIS[wiki_id])
+    #relative_to_wrapped = relativize(, full_incoming_request)
+    wrapped_wiki_base = full_incoming_request[:-len(environ['PATH_INFO'])]
     if wiki_id not in TARGET_WIKIS:
         raise BadTargetError(fronturl=request_uri(environ), target=wiki_id)
-    return wiki_id, TARGET_WIKIS[wiki_id], TARGET_WIKI_OPENERS.get(wiki_id)
+    return wiki_id, TARGET_WIKIS[wiki_id], TARGET_WIKI_OPENERS.get(wiki_id), original_page, wrapped_wiki_base
 
 
 # Check authentication of the user on the MoinMoin wiki
@@ -479,12 +487,16 @@ def dispatcher():
 
 @dispatcher.method("GET")
 def get_page(environ, start_response):
-    wiki_id, base, opener = target(environ)
+    wiki_id, base, opener, original_page, wrapped_wiki_base = target(environ)
     page = environ['PATH_INFO'].lstrip('/')
     check_auth(environ, start_response, base, opener)
     upstream_handler = None
     status = httplib.OK
     params = cgi.parse_qs(environ['QUERY_STRING'])
+    accepted_imts = environ.get('HTTP_ACCEPT', '').split(',')
+    #logger.debug('accepted_imts: ' + repr(accepted_imts))
+    imt = first_item(dropwhile(lambda x: '*' in x, accepted_imts))
+    logger.debug('imt: ' + repr(imt))
     if 'search' in params:
         searchq = params['search'][0]
         query = urllib.urlencode({'value' : searchq, 'action': 'fullsearch', 'context': '180', 'fullsearch': 'Text'})
@@ -492,22 +504,18 @@ def get_page(environ, start_response):
         url = absolutize('?'+query, base)
         request = urllib2.Request(url)
         ctype = moin.RDF_IMT
-    elif moin.DOCBOOK_IMT in environ['HTTP_ACCEPT']:
-        url = absolutize(page, base)
-        request = urllib2.Request(url + "?mimetype=text/docbook")
-        ctype = moin.DOCBOOK_IMT
-    elif moin.HTML_IMT in environ['HTTP_ACCEPT']:
+    elif moin.HTML_IMT in environ.get('HTTP_ACCEPT', ''):
         url = absolutize(page, base)
         request = urllib2.Request(url)
         ctype = moin.HTML_IMT
-    elif moin.RDF_IMT in environ['HTTP_ACCEPT']:
+    elif moin.RDF_IMT in environ.get('HTTP_ACCEPT', ''):
         #FIXME: Make unique flag optional
         #url = base + '/RecentChanges?action=rss_rc&unique=1&ddiffs=1'
         url = absolutize('RecentChanges?action=rss_rc&unique=1&ddiffs=1', base)
         #print >> sys.stderr, (url, base, '/RecentChanges?action=rss_rc&unique=1&ddiffs=1', )
         request = urllib2.Request(url)
         ctype = moin.RDF_IMT
-    elif moin.ATTACHMENTS_IMT in environ['HTTP_ACCEPT']:
+    elif moin.ATTACHMENTS_IMT in environ.get('HTTP_ACCEPT', ''):
         url = absolutize(page + '?action=AttachFile', base)
         request = urllib2.Request(url)
         ctype = moin.ATTACHMENTS_IMT
@@ -538,6 +546,10 @@ def get_page(environ, start_response):
             with closing(opener.open(request)) as resp:
                 rbody = resp.read()
             return rbody, dict(resp.info())['content-type']
+    elif imt:
+        url = absolutize(page, base)
+        request = urllib2.Request(url + "?mimetype=" + imt)
+        ctype = moin.DOCBOOK_IMT
     else:
         url = absolutize(page, base)
         request = urllib2.Request(url + "?action=raw")
@@ -550,7 +562,9 @@ def get_page(environ, start_response):
                 rbody = resp.read()
         
         #headers = {moin.ORIG_BASE_HEADER: base}
-        start_response(status_response(status), [("Content-Type", ctype), (moin.ORIG_BASE_HEADER, absolutize(wiki_id, base))])
+        #moin_base = absolutize(wiki_id, base)
+        moin_base_info = base + ' ' + wrapped_wiki_base + ' ' + original_page
+        start_response(status_response(status), [("Content-Type", ctype), (moin.ORIG_BASE_HEADER, moin_base_info)])
         return rbody
     except urllib2.URLError, e:
         if e.code == 401:
@@ -568,7 +582,7 @@ def get_page(environ, start_response):
 def _put_page(environ, start_response):
     '''
     '''
-    wiki_id, base, opener = target(environ)
+    wiki_id, base, opener, original_page, wrapped_wiki_base = target(environ)
     page = environ['PATH_INFO'].lstrip('/')
     check_auth(environ, start_response, base, opener)
 
@@ -600,7 +614,7 @@ def post_page(environ, start_response):
     '''
     #ctype = environ.get('CONTENT_TYPE', 'application/unknown')
 
-    wiki_id, base, opener = target(environ)
+    wiki_id, base, opener, original_page, wrapped_wiki_base = target(environ)
     check_auth(environ, start_response, base, opener)
 
     page = environ['PATH_INFO'].lstrip('/')

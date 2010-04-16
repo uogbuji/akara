@@ -31,7 +31,7 @@ ECHO_SERVICE_ID = 'http://purl.org/xml3k/akara/services/demo/echo'
 
 
 @simple_service('POST', ECHO_SERVICE_ID, 'akara.echo')
-def akara_echo_headers(body, ctype):
+def akara_echo_body(body, ctype):
     '''
     Sample request:
     curl --request POST --data-binary "@foo.dat" --header "Content-type: text/plain" "http://localhost:8880/akara.echo"
