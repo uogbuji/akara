@@ -148,7 +148,7 @@ for k, v in TARGET_WIKIS.items():
     else:
         TARGET_WIKI_OPENERS[k] = DEFAULT_OPENER
 
-SERVICE_ID = 'http://purl.org/akara/services/demo/moinrest'
+SERVICE_ID = 'http://purl.org/xml3k/akara/services/demo/moinrest'
 DEFAULT_MOUNT = 'moin'
 
 # ======================================================================
@@ -390,6 +390,7 @@ def fill_page_edit_form(page, wiki_id, base, opener):
     request = urllib2.Request(url+"?action=edit&editor=text")
     try:
         with closing(opener.open(request)) as resp:
+            x = resp.read(); resp = x
             doc = htmlparse(resp)
 
     except urllib2.URLError,e:
@@ -402,15 +403,33 @@ def fill_page_edit_form(page, wiki_id, base, opener):
             raise MoinMustAuthenticateError(url=request.get_full_url(),target=wiki_id)
         else:
             raise UnexpectedResponseError(url=request.get_full_url(),code=e.code,error=str(e))
-        
-    form = doc.html.body.xml_select(u'.//*[@id="editor"]')[0]
+
+    try:
+        form = doc.html.body.xml_select(u'.//*[@id="editor"]')[0]
+    except Exception as ex:
+        #XXX There seems to be a crazy XPath bug that only manifests here
+        #Use non-XPath as a hack-around :(
+        #open('/tmp/foo.html', 'w').write(x)
+        from amara.lib.util import element_subtree_iter
+        form = [ e for e in element_subtree_iter(doc.html.body) if e.xml_attributes.get(u'id') == u'editor' ][0]
+        #logger.debug('GRIPPO ' + repr(doc.html.body.xml_select(u'.//form')))
+        logger.debug('GRIPPO ' + repr((form.xml_namespace, form.xml_local, form.xml_qname, form.xml_name, dict(form.xml_attributes))))
+        logger.debug('Stupid XPath bug.  Working around... ' + repr(ex))
+        form_vars = {}
+        #form / fieldset / input
+        form_vars["action"] = [ e for e in element_subtree_iter(form) if e.xml_attributes.get(u'name') == u'action' ][0].xml_attributes[u'value']
+        form_vars["rev"] = [ e for e in element_subtree_iter(form) if e.xml_attributes.get(u'name') == u'rev' ][0].xml_attributes[u'value']
+        form_vars["ticket"] = [ e for e in element_subtree_iter(form) if e.xml_attributes.get(u'name') == u'ticket' ][0].xml_attributes[u'value']
+        form_vars["editor"] = [ e for e in element_subtree_iter(form) if e.xml_attributes.get(u'name') == u'editor' ][0].xml_attributes[u'value']
+        logger.debug('Edit form vars ' + repr(form_vars))
+        return form_vars
     form_vars = {}
     #form / fieldset / input
     form_vars["action"] = unicode(form.xml_select(u'string(*/*[@name="action"]/@value)'))
     form_vars["rev"] = unicode(form.xml_select(u'string(*/*[@name="rev"]/@value)'))
     form_vars["ticket"] = unicode(form.xml_select(u'string(*/*[@name="ticket"]/@value)'))
     form_vars["editor"] = unicode(form.xml_select(u'string(*/*[@name="editor"]/@value)'))
-    #pprint.pprint(form_vars)
+    logger.debug('Edit form vars ' + repr(form_vars))
     return form_vars
 
 

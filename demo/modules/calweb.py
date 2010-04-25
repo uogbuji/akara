@@ -12,6 +12,7 @@ from wsgiref.util import shift_path_info, request_uri
 from dateutil.parser import parse
 
 import amara
+from amara.lib.iri import join
 
 from akara.services import simple_service
 from akara import request
@@ -77,6 +78,7 @@ def akara_calendar(highlight=None):
     curl http://localhost:8880/akara.calendar/2008/12
     curl http://localhost:8880/akara.calendar/2008/12?highlight=2008-12-03
     '''
+    baseuri = request.environ['SCRIPT_NAME'] + '/'
     today = date.today()
     year = shift_path_info(request.environ)
     month = shift_path_info(request.environ)
@@ -134,11 +136,11 @@ def akara_calendar(highlight=None):
         prevmonth = ''
     else:
         #prevmonth = '<th><a href="%s%i/%i/">&lt;&lt;</a></th>'%(self.weblog_base_url, prevmonth.year, prevmonth.month)
-        prevmonth = '<th><a href="%s%i/%i/">&lt;&lt;</a></th>'%('/', prevmonth.year, prevmonth.month)
+        prevmonth = '<th><a href="%s">&lt;&lt;</a></th>'%(join(baseuri, str(prevmonth.year), str(prevmonth.month)))
     if nextmonth > today:
         nextmonth = ''
     else:
-        nextmonth = '<th><a href="%s%i/%i/">&gt;&gt;</a></th>'%('/', nextmonth.year, nextmonth.month)
+        nextmonth = '<th><a href="%s">&gt;&gt;</a></th>'%(join(baseuri, str(nextmonth.year), str(nextmonth.month)))
     month = ''.join(c)
     cal = CAL_TEMPLATE.safe_substitute(locals())
     return cal

@@ -51,6 +51,9 @@ RDF_IMT = 'application/rdf+xml'
 ATTACHMENTS_IMT = 'application/x-moin-attachments+xml'
 ORIG_BASE_HEADER = 'x-akara-wrapped-moin'
 
+#Note: this will change to app/xml as soon as we release a fixed Moin XML formatter
+XML_IMT = 'text/xml'
+
 # XML models
 
 ATTACHMENTS_MODEL_XML = '''<?xml version="1.0" encoding="UTF-8"?>
@@ -232,4 +235,5 @@ def wiki_uri(original_base, wrapped_base, link, relative_to=None):
         abs_link = absolutize(rel_link, original_base.rstrip('/')+'/')
         rest_uri = absolutize(rel_link, relative_to)
     return rest_uri, abs_link
+
 
