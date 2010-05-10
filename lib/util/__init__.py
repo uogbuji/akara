@@ -1,9 +1,14 @@
-import sys
+import os
+import tempfile
 import httplib
 import urllib2
 from urllib import quote
 from functools import wraps
+from string import Template
+
 from amara.lib.iri import *
+
+from akara import logger
 
 def status_response(code):
     return '%i %s'%(code, httplib.responses[code])
@@ -133,13 +138,14 @@ class wsgibase(object):
         return cgi.parse_qs(s)
 
 
-def copy_auth(environ, top, realm=None):
+def extract_auth(environ):
     '''
-    Get auth creds (HTTP basic only, for now) from the incoming request and return an
-    HTTP auth handler for urllib2.  This handler allows you to "forward" this auth to
-    remote services
+    Extract auth creds (HTTP basic only, for now) from the incoming request and return the
+    (username, password)
 
-    environ - The usual WSGI structure. Note: if you are using simple_service, you usually get this from WSGI_ENVIRON
+    environ - The usual WSGI structure. Note: if you are using simple_service,
+    in Akara services available as akara.request.environ, or perhaps passed right
+    into the handler
     top - top URL to be used for this auth.
     '''
     #Useful: http://www.voidspace.org.uk/python/articles/authentication.shtml
@@ -149,13 +155,34 @@ def copy_auth(environ, top, realm=None):
     if scheme.lower() != 'basic':
         raise RuntimeError('Unsupported HTTP auth scheme: %s'%scheme)
     username, password = data.decode('base64').split(':', 1)
+    return username, password
+
+
+def copy_auth(environ, top, realm=None):
+    '''
+    Get auth creds (HTTP basic only, for now) from the incoming request and return an
+    HTTP auth handler for urllib2.  This handler allows you to "forward" this auth to
+    remote services
+
+    environ - The usual WSGI structure. Note: if you are using simple_service,
+    in Akara services available as akara.request.environ, or perhaps passed right
+    into the handler
+    top - top URL to be used for this auth.
+    '''
+    #Useful: http://www.voidspace.org.uk/python/articles/authentication.shtml
+    creds = extract_auth(environ)
+    if creds:
+        username, password = creds
+    else:
+        return None
+    
     password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
     # HTTPPasswordMgr top must omit any URL components before the host (i.e. no scheme and no auth info in the authority section)
     #(scheme, authority, path, query, fragment) = split_uri_ref(top)
     #auth, host, port = split_authority(authority)
     #auth_top_url = (host + ':' + port if port else host) + path
     #print >> sys.stderr, 'Auth creds: %s:%s (%s)'%(username, password, auth_top_url)
-    print >> sys.stderr, 'Auth creds: %s:%s (%s)'%(username, password, top)
+    logger.debug('Auth creds: %s:%s (%s)'%(username, password, top))
     
     # Not setting the realm for now, so use None
     #password_mgr.add_password(None, auth_top_url, username, password)
@@ -163,4 +190,57 @@ def copy_auth(environ, top, realm=None):
     #password_handler = urllib2.HTTPDigestAuthHandler(password_mgr)
     password_handler = urllib2.HTTPBasicAuthHandler(password_mgr)
     return password_handler
+
+
+CHUNKLEN = 4096
+def read_http_body_to_temp(environ, start_response):
+    '''
+    Handle the reading of a file from an HTTP message body (file pointer from wsgi.input)
+    in chunks to a temporary file
+    Returns the file path of the resulting temp file
+    '''
+    clen = int(environ.get('CONTENT_LENGTH', None))
+    if not clen:
+        raise ContentLengthRequiredError()
+    http_body = environ['wsgi.input']
+    temp = tempfile.mkstemp(suffix=".dat")
+    while clen != 0:
+        chunk_len = min(CHUNKLEN, clen)
+        data = http_body.read(chunk_len)
+        if data:
+            #assert chunk_len == os.write(temp[0], data)
+            written = os.write(temp[0], data)
+            #print >> sys.stderr, "Bytes written to file in this chunk", written
+            clen -= len(data)
+        else:
+            clen = 0
+    os.fsync(temp[0]) #is this needed with the close below?
+    os.close(temp[0])
+    return temp[1]
+
+#
+# ======================================================================
+#                       Exceptions
+# ======================================================================
+
+# Base exception used to indicate errors.  Rather than replicating tons
+# of error handling code, these errors are raised instead.  A top-level
+# exception handler catches them and then generates some kind of 
+# appropriate HTTP response.  Positional arguments (if any)
+# are just passed to the Exception base as before.  Keyword arguments
+# are saved in a local dictionary.  They will be used to pass parameters
+# to the Template strings used when generating error messages.
+
+class HttpError(Exception): 
+    def __init__(self,*args,**kwargs):
+        Exception.__init__(self,*args)
+        self.parms = kwargs
+
+class BadTargetError(HttpError): pass
+class HTTPAuthorizationError(HttpError): pass
+class MoinAuthorizationError(HttpError): pass
+class UnexpectedResponseError(HttpError): pass
+class MoinMustAuthenticateError(HttpError): pass
+class MoinNotFoundError(HttpError): pass
+class ContentLengthRequiredError(HttpError): pass
 

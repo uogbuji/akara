@@ -74,6 +74,9 @@ Some sample queries:
 
     Get an attached page:
     curl "http://localhost:8880/moin/xml3k/FooTest;attachment=wikicontent.txt"
+
+    Get a page's history:
+    curl http://localhost:8880/moin/xml3k/FrontPage;history
 '''
 
 __doc__ += SAMPLE_QUERIES_DOC
@@ -96,7 +99,7 @@ import amara
 from amara import bindery
 from amara.lib.util import first_item
 from amara.lib.iri import absolutize, relativize
-from amara.writers.struct import structwriter, E, NS, ROOT, RAW
+from amara.writers.struct import structencoder, E, NS, ROOT, RAW
 from amara.bindery.html import parse as htmlparse
 from amara.bindery.model import examplotron_model, generate_metadata
 from amara.lib.iri import split_fragment, relativize, absolutize, split_uri_ref, split_authority, unsplit_uri_ref
@@ -107,6 +110,7 @@ from amara.lib.iri import split_uri_ref, unsplit_uri_ref, split_authority, absol
 from akara.util import multipart_post_handler, wsgibase, http_method_handler
 from akara.services import method_dispatcher
 from akara.util import status_response
+from akara.util import BadTargetError, HTTPAuthorizationError, MoinAuthorizationError, UnexpectedResponseError, MoinMustAuthenticateError, MoinNotFoundError, ContentLengthRequiredError
 import akara.util.moin as moin
 from akara import response
 from akara import logger
@@ -150,31 +154,6 @@ for k, v in TARGET_WIKIS.items():
 
 SERVICE_ID = 'http://purl.org/xml3k/akara/services/demo/moinrest'
 DEFAULT_MOUNT = 'moin'
-
-# ======================================================================
-#                       Exceptions (Used Internally)
-# ======================================================================
-
-# Base exception used to indicate errors.  Rather than replicating tons
-# of error handling code, these errors are raised instead.  A top-level
-# exception handler catches them and then generates some kind of 
-# appropriate HTTP response.  Positional arguments (if any)
-# are just passed to the Exception base as before.  Keyword arguments
-# are saved in a local dictionary.  They will be used to pass parameters
-# to the Template strings used when generating error messages.
-
-class MoinRestError(Exception): 
-    def __init__(self,*args,**kwargs):
-        Exception.__init__(self,*args)
-        self.parms = kwargs
-
-class BadTargetError(MoinRestError): pass
-class HTTPAuthorizationError(MoinRestError): pass
-class MoinAuthorizationError(MoinRestError): pass
-class UnexpectedResponseError(MoinRestError): pass
-class MoinMustAuthenticateError(MoinRestError): pass
-class MoinNotFoundError(MoinRestError): pass
-class ContentLengthRequiredError(MoinRestError): pass
 
 # ======================================================================
 #                             Response Templates
@@ -227,7 +206,7 @@ $error
 """
 )
 
-error_moinnotfoundresponse = Template("""\
+error_notfoundresponse = Template("""\
 404 Not Found
 
 The requested URL $fronturl not found.
@@ -463,31 +442,41 @@ def fill_attachment_form(page, attachment, wiki_id, base, opener):
     #pprint.pprint(form_vars)
     return form_vars
 
-CHUNKLEN = 4096
-def read_http_body_to_temp(environ, start_response):
-    '''
-    Handle the reading of a file from an HTTP message body (file pointer from wsgi.input)
-    in chunks to a temporary file
-    Returns the file path of the resulting temp file
-    '''
-    clen = int(environ.get('CONTENT_LENGTH', None))
-    if not clen:
-        raise ContentLengthRequiredError()
-    http_body = environ['wsgi.input']
-    temp = tempfile.mkstemp(suffix=".dat")
-    while clen != 0:
-        chunk_len = min(CHUNKLEN, clen)
-        data = http_body.read(chunk_len)
-        if data:
-            #assert chunk_len == os.write(temp[0], data)
-            written = os.write(temp[0], data)
-            #print >> sys.stderr, "Bytes written to file in this chunk", written
-            clen -= len(data)
+
+def scrape_page_history(page, base, opener):
+    url = absolutize(page, base)
+    request = urllib2.Request(url+"?action=info")
+    try:
+        with closing(opener.open(request)) as resp:
+            doc = htmlparse(resp)
+
+    except urllib2.URLError,e:
+        # Comment concerning the behavior of MoinMoin.  If an attempt is made to post to a page 
+        # and the user is not authenticated, you will either get a 403 or 404 error depending
+        # on whether or not the page being edited exists or not.   If it doesn't exist, 
+        # MoinMoin sends back a 404 which is misleading.   We raise MoinMustAuthenticateError
+        # to signal the error wrapper to issue a 401 back to the client
+        if e.code == 403 or e.code == 404:
+            raise MoinMustAuthenticateError(url=request.get_full_url(),target=wiki_id)
         else:
-            clen = 0
-    os.fsync(temp[0]) #is this needed with the close below?
-    os.close(temp[0])
-    return temp[1]
+            raise UnexpectedResponse(url=request.get_full_url(),code=e.code,error=str(e))
+
+    info = []
+    try:
+        table = doc.html.body.xml_select(u'.//table[@id="dbw.table"]')[0]
+    except Exception as ex:
+        #XXX Seems to be a crazy XPath bug that only manifests here
+        #Use non-XPath as a hack-around :(
+        from amara.lib.util import element_subtree_iter
+        table = [ e for e in element_subtree_iter(doc.html.body) if e.xml_attributes.get(u'id') == u'dbw.table' ][0]
+        logger.debug('Stupid XPath bug.  Working around... ' + repr(ex))
+    info = [
+        dict(rev=tr.td[0], date=tr.td[1], editor=tr.td[4])
+        for tr in table.xml_select(u'.//tr[td[@class="column1"]]')
+        #for tr in table.tbody.tr if tr.xml_select(u'td[@class="column1"]')
+    ]
+    return info
+
 
 # ----------------------------------------------------------------------
 #                       HTTP Method Handlers
@@ -516,6 +505,11 @@ def get_page(environ, start_response):
     #logger.debug('accepted_imts: ' + repr(accepted_imts))
     imt = first_item(dropwhile(lambda x: '*' in x, accepted_imts))
     logger.debug('imt: ' + repr(imt))
+    params_for_moin = {}
+    if 'rev' in params:
+        #XXX: Not compatible with search
+        #params_for_moin = {'rev' : params['rev'][0], 'action': 'recall'}
+        params_for_moin = {'rev' : params['rev'][0]}
     if 'search' in params:
         searchq = params['search'][0]
         query = urllib.urlencode({'value' : searchq, 'action': 'fullsearch', 'context': '180', 'fullsearch': 'Text'})
@@ -523,8 +517,10 @@ def get_page(environ, start_response):
         url = absolutize('?'+query, base)
         request = urllib2.Request(url)
         ctype = moin.RDF_IMT
+    #elif 'action' in params and params['action'][0] == 'recall':
     elif moin.HTML_IMT in environ.get('HTTP_ACCEPT', ''):
-        url = absolutize(page, base)
+        params = urllib.urlencode(params_for_moin)
+        url = absolutize(page+'?'+params, base)
         request = urllib2.Request(url)
         ctype = moin.HTML_IMT
     elif moin.RDF_IMT in environ.get('HTTP_ACCEPT', ''):
@@ -548,30 +544,48 @@ def get_page(environ, start_response):
             for node in attachment_nodes:
                 target = [ param.split('=', 1)[1] for param in node.href.split(u'&') if param.startswith('target=') ][0]
                 targets.append(target)
-            buf = StringIO()
-            structwriter(indent=u"yes", stream=buf).feed(
+            output = structencoder(indent=u"yes")
+            output.feed(
             ROOT(
                 E((u'attachments'),
                     (E(u'attachment', {u'href': unicode(t)}) for t in targets)
                 )
             ))
-            return buf.getvalue(), ctype
+            return output.read(), ctype
     #Notes on use of URI parameters - http://markmail.org/message/gw6xbbvx4st6bksw
     elif ';attachment=' in page:
-        page, attachment = page.split(';attachment=')
+        page, attachment = page.split(';attachment=', 1)
         url = absolutize(page + '?action=AttachFile&do=get&target=' + attachment, base)
         request = urllib2.Request(url)
         def upstream_handler():
             with closing(opener.open(request)) as resp:
                 rbody = resp.read()
             return rbody, dict(resp.info())['content-type']
+    #
+    elif ';history' in page:
+        ctype = moin.XML_IMT
+        page, discard = page.split(';history', 1)
+        def upstream_handler():
+            revs = scrape_page_history(page, base, opener)
+            output = structencoder(indent=u"yes")
+            output.feed(
+            ROOT(
+                E((u'history'),
+                    (E(u'rev', {u'id': unicode(r['rev']), u'editor': unicode(r['editor']), u'date': unicode(r['date']).replace(' ', 'T')}) for r in revs)
+                )
+            ))
+            return output.read(), ctype
     elif imt:
-        url = absolutize(page, base)
-        request = urllib2.Request(url + "?mimetype=" + imt)
+        params_for_moin.update({'mimetype': imt})
+        params = urllib.urlencode(params_for_moin)
+        url = absolutize(page, base) + '?' + params
+        request = urllib2.Request(url)
         ctype = moin.DOCBOOK_IMT
     else:
-        url = absolutize(page, base)
-        request = urllib2.Request(url + "?action=raw")
+        params_for_moin.update({'action': 'raw'})
+        params = urllib.urlencode(params_for_moin)
+        url = absolutize(page, base) + '?' + params
+        request = urllib2.Request(url)
         ctype = moin.WIKITEXT_IMT
     try:
         if upstream_handler:

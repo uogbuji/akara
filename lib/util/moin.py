@@ -112,7 +112,7 @@ AKARA_NS = u'http://purl.org/dc/org/xml3k/akara'
 CMS_BASE = AKARA_NS + u'/cms'
 
 def cleanup_text_blocks(text):
-    return '\n'.join([line.strip() for line in text.splitlines() ])
+    return u'\n'.join([line.strip() for line in text.splitlines() ])
 
 class node(object):
     '''
