@@ -392,7 +392,7 @@ def fill_page_edit_form(page, wiki_id, base, opener):
         from amara.lib.util import element_subtree_iter
         form = [ e for e in element_subtree_iter(doc.html.body) if e.xml_attributes.get(u'id') == u'editor' ][0]
         #logger.debug('GRIPPO ' + repr(doc.html.body.xml_select(u'.//form')))
-        logger.debug('GRIPPO ' + repr((form.xml_namespace, form.xml_local, form.xml_qname, form.xml_name, dict(form.xml_attributes))))
+        #logger.debug('GRIPPO ' + repr((form.xml_namespace, form.xml_local, form.xml_qname, form.xml_name, dict(form.xml_attributes))))
         logger.debug('Stupid XPath bug.  Working around... ' + repr(ex))
         form_vars = {}
         #form / fieldset / input
@@ -400,7 +400,7 @@ def fill_page_edit_form(page, wiki_id, base, opener):
         form_vars["rev"] = [ e for e in element_subtree_iter(form) if e.xml_attributes.get(u'name') == u'rev' ][0].xml_attributes[u'value']
         form_vars["ticket"] = [ e for e in element_subtree_iter(form) if e.xml_attributes.get(u'name') == u'ticket' ][0].xml_attributes[u'value']
         form_vars["editor"] = [ e for e in element_subtree_iter(form) if e.xml_attributes.get(u'name') == u'editor' ][0].xml_attributes[u'value']
-        logger.debug('Edit form vars ' + repr(form_vars))
+        #logger.debug('Edit form vars ' + repr(form_vars))
         return form_vars
     form_vars = {}
     #form / fieldset / input
@@ -408,7 +408,7 @@ def fill_page_edit_form(page, wiki_id, base, opener):
     form_vars["rev"] = unicode(form.xml_select(u'string(*/*[@name="rev"]/@value)'))
     form_vars["ticket"] = unicode(form.xml_select(u'string(*/*[@name="ticket"]/@value)'))
     form_vars["editor"] = unicode(form.xml_select(u'string(*/*[@name="editor"]/@value)'))
-    logger.debug('Edit form vars ' + repr(form_vars))
+    #logger.debug('Edit form vars ' + repr(form_vars))
     return form_vars
 
 
@@ -504,7 +504,7 @@ def get_page(environ, start_response):
     accepted_imts = environ.get('HTTP_ACCEPT', '').split(',')
     #logger.debug('accepted_imts: ' + repr(accepted_imts))
     imt = first_item(dropwhile(lambda x: '*' in x, accepted_imts))
-    logger.debug('imt: ' + repr(imt))
+    #logger.debug('imt: ' + repr(imt))
     params_for_moin = {}
     if 'rev' in params:
         #XXX: Not compatible with search
@@ -628,8 +628,11 @@ def _put_page(environ, start_response):
     data = urllib.urlencode(form_vars)
     request = urllib2.Request(url, data)
     try:
+        logger.debug('Prior to urllib2.opener')
         with closing(opener.open(request)) as resp:
+            logger.debug('Return from urllib2.opener')
             doc = htmlparse(resp)
+            logger.debug('HTML parse complete post urllib2.opener')
     except urllib2.URLError,e:
         raise UnexpectedResponseError(url=url,code=e.code,error=str(e))
 
