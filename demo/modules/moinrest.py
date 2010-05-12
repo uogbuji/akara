@@ -109,7 +109,7 @@ from amara.lib.iri import split_uri_ref, unsplit_uri_ref, split_authority, absol
 # Akara Imports
 from akara.util import multipart_post_handler, wsgibase, http_method_handler
 from akara.services import method_dispatcher
-from akara.util import status_response
+from akara.util import status_response, read_http_body_to_temp
 from akara.util import BadTargetError, HTTPAuthorizationError, MoinAuthorizationError, UnexpectedResponseError, MoinMustAuthenticateError, MoinNotFoundError, ContentLengthRequiredError
 import akara.util.moin as moin
 from akara import response
