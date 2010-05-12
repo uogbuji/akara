@@ -389,11 +389,11 @@ def fill_page_edit_form(page, wiki_id, base, opener):
         #XXX There seems to be a crazy XPath bug that only manifests here
         #Use non-XPath as a hack-around :(
         #open('/tmp/foo.html', 'w').write(x)
+        logger.debug('Stupid XPath bug.  Working around... ' + repr(ex))
         from amara.lib.util import element_subtree_iter
         form = [ e for e in element_subtree_iter(doc.html.body) if e.xml_attributes.get(u'id') == u'editor' ][0]
         #logger.debug('GRIPPO ' + repr(doc.html.body.xml_select(u'.//form')))
         #logger.debug('GRIPPO ' + repr((form.xml_namespace, form.xml_local, form.xml_qname, form.xml_name, dict(form.xml_attributes))))
-        logger.debug('Stupid XPath bug.  Working around... ' + repr(ex))
         form_vars = {}
         #form / fieldset / input
         form_vars["action"] = [ e for e in element_subtree_iter(form) if e.xml_attributes.get(u'name') == u'action' ][0].xml_attributes[u'value']
@@ -467,12 +467,15 @@ def scrape_page_history(page, base, opener):
     except Exception as ex:
         #XXX Seems to be a crazy XPath bug that only manifests here
         #Use non-XPath as a hack-around :(
-        from amara.lib.util import element_subtree_iter
-        table = [ e for e in element_subtree_iter(doc.html.body) if e.xml_attributes.get(u'id') == u'dbw.table' ][0]
         logger.debug('Stupid XPath bug.  Working around... ' + repr(ex))
+        from amara.lib.util import element_subtree_iter
+        table = [ e for e in element_subtree_iter(doc.html.body) if e.xml_attributes.get(u'id') == u'dbw.table' ]
+        if not table:
+            #"Revision History... No log entries found." i.e. page not even yet created
+            return info
     info = [
         dict(rev=tr.td[0], date=tr.td[1], editor=tr.td[4])
-        for tr in table.xml_select(u'.//tr[td[@class="column1"]]')
+        for tr in table[0].xml_select(u'.//tr[td[@class="column1"]]')
         #for tr in table.tbody.tr if tr.xml_select(u'td[@class="column1"]')
     ]
     return info

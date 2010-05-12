@@ -1,8 +1,8 @@
 import os
 import tempfile
 import httplib
-import urllib2
-from urllib import quote
+import urllib, urllib2
+import base64
 from functools import wraps
 from string import Template
 
@@ -190,6 +190,33 @@ def copy_auth(environ, top, realm=None):
     #password_handler = urllib2.HTTPDigestAuthHandler(password_mgr)
     password_handler = urllib2.HTTPBasicAuthHandler(password_mgr)
     return password_handler
+
+
+def header_credentials(username, password, headers=None):
+    '''
+    httplib2's simple HTTP auth support is great, but it doesn't recognize every case
+    in which auth is needed, sometimes because of compliance issues on the remote site*
+    
+    Also, there are unusual cases where you want to always send the auth header,
+    without first waiting for  401 challenge
+    
+    This function helps with these issues by unconditionally setting up httplib2 headers
+    for Basic authentication
+    
+    >>> username = 'me@example.com'
+    >>> password = 'password'
+    >>> H = httplib2.Http()
+    >>> auth_headers = header_credentials(username, password)
+    >>> response, content = H.request(url, 'GET', headers=auth_headers)
+    
+    * For an example of such issues: http://pyre.posterous.com/accessing-posterous-api-in-python
+    '''
+    credentials = "Basic " + base64.b64encode("%s:%s"%(username, password))
+    if headers:
+        headers.update({ 'Authorization': credentials })
+    else:
+        headers = { 'Authorization': credentials }
+    return headers
 
 
 CHUNKLEN = 4096
