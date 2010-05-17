@@ -28,7 +28,6 @@ import datetime
 from gettext import gettext as _
 
 from dateutil.parser import parse as dateparse
-import pytz
 
 import amara
 from amara import bindery
@@ -37,6 +36,7 @@ from amara.xslt import transform
 from amara.writers.struct import *
 from amara.bindery.html import parse as htmlparse
 from amara.lib import U
+from amara.lib.date import timezone, UTC
 from amara.lib.iri import split_fragment, relativize, absolutize
 from amara.bindery.model import examplotron_model, generate_metadata, metadata_dict
 from amara.bindery.util import dispatcher, node_handler, property_sequence_getter
@@ -100,9 +100,6 @@ MOIN_DOCBOOK_MODEL = examplotron_model(MOIN_DOCBOOK_MODEL_XML)
 #python akara/services/moincms.py -p "Site.*" http://localhost:8880/ ~/tmp/ http://localhost:8080/
 #
 #Detailed license and copyright information: http://4suite.org/COPYRIGHT
-
-UTC = pytz.timezone('UTC')
-DEFAULT_LOCAL_TZ = pytz.timezone('UTC')
 
 #aname = partial(property_sequence_getter, u"name")
 #aemail = partial(property_sequence_getter, u"email")
