@@ -206,7 +206,7 @@ $error
 """
 )
 
-error_notfoundresponse = Template("""\
+error_moinnotfoundresponse = Template("""\
 404 Not Found
 
 The requested URL $fronturl not found.
