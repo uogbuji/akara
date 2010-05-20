@@ -64,6 +64,14 @@ ATTACHMENTS_MODEL_XML = '''<?xml version="1.0" encoding="UTF-8"?>
 
 ATTACHMENTS_MODEL = examplotron_model(ATTACHMENTS_MODEL_XML)
 
+HISTORY_MODEL_XML = '''<?xml version="1.0" encoding="UTF-8"?>
+<history xmlns:eg="http://examplotron.org/0/" xmlns:ak="http://purl.org/xml3k/akara/xmlmodel">
+  <rev eg:occurs="*" editor="akara" date="2010-05-12T21:35:34" id="20"/>
+</history>
+'''
+
+HISTORY_MODEL = examplotron_model(HISTORY_MODEL_XML)
+
 MOIN_DOCBOOK_MODEL_XML = '''<?xml version="1.0" encoding="UTF-8"?>
 <article xmlns:eg="http://examplotron.org/0/" xmlns:ak="http://purl.org/xml3k/akara/xmlmodel" ak:resource="">
   <ak:rel name="'ak-old-type'" ak:value="glosslist[1]/glossentry[glossterm='akara:type']/glossdef//ulink/@url"/>
@@ -219,16 +227,26 @@ def wiki_uri(original_base, wrapped_base, link, relative_to=None):
     wrapped_base - The base URI of the REST-wrapped proxy of the Moin instance
     link - the relative link, generally from one wiki page to another
     relative_to - the REST-wrapped version of the page from which the relative link came, defaults to same as wrapped_base
+
+    Returns a tuple (wrapped_uri, abs_link)
+    
+    wrapped_uri - the URI wrapped for REST ops
+    abs_link - the full, original wiki URL
+    
+    >>> from akara.util.moin import wiki_uri
+    >>> wiki_uri('http://example.com/mywiki/', 'http://localhost:8880/moin/w/', '/mywiki/spam')
+    ('http://localhost:8880/moin/w/spam', 'http://example.com/mywiki/spam')
     '''
     #rel_link = relativize(abs_link, original_wiki_base)
     #e.g. original wiki base is http://myhost:8080/mywiki/ and link is /a/b
     #abs_link is http://myhost:8080/mywiki/a/b note the need to strip the leading / to get that
     if link.startswith('/'):
-        rel_link = link.lstrip('/')
-        abs_link = absolutize(rel_link, original_base.rstrip('/')+'/')
-        rest_uri = absolutize(rel_link, wrapped_base.rstrip('/')+'/')
+        #rel_link = link.lstrip('/')
+        abs_link = absolutize(link, original_base.rstrip('/')+'/')
+        rel_to_wikibase = relativize(abs_link, original_base.rstrip('/')+'/')
+        rest_uri = absolutize(rel_to_wikibase, wrapped_base.rstrip('/')+'/')
+        #rest_uri = absolutize(rel_link, wrapped_base.rstrip('/')+'/')
     else:
-        rel_link = link.lstrip('/')
         abs_link = absolutize(rel_link, original_base.rstrip('/')+'/')
         rest_uri = absolutize(rel_link, relative_to)
     return rest_uri, abs_link
