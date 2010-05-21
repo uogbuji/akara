@@ -240,6 +240,7 @@ def wiki_uri(original_base, wrapped_base, link, relative_to=None):
     #rel_link = relativize(abs_link, original_wiki_base)
     #e.g. original wiki base is http://myhost:8080/mywiki/ and link is /a/b
     #abs_link is http://myhost:8080/mywiki/a/b note the need to strip the leading / to get that
+    #from akara import logger; logger.debug('wiki_uri' + repr((original_base, wrapped_base, link, relative_to, absolutize(link, original_base.rstrip('/')+'/'))))
     if link.startswith('/'):
         #rel_link = link.lstrip('/')
         abs_link = absolutize(link, original_base.rstrip('/')+'/')
@@ -247,8 +248,7 @@ def wiki_uri(original_base, wrapped_base, link, relative_to=None):
         rest_uri = absolutize(rel_to_wikibase, wrapped_base.rstrip('/')+'/')
         #rest_uri = absolutize(rel_link, wrapped_base.rstrip('/')+'/')
     else:
-        abs_link = absolutize(rel_link, original_base.rstrip('/')+'/')
-        rest_uri = absolutize(rel_link, relative_to)
+        abs_link = absolutize(link, original_base.rstrip('/')+'/')
+        rest_uri = absolutize(link, relative_to)
     return rest_uri, abs_link
-
 
