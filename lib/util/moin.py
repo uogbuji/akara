@@ -51,8 +51,8 @@ RDF_IMT = 'application/rdf+xml'
 ATTACHMENTS_IMT = 'application/x-moin-attachments+xml'
 ORIG_BASE_HEADER = 'x-akara-wrapped-moin'
 
-#Note: this will change to app/xml as soon as we release a fixed Moin XML formatter
-XML_IMT = 'text/xml'
+#Note: this requires the user to install the demo/etc/application_xml.py (a fixed Moin XML formatter) in plugin/formatter/ for th eMoin instance
+XML_IMT = 'application/xml'
 
 # XML models
 
