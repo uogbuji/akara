@@ -61,7 +61,8 @@ class Formatter(FormatterBase):
 
     def lang(self, on, lang_name):
         self._elem(u'div', on)
-        self._curr.xml_attributes[None, u'lang'] = lang_name.decode(config.charset)
+        if on:
+            self._curr.xml_attributes[None, u'lang'] = lang_name.decode(config.charset)
         return ''
 
     def sysmsg(self, on, **kw):
@@ -186,10 +187,27 @@ class Formatter(FormatterBase):
             self._base_depth = depth
         depth = max(depth + (2 - self._base_depth), 2)
         name = u's%i'%depth
-        self._elem(name, on)
-        id = id.decode(config.charset) if id else u''
-        self._curr.xml_attributes[None, u'title'] = id
-        self._curr.xml_attributes[None, u'id'] = id
+        if on:
+            found = None
+            parent_depth = depth-1
+            while not found:
+                found = self._curr.xml_select(u'ancestor-or-self::' + u's%i'%(parent_depth))
+                parent_depth -= 1
+                if found:
+                    break
+            #print name, found
+            self._curr = found[0]
+            e = tree.element(None, name)
+            self._curr.xml_append(e)
+            self._curr = e
+            id = id.decode(config.charset) if id else u''
+            self._curr.xml_attributes[None, u'title'] = id
+            self._curr.xml_attributes[None, u'id'] = id
+            e = tree.element(None, u'title')
+            self._curr.xml_append(e)
+            self._curr = e
+        else:
+            self._curr = self._curr.xml_parent
         return ''
 
     def table(self, on, attrs={}, **kw):
@@ -212,10 +230,11 @@ class Formatter(FormatterBase):
 
     def anchorlink(self, on, name='', **kw):
         self._elem(u'link', on)
-        id = kw.get('id', None)
-        if id:
-            self._curr.xml_attributes[None, u'id'] = id.decode(config.charset)
-        self._curr.xml_attributes[None, u'anchor'] = name.decode(config.charset)
+        if on:
+            id = kw.get('id', None)
+            if id:
+                self._curr.xml_attributes[None, u'id'] = id.decode(config.charset)
+            self._curr.xml_attributes[None, u'anchor'] = name.decode(config.charset)
         return ''
 
     def underline(self, on, **kw):
@@ -252,7 +271,8 @@ class Formatter(FormatterBase):
 
     def code_area(self, on, code_id, code_type='code', show=0, start=-1, step=-1, msg=None):
         self._elem(u'codearea', on)
-        self._curr.xml_attributes[None, u'id'] = code_id.decode(config.charset)
+        if on:
+            self._curr.xml_attributes[None, u'id'] = code_id.decode(config.charset)
         return ''
 
     def code_line(self, on):
@@ -261,5 +281,6 @@ class Formatter(FormatterBase):
 
     def code_token(self, on, tok_type):
         self._elem(u'codetoken', on)
-        self._curr.xml_attributes[None, u'type'] = tok_type.decode(config.charset)
+        if on:
+            self._curr.xml_attributes[None, u'type'] = tok_type.decode(config.charset)
         return ''

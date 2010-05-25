@@ -248,7 +248,11 @@ def wiki_uri(original_base, wrapped_base, link, relative_to=None):
         rest_uri = absolutize(rel_to_wikibase, wrapped_base.rstrip('/')+'/')
         #rest_uri = absolutize(rel_link, wrapped_base.rstrip('/')+'/')
     else:
+        link = '/' + link
         abs_link = absolutize(link, original_base.rstrip('/')+'/')
-        rest_uri = absolutize(link, relative_to)
+        rel_to_wikibase = relativize(abs_link, original_base.rstrip('/')+'/')
+        rest_uri = absolutize(rel_to_wikibase, wrapped_base.rstrip('/')+'/')
+        #abs_link = absolutize(link, original_base.rstrip('/')+'/')
+        #rest_uri = absolutize(link, relative_to)
     return rest_uri, abs_link
 
