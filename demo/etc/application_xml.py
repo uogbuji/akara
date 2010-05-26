@@ -198,16 +198,19 @@ class Formatter(FormatterBase):
             #print name, found
             self._curr = found[0]
             e = tree.element(None, name)
+            id = id.decode(config.charset) if id else u''
+            e.xml_attributes[None, u'title'] = id
+            e.xml_attributes[None, u'id'] = id
             self._curr.xml_append(e)
             self._curr = e
-            id = id.decode(config.charset) if id else u''
-            self._curr.xml_attributes[None, u'title'] = id
-            self._curr.xml_attributes[None, u'id'] = id
             e = tree.element(None, u'title')
             self._curr.xml_append(e)
             self._curr = e
         else:
-            self._curr = self._curr.xml_parent
+            parent = self._curr.xml_parent
+            if self._curr.xml_local == u'title':
+                parent.xml_remove(self._curr)
+            self._curr = parent
         return ''
 
     def table(self, on, attrs={}, **kw):

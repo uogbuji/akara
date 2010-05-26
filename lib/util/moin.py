@@ -241,18 +241,12 @@ def wiki_uri(original_base, wrapped_base, link, relative_to=None):
     #e.g. original wiki base is http://myhost:8080/mywiki/ and link is /a/b
     #abs_link is http://myhost:8080/mywiki/a/b note the need to strip the leading / to get that
     #from akara import logger; logger.debug('wiki_uri' + repr((original_base, wrapped_base, link, relative_to, absolutize(link, original_base.rstrip('/')+'/'))))
-    if link.startswith('/'):
-        #rel_link = link.lstrip('/')
-        abs_link = absolutize(link, original_base.rstrip('/')+'/')
-        rel_to_wikibase = relativize(abs_link, original_base.rstrip('/')+'/')
-        rest_uri = absolutize(rel_to_wikibase, wrapped_base.rstrip('/')+'/')
-        #rest_uri = absolutize(rel_link, wrapped_base.rstrip('/')+'/')
-    else:
-        link = '/' + link
-        abs_link = absolutize(link, original_base.rstrip('/')+'/')
-        rel_to_wikibase = relativize(abs_link, original_base.rstrip('/')+'/')
-        rest_uri = absolutize(rel_to_wikibase, wrapped_base.rstrip('/')+'/')
-        #abs_link = absolutize(link, original_base.rstrip('/')+'/')
-        #rest_uri = absolutize(link, relative_to)
+    link = link.lstrip('/')
+    abs_link = absolutize(link, original_base.rstrip('/')+'/')
+    rel_to_wikibase = relativize(abs_link, original_base.rstrip('/')+'/')
+    if not rel_to_wikibase:
+        #It's not a relative wiki link
+        return None, None
+    rest_uri = absolutize(rel_to_wikibase, wrapped_base.rstrip('/')+'/')
     return rest_uri, abs_link
 
