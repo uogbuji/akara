@@ -14,12 +14,17 @@ title><id>http://example.com/myfeed</id></feed>
 import sys
 from datetime import datetime, timedelta
 import glob
+from itertools import dropwhile
 
 import amara
 from amara import bindery
 from amara.tools import atomtools
+from amara import httplib2
+from amara.lib.util import first_item
 
 from akara.services import simple_service
+from akara import request, response
+from akara import logger
 
 
 #text/uri-list from RFC 2483
@@ -35,10 +40,10 @@ def atom_json(url=None):
     * curl "http://localhost:8880/akara.atom.json?url=http://picasaweb.google.com/data/feed/base/user/dysryi/albumid/5342439351589940049"
     * curl "http://localhost:8880/akara.atom.json?url=http://earthquake.usgs.gov/eqcenter/catalogs/7day-M2.5.xml"
     '''
-    # From http://code.google.com/p/simplejson/
-    import simplejson
+    # From http://code.google.com/p/json/
+    from amara.thirdparty import json
     entries = atomtools.ejsonize(url)
-    return simplejson.dumps({'items': entries}, indent=4)
+    return json.dumps({'items': entries}, indent=4)
 
 
 # These come from the "[atomtools]" section of the Akara configuration file
@@ -85,8 +90,7 @@ def webfeed_json(url=None):
     '''
     # From http://www.feedparser.org/
     import feedparser
-    # From http://code.google.com/p/simplejson/
-    import simplejson
+    from amara.thirdparty import json
 
     if url is None:
         raise AssertionError("The 'url' query parameter is mandatory.")
@@ -112,5 +116,73 @@ def webfeed_json(url=None):
         return data
 
     entries = [ process_entry(e) for e in feed.entries ]
-    return simplejson.dumps({'items': entries}, indent=4)
+    return json.dumps({'items': entries}, indent=4)
+
+RDF_IMT = 'application/rdf+xml'
+ATOM_IMT = 'application/atom+xml'
+
+#Read RSS2, and generate atom or other format
+SERVICE_ID = 'http://purl.org/akara/services/demo/rss2translate'
+@simple_service('GET', SERVICE_ID, 'akara.rss2translate')
+def rss2translate(url=None, format=None):
+    '''
+    Convert RSS 2.0 feed to Atom or RSS 1.0
+    
+    Sample request:
+    * curl "http://localhost:8880/akara.rss2translate?url=http://feeds.delicious.com/v2/rss/recent"
+    '''
+    #Support conneg in addition to qparam
+    if not format:
+        accepted_imts = request.environ.get('HTTP_ACCEPT', '').split(',')
+        imt = first_item(dropwhile(lambda x: '*' in x, accepted_imts))
+        if imt == 'RDF_IMT':
+            format = 'rss1'
+        else:
+            format = 'atom'
+    
+    if url is None:
+        raise AssertionError("The 'url' query parameter is mandatory.")
+
+    #logger.debug('url: ' + repr(url))
+    # From http://www.feedparser.org/
+    import feedparser
+
+    if url is None:
+        raise AssertionError("The 'url' query parameter is mandatory.")
+    feed = feedparser.parse(url)
+    # Note: bad URLs might mean the feed doesn't have headers
+    logger.debug('Feed info: ' + repr((url, feed.version, feed.encoding, feed.headers.get('Content-type'))))
+    #title = getattr(feed, 'title', None)
+    updated = getattr(feed.feed, 'updated_parsed', None)
+    if updated:
+        #FIXME: Double-check this conversion
+        updated = datetime(*updated[:7]).isoformat()
+    f = atomtools.feed(title=feed.feed.title, updated=updated, id=feed.feed.link)
+    for e in feed.entries:
+        updated = getattr(e, 'updated_parsed', None)
+        if updated:
+            #FIXME: Double-check this conversion
+            updated = datetime(*updated[:7]).isoformat()
+        links = [
+            #FIXME: self?
+            (e.link, u'alternate'),
+        ]
+        f.append(
+            e.link,
+            e.title,
+            updated = updated,
+            summary=e.description,
+            #e.author_detail.name
+            #authors=authors,
+            links=links,
+        )
+
+    #doc = atomtools.feed.from_rss2(url)
+    if format == 'atom':
+        result = f.xml_encode()
+        response.add_header("Content-Type", ATOM_IMT)
+    else:
+        result = f.rss1format()
+        response.add_header("Content-Type", RDF_IMT)
+    return result
 

@@ -1,0 +1,7 @@
+html5lib 
+python-dateutil
+feedparser
+
+hg+http://bitbucket.org/uche/amara#egg=amara
+hg+http://bitbucket.org/uche/akara#egg=akara
+

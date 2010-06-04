@@ -11,8 +11,8 @@ import httplib
 import datetime
 from itertools import *
 
-# http://pypi.python.org/pypi/simplejson
-import simplejson
+# Requires Python 2.6 or http://code.google.com/p/json/
+from amara.thirdparty import json
 
 #from amara.tools.atomtools import feed
 from amara.tools import rdfascrape
@@ -150,7 +150,7 @@ def wwwlog2json(body, ctype, maxrecords=None, nobots=False):
         entry['client'] = match_info.group('client')
         entries.append(entry)
 
-    return simplejson.dumps({'items': entries}, indent=4)
+    return json.dumps({'items': entries}, indent=4)
 
 """
 #Geolocation support

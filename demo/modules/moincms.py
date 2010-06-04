@@ -29,7 +29,8 @@ from functools import partial
 from itertools import *
 from contextlib import closing
 
-import simplejson
+# Requires Python 2.6 or http://code.google.com/p/json/
+from amara.thirdparty import json
 from dateutil.parser import parse as dateparse
 
 import amara
@@ -675,5 +676,5 @@ def execute(top=None):
         rest_uri = wrapped_uri(original_wiki_base, link)
         #print >> sys.stderr, 'rest uri:', rest_uri
         items.append(freemix(rest_uri, opener).render())
-    return simplejson.dumps({'items': items}, indent=4)
+    return json.dumps({'items': items}, indent=4)
 

@@ -5,8 +5,8 @@ import sys, time
 import urllib2
 from gettext import gettext as _
 
-# Third-party package from http://code.google.com/p/simplejson/
-import simplejson
+# Requires Python 2.6 or http://code.google.com/p/json/
+from amara.thirdparty import json
 
 import amara
 from amara.lib.util import *
@@ -38,5 +38,5 @@ def calais2json(url=None):
         if not values: continue
         vlist = values.split(',')
         entry[key] = values if len(vlist) == 1 else vlist
-    return simplejson.dumps({'items': [entry]}, indent=4)
+    return json.dumps({'items': [entry]}, indent=4)
 

@@ -504,6 +504,7 @@ def get_page(environ, start_response):
     upstream_handler = None
     status = httplib.OK
     params = cgi.parse_qs(environ['QUERY_STRING'])
+    #Note: probably a better solution here: http://code.google.com/p/mimeparse/
     accepted_imts = environ.get('HTTP_ACCEPT', '').split(',')
     #logger.debug('accepted_imts: ' + repr(accepted_imts))
     imt = first_item(dropwhile(lambda x: '*' in x, accepted_imts))

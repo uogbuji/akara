@@ -11,8 +11,6 @@ import urllib, urlparse
 from cgi import parse_qs
 from itertools import *
 
-import simplejson
-
 import amara
 from amara import bindery
 from amara import tree

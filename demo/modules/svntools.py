@@ -77,11 +77,13 @@ def svncheckout(url=None):
     Sample request:
     curl "http://localhost:8880/akara.svncheckout?url=http://zepheira.com"
     '''
+    # Requires Python 2.6 or http://code.google.com/p/json/
+    from amara.thirdparty import json
     ids = set()
     if url is None:
         raise AssertionError(URL_REQUIRED)
     with closing(urllib2.urlopen(url)) as resp:
         content = resp.read()
     resources = rdfaparse(content)
-    return simplejson.dumps({'items': resources}, indent=4)
+    return json.dumps({'items': resources}, indent=4)
 

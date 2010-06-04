@@ -22,6 +22,8 @@ from amara.xslt import transform
 from amara.xpath.util import simplify
 from amara.bindery import html
 from amara.lib.util import *
+# Requires Python 2.6 or http://code.google.com/p/json/
+from amara.thirdparty import json
 
 from akara.services import simple_service
 
@@ -72,8 +74,6 @@ def spss2json(body, ctype, **params):
     #Useful:
     # * [[http://wiki.math.yorku.ca/index.php/R:_Data_conversion_from_SPSS|R: Data conversion from SPSS]]
 
-    import simplejson
-
     body = StringIO(body)
     form = cgi.FieldStorage(fp=body, environ=WSGI_ENVIRON)
     #for k in form:
@@ -89,7 +89,7 @@ def spss2json(body, ctype, **params):
         item['id'] = item['label'] = '_' + str(count)
         item['type'] = VALUE_SET_TYPE
 
-    return simplejson.dumps({'items': items, VARIABLE_LABELS_TYPE: varlabels, VALUE_LABELS_TYPE: valuelabels}, indent=4)
+    return json.dumps({'items': items, VARIABLE_LABELS_TYPE: varlabels, VALUE_LABELS_TYPE: valuelabels}, indent=4)
 
 
 def parse_spss(spss_por, spss_syntax=None):
