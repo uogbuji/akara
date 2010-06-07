@@ -364,8 +364,8 @@ def load_modules(module_dir, config):
             continue
         full_path = os.path.join(module_dir, filename)
         module_config = {}
-        if config.has_section(name):
-            module_config.update(config.items(name))
+#        if config.has_section(name):
+#            module_config.update(config.items(name))
 
         module_globals = {
             "__name__": name,
