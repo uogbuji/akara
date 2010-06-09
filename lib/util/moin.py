@@ -256,3 +256,25 @@ def wiki_uri(original_base, wrapped_base, link, relative_to=None, raw=False):
     rest_uri = absolutize(rel_to_wikibase, wrapped_base.rstrip('/')+'/')
     return rest_uri, abs_link
 
+
+RE_XML_WIKISPLIT = re.compile(u'\s+')
+
+def wiki_normalize(s):
+    '''
+    A smarter variety of string normalization.  Multiple runs of whitespace are replaced
+    with a space, except that " \n" goes unchanged, and runs of whitespace at the beginning
+    of a line go unchanged
+    
+    >>> from akara.util.moin import wiki_normalize
+    >>> wiki_normalize(u'= A =\n * spam \n  * eggs\n\n')
+    
+    '''
+    #First of all normalize line endings
+    s = '\n'.join(s.splitlines())
+    def repl(m):
+        if '\n' in m.group(0):
+            return m.group(0)
+        else:
+            return ' '
+    return RE_XML_WIKISPLIT.subn(repl, s)[0]
+

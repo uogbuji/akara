@@ -19,7 +19,7 @@ from itertools import dropwhile
 import amara
 from amara import bindery
 from amara.tools import atomtools
-from amara import httplib2
+from amara.thirdparty import httplib2
 from amara.lib.util import first_item
 
 from akara.services import simple_service
