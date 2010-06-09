@@ -37,7 +37,7 @@ from amara.writers.struct import *
 from amara.bindery.html import parse as htmlparse
 from amara.lib import U
 from amara.lib.date import timezone, UTC
-from amara.lib.iri import split_fragment, relativize, absolutize
+from amara.lib.iri import split_uri_ref, split_fragment, relativize, absolutize, IriError, join
 from amara.bindery.model import examplotron_model, generate_metadata, metadata_dict
 from amara.bindery.util import dispatcher, node_handler, property_sequence_getter
 
@@ -219,7 +219,7 @@ def register_node_type(type_id, nclass):
     node.NODES[type_id] = nclass
 
 
-def wiki_uri(original_base, wrapped_base, link, relative_to=None):
+def wiki_uri(original_base, wrapped_base, link, relative_to=None, raw=False):
     '''
     Constructs absolute URLs to the original and REST-wrapper for a page, given a link from another page
     
@@ -227,6 +227,7 @@ def wiki_uri(original_base, wrapped_base, link, relative_to=None):
     wrapped_base - The base URI of the REST-wrapped proxy of the Moin instance
     link - the relative link, generally from one wiki page to another
     relative_to - the REST-wrapped version of the page from which the relative link came, defaults to same as wrapped_base
+    raw - the link is a full hierarchical path, rather than relative to the wiki base
 
     Returns a tuple (wrapped_uri, abs_link)
     
@@ -236,11 +237,16 @@ def wiki_uri(original_base, wrapped_base, link, relative_to=None):
     >>> from akara.util.moin import wiki_uri
     >>> wiki_uri('http://example.com/mywiki/', 'http://localhost:8880/moin/w/', '/mywiki/spam')
     ('http://localhost:8880/moin/w/spam', 'http://example.com/mywiki/spam')
+    >>> wiki_uri('http://example.com/mywiki/', 'http://localhost:8880/moin/w/', '/mywiki/spam', raw=True)
+    ('http://localhost:8880/moin/w/spam', 'http://example.com/mywiki/spam')
     '''
     #rel_link = relativize(abs_link, original_wiki_base)
     #e.g. original wiki base is http://myhost:8080/mywiki/ and link is /a/b
     #abs_link is http://myhost:8080/mywiki/a/b note the need to strip the leading / to get that
     #from akara import logger; logger.debug('wiki_uri' + repr((original_base, wrapped_base, link, relative_to, absolutize(link, original_base.rstrip('/')+'/'))))
+    if raw:
+        (scheme, authority, path, query, fragment) = split_uri_ref(original_base)
+        link = link[len(path):]
     link = link.lstrip('/')
     abs_link = absolutize(link, original_base.rstrip('/')+'/')
     rel_to_wikibase = relativize(abs_link, original_base.rstrip('/')+'/')
