@@ -343,47 +343,15 @@ class AkaraWSGIDispatcher(object):
 # exec the byte code. That's the job for the spawned-off HTTP listener
 # classes.
 
-
-# Instances are used as module global variable so extension modules
-# can get configuration information.
-class AKARA(object):
-    def __init__(self, config, module_name, module_config):
-        self.config = config
-        self.module_name = module_name
-        self.module_config = module_config
-
 def load_modules(module_dir, config):
     "Read and prepare all extension modules (*.py) from the module directory"
     modules = []
-    for filename in os.listdir(module_dir):
-        name, ext = os.path.splitext(filename)
-        if ext != ".py":
-            continue
-        if name.startswith("."):
-            # For example, Emacs backup files start with ".#"
-            continue
-        full_path = os.path.join(module_dir, filename)
-        module_config = {}
-#        if config.has_section(name):
-#            module_config.update(config.items(name))
-
-        module_globals = {
-            "__name__": name,
-            "__file__": full_path,
-            "AKARA": AKARA(config, name, module_config)
-            }
-        f = open(full_path, "rU")
-        module_code = None
-        try:
-            try:
-                module_code = compile(f.read(), full_path, 'exec')
-            except:
-                logger.exception(
-                    "Unable to byte-compile %r - skipping module" % (full_path,))
-        finally:
-            f.close()
-        if module_code is not None:
-            modules.append( (name, module_code, module_globals) )
+    for module_name in config.MODULES:
+        module = __import__(module_name, {}, {}, ["akara_init"])
+        if hasattr(module, "akara_init"):
+            module.akara_init(config)
+        modules.append(module)
+                
     return modules
 
 def _init_modules(modules):
