@@ -438,6 +438,7 @@ def fill_attachment_form(page, attachment, wiki_id, base, opener):
     form_vars["overwrite"] = u'1'
     form_vars["action"] = unicode(form.xml_select(u'string(*/*[@name="action"]/@value)'))
     form_vars["do"] = unicode(form.xml_select(u'string(*/*[@name="do"]/@value)'))
+    form_vars["ticket"] = unicode(form.xml_select(u'string(*/*[@name="ticket"]/@value)'))
     form_vars["submit"] = unicode(form.xml_select(u'string(*/*[@type="submit"]/@value)'))
     #pprint.pprint(form_vars)
     return form_vars
@@ -645,6 +646,7 @@ def _put_page(environ, start_response):
     start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url), (moin.ORIG_BASE_HEADER, base)])
     return [msg]
 
+
 # POST handler
 @dispatcher.method("POST")
 def post_page(environ, start_response):
@@ -674,7 +676,7 @@ def post_page(environ, start_response):
     try:
         with closing(opener.open(request)) as resp:
             doc = htmlparse(resp)
-            #amara.xml_write(doc, stream=sys.stderr, indent=True)
+            #logger.debug('POST for attachment page response... ' + doc.xml_encode())
     except urllib2.URLError,e:
         if e.code == 404:
             raise MoinNotFoundError(fronturl=request_uri(environ), backurl=url)
