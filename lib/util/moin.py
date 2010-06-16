@@ -116,6 +116,21 @@ MOIN_DOCBOOK_MODEL = examplotron_model(MOIN_DOCBOOK_MODEL_XML)
 AKARA_NS = u'http://purl.org/dc/org/xml3k/akara'
 CMS_BASE = AKARA_NS + u'/cms'
 
+CAMELCASE_PAT = re.compile(u'(\s+)(([A-Z]\w*)([A-Z]\w*)+)(\s+)')
+
+def text_to_moin(text):
+    '''
+    Convert text into a form where it appears as one would expect in Moin:
+    * Normalize line endings
+    * Escape CamelCase
+
+    >>> from akara.util.moin import text_to_moin
+    >>> text_to_moin(u' a AxBxCx   b\r\nMoreCamelCase foo')
+    u' a !AxBxCx   b\r\n!MoreCamelCase foo'
+    '''
+    text = CAMELCASE_PAT.subn(lambda m: m.group(1) + u'!' + m.group(2) + m.groups()[-1], text)[0]
+    return u'\n'.join([line.strip() for line in text.splitlines() ])
+
 def cleanup_text_blocks(text):
     return u'\n'.join([line.strip() for line in text.splitlines() ])
 
