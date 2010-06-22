@@ -5,6 +5,7 @@ MoinMoin - "text/xml" Formatter using Amara 2.x
 @copyright: 2010 Uche Ogbuji <uche@ogbuji.net>
 @license: Apache 2.0
 """
+#Goes in plugin/formatter under moin data dir
 
 from MoinMoin.formatter import FormatterBase
 from MoinMoin import config
@@ -258,6 +259,7 @@ class Formatter(FormatterBase):
     def image(self, src=None, **kw):
         e = tree.element(None, u'img')
         self._curr.xml_append(e)
+        valid_attrs = ('src', 'width', 'height', 'alt', 'title')
         kw.update({'src': src})
         for key, value in kw.items():
             if key in valid_attrs:
