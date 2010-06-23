@@ -9,6 +9,7 @@ import socket
 import logging
 import signal
 
+import akara
 from akara import read_config
 from akara import logger, logger_config
 from akara.multiprocess_http import AkaraPreforkServer, load_modules
@@ -155,8 +156,10 @@ def main(args):
             else:
                 raise SystemExit("Cannot restart Akara. Exiting.")
 
+        akara.config = config
+
         # Establish the global configuration module
-        set_global_config(settings)
+        set_global_config(settings, config)
 
         # In debug mode (-X), display all log messages.
         # Otherwise, use the configuration level
@@ -188,17 +191,6 @@ Could not open the Akara access log:
 Does that directory exist and is it writeable?""" % err)
             sys.exit(1)
 
-
-        # Compile the modules before spawning the server process
-        # If there are any problems, die
-        try:
-            modules = load_modules(settings["module_dir"], config)
-        except (OSError, IOError), err:
-            logger.fatal("""\
-Could not load Akara extension modules:
-   %s
-Does that directory exist and is it readable?""" % err)
-            sys.exit(1)
 
         # Don't start if the PID file already exists.
         pid_file = settings["pid_file"]
@@ -262,7 +254,6 @@ Does that directory exist and is it readable?""" % err)
                 maxRequests = settings["max_requests_per_server"],
                 settings = settings,
                 config = config,
-                modules = modules,
                 )
 
             # Everything is ready to go, except for saving the PID file

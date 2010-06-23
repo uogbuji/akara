@@ -35,3 +35,46 @@ Public submodules are:
 # Initializes logging and make the logger public
 from akara.logger_config import _logger as logger
 
+
+# The contents of the "akara.conf" module
+config = None
+
+# The per-module configuration.
+
+class AkaraModuleConfig(object):
+    def __getitem__(self, path):
+        # Find the config section with that name.
+        # First check for the full name (defined by "class akara: name = ...")
+        # Note: This is an O(n) search, but n should be small.
+        # (Otherwise, I could cache the results)
+        for name, value in inspect.getmembers(config):
+            if (hasattr(value, "akara") and hasattr(value.akara, "name") and
+                value.akara.name == path)
+            return value
+
+        ## Nothing found. Assume I can look it up by the last term of the path
+        name = path.rsplit(".", 1)[-1]
+        try:
+            return getattr(config, name)
+        except AttributeError:
+            raise KeyError(path)
+
+    def get(self, path, default=None):
+        try:
+            return self[path]
+        except KeyError:
+            return default
+
+    # XXX do I really want this?
+    # XXX What about type checks?
+    def require(self, path, error_message):
+        try:
+            return self[path]
+        except KeyError:
+            raise ConfigError(error_message.format(path=path))
+            
+module_config = AkaraModuleConfig()
+# Used like:
+#  akara.module_config["akara.demo.xslt"]  -- full path name
+#  akara.module_config["xslt"]   -- in most cases, the last term works fine
+#  akara.module_config[__name__]    -- easy way for extension modules to know its own name

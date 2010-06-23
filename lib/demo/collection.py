@@ -73,7 +73,10 @@ from akara.services import method_dispatcher
 from akara import response
 
 #AKARA is automatically defined at global scope for a module running within Akara
-BASE = AKARA.module_config['folder']
+BASE = None
+def akara_init(config):
+    global BASE
+    BASE = config["collection"].BASE
 
 # Templates
 four_oh_four = Template("""

@@ -11,13 +11,14 @@ from amara.thirdparty import json
 import amara
 from amara.lib.util import *
 
+from akara import module_config
 from akara.services import simple_service
 
 #URL_REQUIRED = _("The 'url' query parameter is mandatory.")
 
-APIKEY = AKARA.module_config.get('apikey')
-
-CALAIS_URL = 'http://service.semanticproxy.com/processurl/%s/rdf/'%APIKEY
+APIKEY = module_config[__name__].APIKEY
+CALAIS_URL = 'http://service.semanticproxy.com/processurl/%s/rdf/' % APIKEY
+    
 
 SERVICE_ID = 'http://purl.org/akara/services/demo/calais.json'
 @simple_service('GET', SERVICE_ID, 'akara.calais.json', 'application/json')

@@ -84,7 +84,7 @@ access_logger = logging.getLogger("akara.access")
 # child mainloop run.
 
 class AkaraPreforkServer(preforkserver.PreforkServer):
-    def __init__(self, settings, config, modules,
+    def __init__(self, settings, config,
                  minSpare=1, maxSpare=5, maxChildren=50,
                  maxRequests=0):
         preforkserver.PreforkServer.__init__(self,
@@ -92,10 +92,9 @@ class AkaraPreforkServer(preforkserver.PreforkServer):
                                              maxChildren=maxChildren, maxRequests=maxRequests,
                                              jobClass=AkaraJob,
                                              jobArgs=(settings, config))
-        self.modules = modules
-
+        self.config = config
     def _child(self, sock, parent):
-        _init_modules(self.modules)
+        _init_modules(self.config)
         preforkserver.PreforkServer._child(self, sock, parent)
 
 
@@ -343,26 +342,11 @@ class AkaraWSGIDispatcher(object):
 # exec the byte code. That's the job for the spawned-off HTTP listener
 # classes.
 
-def load_modules(module_dir, config):
-    "Read and prepare all extension modules (*.py) from the module directory"
-    modules = []
-    for module_name in config.MODULES:
-        module = __import__(module_name, {}, {}, ["akara_init"])
-        if hasattr(module, "akara_init"):
-            module.akara_init(config)
-        modules.append(module)
-                
-    return modules
-
-def _init_modules(modules):
-    # The master node parsed the modules but did not exec them.
-    # Do that now, but only once. This will register the functions.
-    for name, code, module_globals in modules:
-        # NOTE: each child execs this code, so any warning and
-        # errors will be repeated for each newly spawned process,
-        # including child restarts.
+def _init_modules(config):
+    for module_name in config["MODULES"]:
+        # import the module
         try:
-            exec code in module_globals, module_globals
+            __import__(module_name)
         except:
             logger.error(
 "Unable to initialize module %r - skipping rest of module" % (name,),

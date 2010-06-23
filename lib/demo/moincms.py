@@ -50,6 +50,8 @@ from akara.util.moin import node, ORIG_BASE_HEADER, DOCBOOK_IMT, RDF_IMT, HTML_I
 from akara.services import simple_service
 
 
+CMS_BASE = "asdfasd" # Get from akara_init config? XXX
+
 #
 # This part is partly obsolete, and is used to handle the Web/CMS component.
 # It needs a bit of update for the more general Moin/CMS framework
@@ -137,7 +139,7 @@ class folder(webcms_node):
             print attachment
         return
 
-node.NODES[folder.AKARA_TYPE] = folder
+    node.NODES[folder.AKARA_TYPE] = folder
 
 
 class page(webcms_node):

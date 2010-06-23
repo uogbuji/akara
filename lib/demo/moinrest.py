@@ -23,6 +23,9 @@ You'll need a config entry such as:
 [moinrest]
 target-xml3k=http://wiki.xml3k.org
 
+class moinrest:
+    targets = {"xml3k": "http://wiki.xml3k.org"}
+
 = Notes on security and authentication =
 
 There are two separate aspects to authentication that moinrest has to
@@ -121,7 +124,7 @@ from akara import logger
 
 #AKARA is automatically defined at global scope for a module running within Akara
 
-TARGET_WIKIS = dict(( (k.split('-', 1)[1], AKARA.module_config[k].rstrip('/') + '/') for k in AKARA.module_config if k.startswith('target-')))
+TARGET_WIKIS = module_config(__name__)["targets"]
 TARGET_WIKI_OPENERS = {}
 DEFAULT_OPENER = urllib2.build_opener(
     urllib2.HTTPCookieProcessor(),

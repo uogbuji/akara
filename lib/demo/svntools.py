@@ -1,5 +1,11 @@
 # -*- encoding: utf-8 -*-
 '''
+
+class svntools:
+    svn_commit = 'asdf'
+    svn_add = 'xv'
+    targets = ['this', 'is', 'a', 'list']
+
 See also:
 '''
 from __future__ import with_statement
@@ -11,18 +17,17 @@ from cStringIO import StringIO
 from itertools import *
 from contextlib import closing
 
-from amara import _
+from amara import _, module_config
 from amara.lib.util import *
 
 from akara.util import copy_auth
 from akara.services import simple_service
 
 Q_REQUIRED = _("The 'Q' POST parameter is mandatory.")
-SVN_COMMIT_CMD = AKARA.module_config.get('svn_commit', 'svn commit -m "%(msg)s" %(fpath)s')
-SVN_ADD_CMD = AKARA.module_config.get('svn_add', 'svn add %(fpath)s')
+SVN_COMMIT_CMD = module_config().get('svn_commit', 'svn commit -m "%(msg)s" %(fpath)s')
+SVN_ADD_CMD = module_config().get('svn_add', 'svn add %(fpath)s')
 
-TARGET_SVNS = dict(( (k.split('-', 1)[1], AKARA.module_config[k].rstrip('/') + '/')
-                     for k in AKARA.module_config if k.startswith('svn-')))
+TARGET_SVNS = [(dirname.rstrip('/') + '/') for dirname in module_config()["targets"]
 
 SERVICE_ID = 'http://purl.org/akara/services/demo/svncommit'
 @simple_service('POST', SERVICE_ID, 'akara.svncommit', 'text/plain')

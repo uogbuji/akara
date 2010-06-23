@@ -1,11 +1,12 @@
 # -*- encoding: utf-8 -*-
-'''
+'''Serve static files from the file system
 
 Requires a configuration section, for example:
 
-[static]
-images: /path/to/image/directory
-~me:  /home/directory/public_files
+class static:
+    akara_module = "akara.demo.static"
+    paths = {"images": "/path/to/image/directory",
+             "~me": "/home/directory/public_files"}
 
 '''
 
@@ -72,14 +73,9 @@ class MediaHandler(object):
         start_response(status, headers)
         return output
 
-try:
-    paths = list(AKARA.module_config)
-except NameError:
-    warnings.warn("Missing module configuration - is this running in Akara?")
-else:
-    if not paths:
-        warnings.warn("No path information found. Missing [static] configuration section?")
-    for path in paths:
-        root = AKARA.module_config[path]
-        handler = MediaHandler(root)
-        registry.register_service(SERVICE_ID, path, handler)
+import akara
+paths = akara.module_config(__name__).paths
+
+for path, root in paths.items():
+    handler = MediaHandler(root)
+    registry.register_service(SERVICE_ID, path, handler)

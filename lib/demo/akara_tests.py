@@ -6,6 +6,7 @@ import os
 
 from amara import tree, parse
 
+import akara
 from akara.services import *
 from akara.pipeline import *
 from akara.registry import register_template, register_services, get_internal_service_url
@@ -57,11 +58,25 @@ except ValueError, err:
 # Make sure the environment is set up
 @simple_service("GET", "http://example.com/test")
 def test_environment():
-    # Every extension module has an extra 'AKARA' global module variable
-    assert AKARA.config is not None
-    assert AKARA.module_name == __name__
-    assert isinstance(AKARA.module_config, dict)
-    assert AKARA.config.has_section("global")
+    # 
+    assert akara.config is not None
+    assert akara.module_config("Akara") is not None
+    assert akara.module_config("Akara")["Listen"] is not None
+    assert (akara.module_config("Akara").get("Listen") ==
+            akara.module_config("Akara")["Listen"])
+    assert akara.module_config("Akara").get("XYZListen", 123) == 123
+    assert akara.module_config("Akara").require("Listen", "SHRDLU")
+    try:
+        akara.module_config("Akara").require("XYZListen", "SHRDLU")
+        raise AssertionError
+    except Exception, err:
+        assert "SHRDLU" in str(err)
+    try:
+        akara.module_config("XYZAkara")
+        raise AssertionError
+    except KeyError:
+        pass
+    
 
     # simple services can access the WSGI environ this way
     assert request.environ is not None

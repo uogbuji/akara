@@ -25,6 +25,7 @@ from amara.lib.util import *
 # Requires Python 2.6 or http://code.google.com/p/json/
 from amara.thirdparty import json
 
+import akara
 from akara.services import simple_service
 
 VAR_PAT = re.compile('VARIABLE\s+LABELS\s+(((\w+)\s+"([^"]+)"\s*)+)\.')
@@ -48,11 +49,7 @@ mydata <- spss.get(file='%s')
 write.csv2(mydata)
 '''
 
-try:
-    R_FILE_CMD = AKARA.module_config.get('r_command', 'r')
-except NameError:
-    #Not running from Akara
-    R_FILE_CMD = 'r'
+R_FILE_CMD = akara.module_config(__name__).get('r_command', 'r')
 
 POR_REQUIRED = _("The 'POR' POST parameter is mandatory.")
 

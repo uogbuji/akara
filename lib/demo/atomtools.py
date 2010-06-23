@@ -3,11 +3,10 @@
 
 Requires a configuration section, for example:
 
-[atomtools]
-
-entries = /path/to/entry/files/*.atom
-feed_envelope = <feed xmlns="http://www.w3.org/2005/Atom"><title>My feed</
-title><id>http://example.com/myfeed</id></feed>
+class atomtools:
+    entries = "/path/to/entry/files/*.atom"
+    feed_envelope = '<feed xmlns="http://www.w3.org/2005/Atom">\
+<title>My feed</title><id>http://example.com/myfeed</id></feed>'
 
 '''
 
@@ -23,7 +22,7 @@ from amara.lib.util import first_item
 
 from akara.services import simple_service
 from akara import request, response
-from akara import logger
+from akara import logger, module_config
 
 
 #text/uri-list from RFC 2483
@@ -45,9 +44,9 @@ def atom_json(url=None):
     return json.dumps({'items': entries}, indent=4)
 
 
-# These come from the "[atomtools]" section of the Akara configuration file
-ENTRIES = AKARA.module_config.get('entries')
-FEED_ENVELOPE = AKARA.module_config.get('feed_envelope')
+# These come from the akara.demos.atomtools section of the Akara configuration file
+ENTRIES = module_config[__name__].entries
+FEED_ENVELOPE = module_config[__name__].feed_envelope
 
 #print >> sys.stderr, "Entries:", ENTRIES
 #print >> sys.stderr, "Feed envelope:", FEED_ENVELOPE
