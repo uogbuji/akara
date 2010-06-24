@@ -84,6 +84,8 @@ static = %(resource_dir)s/static
 [xslt]
 uri_space = file:///
 
+[collection]
+folder=/tmp/collection
 
 """ % dict(server_root = server_root,
            module_dir = MODULE_DIR,

@@ -28,6 +28,6 @@ def lucky_google(q=None):
         raise AssertionError(Q_REQUIRED)
     query = urllib.urlencode({'q' : q})
     url = 'http://ajax.googleapis.com/ajax/services/search/web?v=1.0&' + query
-    json = json.load(urllib.urlopen(url))
-    results = json['responseData']['results']
+    jsonr = json.load(urllib.urlopen(url))
+    results = jsonr['responseData']['results']
     return results[0]['url'].encode('utf-8') + '\n'
