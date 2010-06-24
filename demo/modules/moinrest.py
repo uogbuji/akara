@@ -433,7 +433,9 @@ def fill_attachment_form(page, attachment, wiki_id, base, opener):
     form = doc.html.body.xml_select(u'.//*[@id="content"]/form')[0]
     form_vars = {}
     #form / dl / ... dd
+    #Was called rename in 1.8.x, target in 1.9.x
     form_vars["rename"] = unicode(attachment)
+    form_vars["target"] = unicode(attachment)
     #FIXME: parameterize
     form_vars["overwrite"] = u'1'
     form_vars["action"] = unicode(form.xml_select(u'string(*/*[@name="action"]/@value)'))

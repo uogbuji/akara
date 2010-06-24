@@ -82,42 +82,53 @@ class Formatter(FormatterBase):
         return page.link_to(self.request, on=on, **kw)
 
     def interwikilink(self, on, interwiki='', pagename='', **kw):
+        self._elem(u'interwiki', on)
         if on:
-            return '<interwiki wiki="%s" pagename="%s">' % (interwiki, pagename)
-        else:
-            return '</interwiki>'
+            self._curr.xml_attributes[None, u'wiki'] = interwiki.decode(config.charset)
+            self._curr.xml_attributes[None, u'pagename'] = pagename.decode(config.charset)
+        return ''
 
     def url(self, on, url='', css=None, **kw):
         self._elem(u'jump', on)
+        self._curr.xml_attributes[None, u'url'] = url.decode(config.charset)
         if css:
             self._curr.xml_attributes[None, u'class'] = css.decode(config.charset)
         return ''
 
     def attachment_link(self, on, url=None, **kw):
+        self._elem(u'attachment', on)
         if on:
-            return '<attachment href="%s">' % (url, )
-        else:
-            return '</attachment>'
+            self._curr.xml_attributes[None, u'href'] = url.decode(config.charset)
+        return ''
 
     def attachment_image(self, url, **kw):
-        return '<attachmentimage href="%s"></attachmentimage>' % (url, )
+        self._elem(u'attachmentimage', on)
+        if on:
+            self._curr.xml_attributes[None, u'href'] = url.decode(config.charset)
+        return ''
 
     def attachment_drawing(self, url, text, **kw):
-        return '<attachmentdrawing href="%s">%s</attachmentdrawing>' % (url, text)
+        self._elem(u'attachmentimage', on)
+        self._curr.xml_attributes[None, u'href'] = url.decode(config.charset)
+        self._curr.xml_append(tree.text(text.decode(config.charset)))
+        self._elem(u'attachmentimage', off)
+        return ''
 
     def text(self, text, **kw):
         self._curr.xml_append(tree.text(text))
         return ''
 
     def rule(self, size=0, **kw):
-        return "\n<br/>%s<br/>\n" % ("-" * 78, ) # <hr/> not supported in stylebook
-#        if size:
-#            return '<hr size="%d"/>\n' % (size, )
-#        else:
-#            return '<hr/>\n'
+        e = tree.element(None, u'br') # <hr/> not supported in stylebook
+        e.xml_append(tree.text((u"-" * 78, )))
+        self._curr.xml_append(e)
+        return ''
 
     def icon(self, type):
-        return '<icon type="%s" />' % type
+        self._elem(u'icon', on)
+        self._curr.xml_attributes[None, u'type'] = type.decode(config.charset)
+        self._elem(u'icon', off)
+        return ''
 
     def strong(self, on, **kw):
         self._elem(u'strong', on)
