@@ -110,7 +110,7 @@ from amara.lib.iri import split_uri_ref, unsplit_uri_ref, split_authority, absol
 from akara.util import multipart_post_handler, wsgibase, http_method_handler
 from akara.services import method_dispatcher
 from akara.util import status_response, read_http_body_to_temp
-from akara.util import BadTargetError, HTTPAuthorizationError, MoinAuthorizationError, UnexpectedResponseError, MoinMustAuthenticateError, MoinNotFoundError, ContentLengthRequiredError
+from akara.util import BadTargetError, HTTPAuthorizationError, MoinAuthorizationError, UnexpectedResponseError, MoinMustAuthenticateError, MoinNotFoundError, ContentLengthRequiredError, GenericClientError
 import akara.util.moin as moin
 from akara import response
 from akara import logger
@@ -306,6 +306,14 @@ def moin_error_wrapper(wsgiapp):
                     ])
             return error_contentlengthrequired.safe_substitute(e.parms)
 
+        # Used for Moin errors indicated in 2xx HTML responses.  No
+        # need for canned text since the error text is in the HTML
+        except GenericClientError,e:
+            start_response(status_response(httplib.BAD_REQUEST), [
+                    ('Content-Type','text/plain')
+                    ])
+            return e.error
+
     return handler
 
 
@@ -371,6 +379,7 @@ def fill_page_edit_form(page, wiki_id, base, opener):
         with closing(opener.open(request)) as resp:
             x = resp.read(); resp = x
             doc = htmlparse(resp)
+            raise_embedded_error(doc)
 
     except urllib2.URLError,e:
         # Comment concerning the behavior of MoinMoin.  If an attempt is made to edit a page 
@@ -418,6 +427,7 @@ def fill_attachment_form(page, attachment, wiki_id, base, opener):
     try:
         with closing(opener.open(request)) as resp:
             doc = htmlparse(resp)
+            raise_embedded_error(resp)
 
     except urllib2.URLError,e:
         # Comment concerning the behavior of MoinMoin.  If an attempt is made to post to a page 
@@ -452,6 +462,7 @@ def scrape_page_history(page, base, opener):
     try:
         with closing(opener.open(request)) as resp:
             doc = htmlparse(resp)
+            raise_embedded_error(doc)
 
     except urllib2.URLError,e:
         # Comment concerning the behavior of MoinMoin.  If an attempt is made to post to a page 
@@ -483,6 +494,12 @@ def scrape_page_history(page, base, opener):
     ]
     return info
 
+# Extract any error embedded in an HTML response (returned by Moin in 2xx responses),
+# and raise it as an HTTP error
+def raise_embedded_error(doc):
+    error_div = doc.xml_select('//div[@class="error"]')
+    if error_div :
+        raise GenericClientError(url=url,error=error_div.asString())
 
 # ----------------------------------------------------------------------
 #                       HTTP Method Handlers
@@ -546,6 +563,7 @@ def get_page(environ, start_response):
             with closing(opener.open(request)) as resp:
                 rbody = resp.read()
             doc = htmlparse(rbody)
+            raise_embedded_error(doc)
             attachment_nodes = doc.xml_select(u'//*[contains(@href, "action=AttachFile") and contains(@href, "do=view")]')
             targets = []
             for node in attachment_nodes:
@@ -639,6 +657,7 @@ def _put_page(environ, start_response):
         with closing(opener.open(request)) as resp:
             logger.debug('Return from urllib2.opener')
             doc = htmlparse(resp)
+            raise_embedded_error(doc)
             logger.debug('HTML parse complete post urllib2.opener')
     except urllib2.URLError,e:
         raise UnexpectedResponseError(url=url,code=e.code,error=str(e))
@@ -678,7 +697,9 @@ def post_page(environ, start_response):
     try:
         with closing(opener.open(request)) as resp:
             doc = htmlparse(resp)
+            raise_embedded_error(doc)
             #logger.debug('POST for attachment page response... ' + doc.xml_encode())
+
     except urllib2.URLError,e:
         if e.code == 404:
             raise MoinNotFoundError(fronturl=request_uri(environ), backurl=url)

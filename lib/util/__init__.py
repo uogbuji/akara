@@ -270,4 +270,4 @@ class UnexpectedResponseError(HttpError): pass
 class MoinMustAuthenticateError(HttpError): pass
 class MoinNotFoundError(HttpError): pass
 class ContentLengthRequiredError(HttpError): pass
-
+class GenericClientError(HttpError): pass
