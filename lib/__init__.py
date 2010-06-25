@@ -32,49 +32,114 @@ Public submodules are:
 
 """
 
+import sys
+
 # Initializes logging and make the logger public
 from akara.logger_config import _logger as logger
 
 
-# The contents of the "akara.conf" module
-config = None
+# The contents of the "akara.conf" module, as a global namespace dict
+raw_config = None
 
-# The per-module configuration.
+# Access to the per-module configuration. Used like:
+#  akara.module_config("akara.demo.xslt")  -- full path name
+#  akara.module_config("xslt")   -- in most cases, the last term works fine
+#  akara.module_config(__name__)    -- easy way for extension modules to know its own name
+#  akara.module_config()    -- get the __name__ automatically
 
-class AkaraModuleConfig(object):
-    def __getitem__(self, path):
-        # Find the config section with that name.
-        # First check for the full name (defined by "class akara: name = ...")
-        # Note: This is an O(n) search, but n should be small.
-        # (Otherwise, I could cache the results)
-        for name, value in inspect.getmembers(config):
-            if (hasattr(value, "akara") and hasattr(value.akara, "name") and
-                value.akara.name == path)
-            return value
+def module_config(path = None):
+    if path is None:
+        # Let people call this without specifying a name
+        path = sys._getframe(1).f_globals["__name__"]
 
-        ## Nothing found. Assume I can look it up by the last term of the path
-        name = path.rsplit(".", 1)[-1]
+    # The path can either be a full path, like "akara.demo.xslt"
+    # or a short name like "xslt". Look for the full name first.
+    # We use classes for the config information, which means
+    # it isn't so simple, as the class doesn't have a full name.
+    # Here's how to specify the full name, to match the path exactly:
+    # 
+    #    class xslt:
+    #        akara_name = "akara.demo.xslt"
+    #
+    for name, obj in raw_config.items():
+        if name[:1] == "_":
+            continue
+        if hasattr(obj, "akara_name") and obj.akara_name == path:
+            return ModuleConfig(path, obj)
+
+    # There's also a shorthand notation, which is useful for
+    # the (expected to be) common case where there's no conflict;
+    # use the last term of the path as the name of the class.
+    class_name = path.rsplit(".", 1)[-1]
+    try:
+        klass = raw_config[class_name]
+    except KeyError:
+        # An extension should not require a configuration.
+        # Testing for configuration adds if (or try/except) tests, which complicates code.
+        # The purpose of returning a NoModuleConfig is to let people write code like:
+        #   arg = module_config().get("order", "spam and eggs")
+        # and have code work as expected.
+        return NoModuleConfig(path)
+    else:
+        if hasattr(klass, "akara_name"):
+            path = klass.akara_name
+        return ModuleConfig(path, klass)
+
+
+# Wrap the configuration object so the class attributes can be
+# accessed as dictionaries via [] and get. Why? I think it simplifies
+# parameter processing to use config.get("name", default) rather than
+# getattr(config, "name", default) and because I think this will grow
+# terms like "get_string()" to help with type validation.
+
+class ModuleConfig(object):
+    def __init__(self, path, config_class):
+        self.path = path
+        self.config_class = config_class
+        
+    def __getitem__(self, name):
         try:
-            return getattr(config, name)
+            return getattr(self.config_class, name)
         except AttributeError:
-            raise KeyError(path)
+            raise KeyError(name)
+        
+    def get(self, name, default=None):
+        return getattr(self.config_class, name, default)
 
-    def get(self, path, default=None):
+    def require(self, name, what=None):
         try:
-            return self[path]
-        except KeyError:
-            return default
+            return getattr(self.config_class, name)
+        except AttributeError:
+            pass
 
-    # XXX do I really want this?
-    # XXX What about type checks?
-    def require(self, path, error_message):
-        try:
-            return self[path]
-        except KeyError:
-            raise ConfigError(error_message.format(path=path))
-            
-module_config = AkaraModuleConfig()
-# Used like:
-#  akara.module_config["akara.demo.xslt"]  -- full path name
-#  akara.module_config["xslt"]   -- in most cases, the last term works fine
-#  akara.module_config[__name__]    -- easy way for extension modules to know its own name
+        msg = (
+            "Akara configuration section %(path)r is missing the required parameter %(name)r"
+            % dict(path=self.path, name=name) )
+        
+        if what is not None:
+            msg += ": " + what
+        raise AttributeError(msg)
+
+# Used when there is no configuration section for the module.
+
+class NoModuleConfig(object):
+    def __init__(self, path):
+        self.path = path
+        
+    def __getitem__(self, name):
+        raise KeyError(name)
+    
+    def get(self, name, default=None):
+        return default
+    
+    def __nonzero__(self):
+        # Can be used to test if there was a configuration section, as in
+        #    if not module_config("Akara"): print "Something is wrong!"
+        return False
+    
+    def require(self, name, what=None):
+        msg = ("Akara configuration section %(path)r is missing. It must have the "
+               "parameter %(name)r") % dict(path=self.path, name=name)
+        if what is not None:
+            msg += ": " + what
+        raise AttributeError(msg)
