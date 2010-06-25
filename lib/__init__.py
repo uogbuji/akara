@@ -120,6 +120,22 @@ class ModuleConfig(object):
             msg += ": " + what
         raise AttributeError(msg)
 
+    def warn(self, name, default, what=None):
+        try:
+            return getattr(self.cofnig_class, name)
+        except AttributeError:
+            pass
+        
+        msg = "Akara configuration section %(path)r should have the parameter %(name)r"
+        if what is not None:
+            msg += " (%(what)s)"
+        msg += ". Using %(default)r instead."
+        msg = msg % dict(path=self.path, name=name, default=default, what=what)
+        logger.warn(msg)
+
+        return default
+
+
 # Used when there is no configuration section for the module.
 
 class NoModuleConfig(object):
@@ -143,3 +159,15 @@ class NoModuleConfig(object):
         if what is not None:
             msg += ": " + what
         raise AttributeError(msg)
+
+    def warn(self, name, default, what=None):
+        msg = ("Akara configuration section %(path)r is missing. "
+               "It should have the parameter %(name)r")
+        if what is not None:
+            msg += " (%(what)s)"
+        msg += ". Using %(default)r instead."
+        msg = msg % dict(path=self.path, name=name, default=default, what=what)
+        logger.warn(msg)
+
+        return default
+
