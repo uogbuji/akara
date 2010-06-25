@@ -12,7 +12,7 @@ import signal
 import akara
 from akara import read_config
 from akara import logger, logger_config
-from akara.multiprocess_http import AkaraPreforkServer, load_modules
+from akara.multiprocess_http import AkaraPreforkServer
 from akara import global_config
 
 
@@ -129,7 +129,7 @@ def demonize():
 # Sets up the global_config module contents
 def set_global_config(settings):
     for name, value in settings.items():
-        setattr(global_config,name,value)
+        setattr(global_config, name, value)
 
 def main(args):
     config_filename = args.config_filename
@@ -156,10 +156,10 @@ def main(args):
             else:
                 raise SystemExit("Cannot restart Akara. Exiting.")
 
-        akara.config = config
+        akara.raw_config = config
 
         # Establish the global configuration module
-        set_global_config(settings, config)
+        set_global_config(settings)
 
         # In debug mode (-X), display all log messages.
         # Otherwise, use the configuration level
