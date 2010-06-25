@@ -80,7 +80,7 @@ Some sample queries:
 
     Get a page's history:
     curl http://localhost:8880/moin/xml3k/FrontPage;history
-'''
+''' #'  # work-around emacs' inability to parse this level of embedded quotes
 
 __doc__ += SAMPLE_QUERIES_DOC
 
@@ -110,21 +110,18 @@ from amara.lib.iri import split_uri_ref, unsplit_uri_ref, split_authority, absol
 #from amara import inputsource
 
 # Akara Imports
+from akara import module_config, logger, response
 from akara.util import multipart_post_handler, wsgibase, http_method_handler
 from akara.services import method_dispatcher
 from akara.util import status_response, read_http_body_to_temp
 from akara.util import BadTargetError, HTTPAuthorizationError, MoinAuthorizationError, UnexpectedResponseError, MoinMustAuthenticateError, MoinNotFoundError, ContentLengthRequiredError
 import akara.util.moin as moin
-from akara import response
-from akara import logger
 
 # ======================================================================
 #                         Module Configruation
 # ======================================================================
 
-#AKARA is automatically defined at global scope for a module running within Akara
-
-TARGET_WIKIS = module_config(__name__)["targets"]
+TARGET_WIKIS = module_config().get("targets", {})
 TARGET_WIKI_OPENERS = {}
 DEFAULT_OPENER = urllib2.build_opener(
     urllib2.HTTPCookieProcessor(),

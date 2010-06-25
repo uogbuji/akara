@@ -2,7 +2,7 @@
 '''
 
 class svntools:
-    svn_commit = 'asdf'
+    svn_commit = 'svn commit -m "%(msg)s" %(fpath)s'
     svn_add = 'xv'
     targets = ['this', 'is', 'a', 'list']
 
@@ -17,17 +17,18 @@ from cStringIO import StringIO
 from itertools import *
 from contextlib import closing
 
-from amara import _, module_config
+from amara import _
 from amara.lib.util import *
 
+import akara
 from akara.util import copy_auth
 from akara.services import simple_service
 
 Q_REQUIRED = _("The 'Q' POST parameter is mandatory.")
-SVN_COMMIT_CMD = module_config().get('svn_commit', 'svn commit -m "%(msg)s" %(fpath)s')
-SVN_ADD_CMD = module_config().get('svn_add', 'svn add %(fpath)s')
+SVN_COMMIT_CMD = akara.module_config().get('svn_commit', 'svn commit -m "%(msg)s" %(fpath)s')
+SVN_ADD_CMD = akara.module_config().get('svn_add', 'svn add %(fpath)s')
 
-TARGET_SVNS = [(dirname.rstrip('/') + '/') for dirname in module_config()["targets"]
+#TARGET_SVNS = [(dirname.rstrip('/') + '/') for dirname in akara.module_config()["targets"]]
 
 SERVICE_ID = 'http://purl.org/akara/services/demo/svncommit'
 @simple_service('POST', SERVICE_ID, 'akara.svncommit', 'text/plain')

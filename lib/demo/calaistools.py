@@ -16,7 +16,7 @@ from akara.services import simple_service
 
 #URL_REQUIRED = _("The 'url' query parameter is mandatory.")
 
-APIKEY = module_config[__name__].APIKEY
+APIKEY = module_config().require("APIKEY", "Open Calais API Key (from semanticproxy.com)")
 CALAIS_URL = 'http://service.semanticproxy.com/processurl/%s/rdf/' % APIKEY
     
 

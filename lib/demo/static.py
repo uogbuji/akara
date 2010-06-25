@@ -74,7 +74,11 @@ class MediaHandler(object):
         return output
 
 import akara
-paths = akara.module_config(__name__).paths
+
+if not akara.module_config():
+    akara.logger.warn("No configuration section found for %r" % (__name__,))
+    
+paths = akara.module_config().get("paths", {})
 
 for path, root in paths.items():
     handler = MediaHandler(root)

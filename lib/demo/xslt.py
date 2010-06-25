@@ -19,6 +19,7 @@ from amara.xpath.util import simplify
 from amara.bindery import html
 from amara.lib import irihelpers, inputsource
 
+import akara
 from akara.services import simple_service
 from akara import response
 

@@ -25,6 +25,12 @@ from akara import request, response
 from akara import logger, module_config
 
 
+# These come from the akara.demos.atomtools section of the Akara configuration file
+ENTRIES = module_config().require("entries", "glob path to atom entry files")
+FEED_ENVELOPE = module_config().require("feed_envelope", "XML envelope around atom entries")
+
+
+
 #text/uri-list from RFC 2483
 SERVICE_ID = 'http://purl.org/akara/services/demo/atom.json'
 @simple_service('GET', SERVICE_ID, 'akara.atom.json', 'application/json')
@@ -43,10 +49,6 @@ def atom_json(url=None):
     entries = atomtools.ejsonize(url)
     return json.dumps({'items': entries}, indent=4)
 
-
-# These come from the akara.demos.atomtools section of the Akara configuration file
-ENTRIES = module_config[__name__].entries
-FEED_ENVELOPE = module_config[__name__].feed_envelope
 
 #print >> sys.stderr, "Entries:", ENTRIES
 #print >> sys.stderr, "Feed envelope:", FEED_ENVELOPE
