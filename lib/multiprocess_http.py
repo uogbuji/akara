@@ -349,6 +349,6 @@ def _init_modules(config):
             __import__(module_name)
         except:
             logger.error(
-"Unable to initialize module %r - skipping rest of module" % (name,),
+"Unable to initialize module %r - skipping rest of module" % (module_name,),
                          exc_info = True)
     
