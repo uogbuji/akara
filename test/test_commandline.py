@@ -37,7 +37,7 @@ def test_get_pid(server_root):
     config = Config(server_root)
     f = open(config.config_filename, "w")
     try:
-        f.write("[global]\nPidFile = %s\n" % config.pid_filename)
+        f.write("class Akara:\n  PidFile = %r\nMODULES=[]\n" % config.pid_filename)
     finally:
         f.close()
     try:
@@ -94,7 +94,7 @@ def test_status(server_root):
     assert "Error log file" not in capture.content
 
     f = open(config.config_filename, "w")
-    f.write("[global]\nPidFile = %s\n" % config.pid_filename)
+    f.write("class Akara: PidFile = %r\n" % config.pid_filename)
     f.close()
     with capture:
         commandline.status(config)
@@ -150,8 +150,8 @@ def test_setup_config_file(server_root):
 
     assert os.path.exists(config_file)
     s = open(config_file).read()
-    assert "[global]" in s
-    assert "\nListen" in s
+    assert "class Akara" in s
+    assert " Listen" in s
 
     with capture:
         commandline._setup_config_file(config_file)
@@ -163,7 +163,7 @@ def test_setup(server_root):
     capture = CaptureStdout()
 
     f = open(config.config_filename, "w")
-    f.write("[global]\nServerRoot = %s\n" % server_root)
+    f.write("class Akara: ServerRoot = %r\n" % server_root)
     f.close()
 
     with capture:
@@ -188,7 +188,7 @@ def test_log_rotate(server_root):
                    if name.startswith("testing.log.")]
     
     with open(config.config_filename, "w") as f:
-        f.write("[global]\nServerRoot = %s\nErrorLog=%s\n" %
+        f.write("class Akara:\n  ServerRoot = %r\n  ErrorLog=%r\n" %
                 (server_root, error_log_filename))
 
     # No log file present

@@ -14,9 +14,9 @@ DEFAULT_SERVER_CONFIG_FILE = os.path.expanduser("~/.config/akara.conf")
 
 class AkaraDefault:
     Listen = 8880
-    ServerRoot = "~/.local/lib/akara",
-    #"ServerPath": None,
-    #"InternalServerPath": None,
+    ServerRoot = "~/.local/lib/akara"
+    #"ServerPath": None
+    #"InternalServerPath": None
     PidFile = "logs/akara.pid"
 
     MinSpareServers = 5
@@ -66,7 +66,14 @@ To set up the default configuration file and directories use "akara setup"\
 """ % (err,))
 
     # XX better error reporting
-    code = compile(config, config_file, "exec")
+    try:
+        code = compile(config, config_file, "exec")
+    except SyntaxError, err:
+        raise Error("""\
+Could not parse Akara configuration file:
+   %s
+because: %s""" % (config_file, err))
+         
     namespaces = dict(__builtins__ = None, __name__ = "akara.conf")
     exec code in namespaces
 
