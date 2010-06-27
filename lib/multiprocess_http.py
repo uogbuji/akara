@@ -343,7 +343,13 @@ class AkaraWSGIDispatcher(object):
 # classes.
 
 def _init_modules(config):
-    for module_name in config["MODULES"]:
+    try:
+        modules = config["MODULES"]
+    except KeyError:
+        logger.error("Akara config file is missing the 'MODULES' variable.\n"
+                     "No extensions will be installed.")
+        return
+    for module_name in modules:
         # import the module
         try:
             __import__(module_name)
