@@ -1,12 +1,25 @@
 # -*- encoding: utf-8 -*-
-'''
+'''Demo of how to use Akara to talk with SVN via POST -- *INSECURE*
+
+It includes an example of how to forward security information to a new
+request.
+
+This module takes an optional configuration section in akara.conf. The
+default settings are:
 
 class svntools:
-    svn_commit = 'svn commit -m "%(msg)s" %(fpath)s'
-    svn_add = 'xv'
-    targets = ['this', 'is', 'a', 'list']
+    svn_commit = ["svn", "commit", "-m", "$MSG", "$FPATH"]
+    svn_add = ["svn", "add", "$FPATH"]
 
-See also:
+where "$MSG" is replaced with the commit message (from the form
+variable "msg") and "$FPATH" is replaced with the path to the file
+under SVN.
+
+NOTE: This demo module is *insecure*. Do not use in an untrusted
+network. The module can be told to fetch an arbitrary URL and write
+the result to an arbitrary file. It can also do SVN commits against
+any accessible file in the file system.
+
 '''
 from __future__ import with_statement
 import sys, time
@@ -24,25 +37,28 @@ import akara
 from akara.util import copy_auth
 from akara.services import simple_service
 
-Q_REQUIRED = _("The 'Q' POST parameter is mandatory.")
+Q_REQUIRED = _("The 'q' POST parameter is mandatory.")
 SVN_COMMIT_CMD = akara.module_config().get('svn_commit', 'svn commit -m "%(msg)s" %(fpath)s')
 SVN_ADD_CMD = akara.module_config().get('svn_add', 'svn add %(fpath)s')
-
-#TARGET_SVNS = [(dirname.rstrip('/') + '/') for dirname in akara.module_config()["targets"]]
 
 SERVICE_ID = 'http://purl.org/akara/services/demo/svncommit'
 @simple_service('POST', SERVICE_ID, 'akara.svncommit', 'text/plain')
 def svncommit(body, ctype, **params):
-    '''
-    Requires POST body of multipart/form-data
+    '''Commit a file. Can optionally populate the file contents from a given URL.
+
+    The form parameters are:
+      fpath - the name of the file to commit to SVN
+      msg - the commit message
+      q (optional) - fetch the given URL and save it to the specified file before commmiting
+    
+    The form must be POSTed as multipart/form-data. If the request includes
+    the 'q' parameter then the new fetch will contain authentication 
+    forward 
     
     Sample request:
-    curl -F "POR=@foo.por" http://localhost:8880/spss.json
-    curl -F "msg=akara test" -F "fpath=/path/to/file" -F "q=http://example.org/my-rest-request" http://localhost:8880/akara.svncommit
-    '''
-    #Useful:
-    # * [[http://wiki.math.yorku.ca/index.php/R:_Data_conversion_from_SPSS|R: Data conversion from SPSS]]
+      curl -F "msg=fixed a typo" -F fpath="/path/to/file" -F "q=http://example.org/content" http://localhost:8880/akara.svncommit
 
+    '''
     body = StringIO(body)
     form = cgi.FieldStorage(fp=body, environ=WSGI_ENVIRON)
     #for k in form:
