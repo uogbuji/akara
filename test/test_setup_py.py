@@ -65,7 +65,7 @@ def test_specifying_config():
     config_filename = os.path.join(dirname, "akara.conf")
     try:
         f = open(config_filename, "w")
-        f.write("[global]\nServerRoot = %s/blather\n" % dirname)
+        f.write("class Akara: ServerRoot = %r + '/blather'\n" % dirname)
         f.close()
             
         call_setup(["setup_basic.py", "install",
