@@ -122,7 +122,7 @@ class ModuleConfig(object):
 
     def warn(self, name, default, what=None):
         try:
-            return getattr(self.cofnig_class, name)
+            return getattr(self.config_class, name)
         except AttributeError:
             pass
         
