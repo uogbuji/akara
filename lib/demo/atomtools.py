@@ -1,16 +1,21 @@
-# -*- encoding: utf-8 -*-
-'''
+"""Demo of several ways to work with Amara's Atom tools
 
-Requires a configuration section, for example:
+Some configurations can be changed in akara.conf. The default settings are:
 
 class atomtools:
     entries = "/path/to/entry/files/*.atom"
-    feed_envelope = '<feed xmlns="http://www.w3.org/2005/Atom">\
-<title>My feed</title><id>http://example.com/myfeed</id></feed>'
+    feed_envelope = '''<feed xmlns="http://www.w3.org/2005/Atom">
+<title>This is my feed</title><id>http://example.com/my_feed</id>
+</feed>'''
 
-'''
+'entries' is the glob path to a set of Atom entries, where the root
+element to each XML document must be "entry" in the Atom
+namespace). The "feed_envelope" goes around the entries to make the
+full Atom feed.  The entries are listed after the <title>.
 
-import sys
+"""
+# "Make Emacs happy with a close quote. Otherwise it gets confused.
+
 from datetime import datetime, timedelta
 import glob
 from itertools import dropwhile
@@ -19,6 +24,7 @@ import amara
 from amara import bindery
 from amara.tools import atomtools
 from amara.lib.util import first_item
+from amara.thirdparty import json
 
 from akara.services import simple_service
 from akara import request, response
@@ -26,77 +32,73 @@ from akara import logger, module_config
 
 
 # These come from the akara.demos.atomtools section of the Akara configuration file
-ENTRIES = module_config().require("entries", "glob path to atom entry files")
-FEED_ENVELOPE = module_config().require("feed_envelope", "XML envelope around atom entries")
+ENTRIES = module_config().warn("entries", "/path/to/entry/files/*.atom",
+                               "glob path to Atom entries")
+
+FEED_ENVELOPE = module_config().warn("feed_envelope",
+'''<feed xmlns="http://www.w3.org/2005/Atom">
+<title>This is my feed</title><id>http://example.com/my_feed</id>
+</feed>''', "XML envelope around the Atom entries")
 
 
 
 #text/uri-list from RFC 2483
 SERVICE_ID = 'http://purl.org/akara/services/demo/atom.json'
 @simple_service('GET', SERVICE_ID, 'akara.atom.json', 'application/json')
-def atom_json(url=None):
+def atom_json(url):
     '''
     Convert Atom syntax to Exhibit JSON
     (see: http://www.ibm.com/developerworks/web/library/wa-realweb6/ ; this is based on listing 3)
     
-    Sample request:
+    Sample requests:
     * curl "http://localhost:8880/akara.atom.json?url=url=http://zepheira.com/feeds/news.atom"
     * curl "http://localhost:8880/akara.atom.json?url=http://picasaweb.google.com/data/feed/base/user/dysryi/albumid/5342439351589940049"
     * curl "http://localhost:8880/akara.atom.json?url=http://earthquake.usgs.gov/eqcenter/catalogs/7day-M2.5.xml"
     '''
-    # From http://code.google.com/p/json/
-    from amara.thirdparty import json
     entries = atomtools.ejsonize(url)
     return json.dumps({'items': entries}, indent=4)
 
-
-#print >> sys.stderr, "Entries:", ENTRIES
-#print >> sys.stderr, "Feed envelope:", FEED_ENVELOPE
-
-#FIXME: use stat to check dir and apply a cache otherwise
+# This uses a simple caching mechanism.
+# If the cache is over 15 minutes old then rebuild the cache.
 DOC_CACHE = None
+def _need_refresh():
+    if DOC_CACHE is None:
+        return True
+    if datetime.now() > DOC_CACHE[1]: # check for expiration
+        return True
+    return False
 
 SERVICE_ID = 'http://purl.org/akara/services/demo/aggregate.atom'
 @simple_service('GET', SERVICE_ID, 'akara.aggregate.atom', str(atomtools.ATOM_IMT))
 def aggregate_atom():
-    '''
+    """Aggregate a set of Atom entries and return as an Atom feed
+    
     Sample request:
     * curl "http://localhost:8880/akara.aggregate.atom"
-    '''
+    """
     global DOC_CACHE
-    refresh = False
-    if DOC_CACHE is None:
-        refresh = True
-    else:
-        expiration = DOC_CACHE[1] + timedelta(minutes=15)
-        if datetime.now() > expiration:
-            refresh = True
-    if refresh:
-        fnames = glob.glob(ENTRIES)
-        doc, metadata = atomtools.aggregate_entries(FEED_ENVELOPE, fnames)
-        DOC_CACHE = doc.xml_encode('xml-indent'), datetime.now()
+    if _need_refresh():
+        filenames = glob.glob(ENTRIES)
+        doc, metadata = atomtools.aggregate_entries(FEED_ENVELOPE, filenames)
+        DOC_CACHE = doc.xml_encode('xml-indent'), datetime.now() + timedelta(minutes=15)
     return DOC_CACHE[0]
 
 
-#We love Atom, but for sake of practicality, here is a transform for general feeds
+# We love Atom, but for sake of practicality (and JSON fans), here is
+# a transform for general feeds
 SERVICE_ID = 'http://purl.org/akara/services/demo/webfeed.json'
 @simple_service('GET', SERVICE_ID, 'akara.webfeed.json', 'application/json')
-def webfeed_json(url=None):
-    '''
-    Convert Web feed to Exhibit JSON
+def webfeed_json(url):
+    """Convert an Atom feed to Exhibit JSON
     
     Sample request:
     * curl "http://localhost:8880/akara.webfeed.json?url=http://feeds.delicious.com/v2/rss/recent%3Fmin=1%26count=15"
-    '''
-    # From http://www.feedparser.org/
-    import feedparser
-    from amara.thirdparty import json
+    * curl http://localhost:8880/akara.webfeed.json?url=http://localhost:8880/akara.aggregate.atom
+    """
+    import feedparser   # From http://www.feedparser.org/
 
-    if url is None:
-        raise AssertionError("The 'url' query parameter is mandatory.")
     feed = feedparser.parse(url)
     # Note: bad URLs might mean the feed doesn't have headers
-    #print >> sys.stderr, "Feed info:", url, feed.version, feed.encoding, feed.headers.get('Content-type')
     
     def process_entry(e):
         data = {
@@ -121,17 +123,18 @@ def webfeed_json(url=None):
 RDF_IMT = 'application/rdf+xml'
 ATOM_IMT = 'application/atom+xml'
 
-#Read RSS2, and generate atom or other format
+# Read RSS2, and generate Atom or other format
 SERVICE_ID = 'http://purl.org/akara/services/demo/rss2translate'
 @simple_service('GET', SERVICE_ID, 'akara.rss2translate')
 def rss2translate(url=None, format=None):
-    '''
-    Convert RSS 2.0 feed to Atom or RSS 1.0
+    """Convert RSS 2.0 feed to Atom or RSS 1.0
     
     Sample request:
     * curl "http://localhost:8880/akara.rss2translate?url=http://feeds.delicious.com/v2/rss/recent"
-    '''
-    #Support conneg in addition to qparam
+
+    This is a demo and is not meant as an industrial-strength converter.
+    """
+    # Support connection-negotiation in addition to query parameter
     if not format:
         accepted_imts = request.environ.get('HTTP_ACCEPT', '').split(',')
         imt = first_item(dropwhile(lambda x: '*' in x, accepted_imts))
@@ -140,23 +143,20 @@ def rss2translate(url=None, format=None):
         else:
             format = 'atom'
     
-    if url is None:
+    if not url:
         raise AssertionError("The 'url' query parameter is mandatory.")
 
-    #logger.debug('url: ' + repr(url))
-    # From http://www.feedparser.org/
-    import feedparser
-
-    if url is None:
-        raise AssertionError("The 'url' query parameter is mandatory.")
+    import feedparser # From http://www.feedparser.org/
     feed = feedparser.parse(url)
+    
     # Note: bad URLs might mean the feed doesn't have headers
     logger.debug('Feed info: ' + repr((url, feed.version, feed.encoding, feed.headers.get('Content-type'))))
-    #title = getattr(feed, 'title', None)
+
     updated = getattr(feed.feed, 'updated_parsed', None)
     if updated:
         #FIXME: Double-check this conversion
         updated = datetime(*updated[:7]).isoformat()
+    
     f = atomtools.feed(title=feed.feed.title, updated=updated, id=feed.feed.link)
     for e in feed.entries:
         updated = getattr(e, 'updated_parsed', None)
@@ -177,7 +177,6 @@ def rss2translate(url=None, format=None):
             links=links,
         )
 
-    #doc = atomtools.feed.from_rss2(url)
     if format == 'atom':
         result = f.xml_encode()
         response.add_header("Content-Type", ATOM_IMT)
