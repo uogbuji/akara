@@ -26,9 +26,6 @@ if "AKARA_SAVE" in os.environ:
 
 
 ######
-MODULE_DIR = os.path.join(dirname(dirname(abspath(__file__))), "demo", "modules")
-assert os.path.exists(MODULE_DIR), "no module directory?"
-
 ATOM_ENTRIES = os.path.join(dirname(abspath(__file__)), "resource", "atom")
 assert os.path.exists(ATOM_ENTRIES), "no atom entries directory?"
 
@@ -55,38 +52,60 @@ def create_server_dir(port):
     global server_root, config_filename
     
     server_root = tempfile.mkdtemp(prefix="akara_test_")
-    config_filename = os.path.join(server_root, "akara_test.ini")
+    config_filename = os.path.join(server_root, "akara_test.config")
 
     f = open(config_filename, "w")
-    f.write("""[global]
-ServerRoot = %(server_root)s
-ServerPath = http://dalkescientific.com/
-InternalServerPath = http://localhost:%(port)s/
-ModuleDir = %(module_dir)s
-Listen = localhost:%(port)s
-LogLevel = DEBUG
-MinSpareServers = 3
-# These affect test_server.py:test_restart
-MaxServers = 5
-MaxRequestsPerServer = 5
+    f.write("""
+class Akara:
+  ServerRoot = %(server_root)r
+  ServerPath = 'http://dalkescientific.com/'
+  InternalServerPath = 'http://localhost:%(port)s/'
+  Listen = 'localhost:%(port)s'
+  LogLevel = 'DEBUG'
+  MinSpareServers = 3
+  # These affect test_server.py:test_restart
+  MaxServers = 5
+  MaxRequestsPerServer = 5
 
-[atomtools]
-entries = %(atom_entries)s
-feed_envelope = <feed xmlns="http://www.w3.org/2005/Atom">
-    <title>Feed me!</title><id>http://example.com/myfeed</id></feed>
+class atomtools:
+  entries = %(atom_entries)r
+  feed_envelope = '''<feed xmlns="http://www.w3.org/2005/Atom">
+<title>Feed me!</title><id>http://example.com/myfeed</id></feed>'''
 
-[static]
-resource = %(resource_dir)s
-static = %(resource_dir)s/static
+class static:
+  resource = %(resource_dir)r
+  static = %(resource_dir)r + '/static'
 
 
 # Let the XSLT test reach directly into the filesystem
-[xslt]
-uri_space = file:///
+class xslt:
+  uri_space = 'file:///'
 
+MODULES = ["akara.demo.akara_tests",
+           "akara.demo.akara_tests",
+           "akara.demo.atomtools",
+           "akara.demo.calaistools",
+           "akara.demo.calweb",
+           "akara.demo.collection",
+           "akara.demo.echo",
+           "akara.demo.icaltools",
+           "akara.demo.luckygoogle",
+           "akara.demo.markuptools",
+           "akara.demo.method_dispatcher",
+           "akara.demo.moin2atomentries",
+           "akara.demo.moincms",
+           "akara.demo.moinrest",
+           "akara.demo.oaitools",
+           "akara.demo.rdfatools",
+           "akara.demo.static",
+           "akara.demo.statstools",
+           "akara.demo.svntools",
+           "akara.demo.unicodetools",
+           "akara.demo.wwwlogviewer",
+           "akara.demo.xslt",
+]           
 
 """ % dict(server_root = server_root,
-           module_dir = MODULE_DIR,
            port = port,
            atom_entries = os.path.join(ATOM_ENTRIES, "*.atom"),
            resource_dir = os.path.join(dirname(abspath(__file__)), "resource"),
