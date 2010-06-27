@@ -312,7 +312,7 @@ def moin_error_wrapper(wsgiapp):
             start_response(status_response(httplib.BAD_REQUEST), [
                     ('Content-Type','text/plain')
                     ])
-            return e.error
+            return e.parms.get('error')
 
     return handler
 
@@ -427,7 +427,7 @@ def fill_attachment_form(page, attachment, wiki_id, base, opener):
     try:
         with closing(opener.open(request)) as resp:
             doc = htmlparse(resp)
-            raise_embedded_error(resp)
+            raise_embedded_error(doc)
 
     except urllib2.URLError,e:
         # Comment concerning the behavior of MoinMoin.  If an attempt is made to post to a page 
@@ -499,7 +499,7 @@ def scrape_page_history(page, base, opener):
 def raise_embedded_error(doc):
     error_div = doc.xml_select('//div[@class="error"]')
     if error_div :
-        raise GenericClientError(url=url,error=error_div.asString())
+        raise GenericClientError(error=error_div.asString())
 
 # ----------------------------------------------------------------------
 #                       HTTP Method Handlers
