@@ -37,7 +37,7 @@ from amara.writers.struct import *
 from amara.bindery.html import parse as htmlparse
 from amara.lib import U
 from amara.lib.date import timezone, UTC
-from amara.lib.iri import split_uri_ref, split_fragment, relativize, absolutize, IriError, join
+from amara.lib.iri import split_uri_ref, split_fragment, relativize, absolutize, IriError, join, is_absolute
 from amara.bindery.model import examplotron_model, generate_metadata, metadata_dict
 from amara.bindery.util import dispatcher, node_handler, property_sequence_getter
 
@@ -123,10 +123,10 @@ def text_to_moin(text):
     Convert text into a form where it appears as one would expect in Moin:
     * Normalize line endings
     * Escape CamelCase
-
+    
     >>> from akara.util.moin import text_to_moin
-    >>> text_to_moin(u' a AxBxCx   b\r\nMoreCamelCase foo')
-    u' a !AxBxCx   b\r\n!MoreCamelCase foo'
+    >>> text_to_moin(u' a AxBxCx   b\\r\\nMoreCamelCase foo') #Beware double-escaped chars for doctest
+    u' a !AxBxCx   b\\r\\n!MoreCamelCase foo'
     '''
     text = CAMELCASE_PAT.subn(lambda m: m.group(1) + u'!' + m.group(2) + m.groups()[-1], text)[0]
     return u'\n'.join([line.strip() for line in text.splitlines() ])
@@ -250,16 +250,22 @@ def wiki_uri(original_base, wrapped_base, link, relative_to=None, raw=False):
     abs_link - the full, original wiki URL
     
     >>> from akara.util.moin import wiki_uri
-    >>> wiki_uri('http://example.com/mywiki/', 'http://localhost:8880/moin/w/', '/mywiki/spam')
+    >>> wiki_uri('http://example.com/mywiki/', 'http://localhost:8880/moin/w/', '/spam')
     ('http://localhost:8880/moin/w/spam', 'http://example.com/mywiki/spam')
+    >>> wiki_uri('http://example.com/mywiki/', 'http://localhost:8880/moin/w/', 'http://google.com/spam')
+    (None, None)
+    >>> wiki_uri('http://example.com/mywiki/', 'http://localhost:8880/moin/w/', 'http://google.com/spam', raw=True)
+    (None, None)
     >>> wiki_uri('http://example.com/mywiki/', 'http://localhost:8880/moin/w/', '/mywiki/spam', raw=True)
     ('http://localhost:8880/moin/w/spam', 'http://example.com/mywiki/spam')
+    >>> wiki_uri('http://example.com/mywiki/', 'http://localhost:8880/moin/w/', '/mywiki/spam')
+    ('http://localhost:8880/moin/w/mywiki/spam', 'http://example.com/mywiki/mywiki/spam')
     '''
     #rel_link = relativize(abs_link, original_wiki_base)
     #e.g. original wiki base is http://myhost:8080/mywiki/ and link is /a/b
     #abs_link is http://myhost:8080/mywiki/a/b note the need to strip the leading / to get that
     #from akara import logger; logger.debug('wiki_uri' + repr((original_base, wrapped_base, link, relative_to, absolutize(link, original_base.rstrip('/')+'/'))))
-    if raw:
+    if raw and not is_absolute(link):
         (scheme, authority, path, query, fragment) = split_uri_ref(original_base)
         link = link[len(path):]
     link = link.lstrip('/')
@@ -281,7 +287,7 @@ def wiki_normalize(s):
     of a line go unchanged
     
     >>> from akara.util.moin import wiki_normalize
-    >>> wiki_normalize(u'= A =\n * spam \n  * eggs\n\n')
+    >>> wiki_normalize(u'= A =\\n * spam \\n  * eggs\\n\\n') #Beware double-escaped chars for doctest
     
     '''
     #First of all normalize line endings
