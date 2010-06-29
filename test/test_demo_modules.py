@@ -163,11 +163,11 @@ def test_rdfa2json():
     url = server() + "akara.rdfa.json?url=http://zepheira.com/"
     results = simplejson.load(urllib2.urlopen(url))
     for item in results["items"]:
-        if "dc:creator" in item:
-            assert "Zepheira" in item["dc:creator"]
+        if "canonical" in item:
+            assert "zepheira.com" in item["canonical"]
             break
     else:
-        raise AssertionError("Could not find dc:creator")
+        raise AssertionError("Could not find 'canonical'")
 
 
 def test_rdfa2json_with_date():
