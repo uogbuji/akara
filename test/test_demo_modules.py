@@ -43,6 +43,7 @@ def test_atom_json():
     items = results["items"]
     for item in items:
         assert "title" in item
+test_atom_json.network=True
 
 def test_aggregate_atom():
     url = server() + "akara.aggregate.atom"
@@ -100,7 +101,7 @@ def test_luckygoogle():
 
 # markuptools.py
 def test_akara_twc():
-    url = server() + "akara.twc?max=5" # max 5 words in the result
+    url = server() + "akara.twc.xml?max=5" # max 5 words in the result
 
     req = urllib2.Request(url)
     req.add_header('Content-Type', 'application/xml')
@@ -114,7 +115,7 @@ def test_akara_twc():
     assert "nine" not in result, repr(result)
 
 def test_akara_twc_html():
-    url = server() + "akara.twc?html=yes&max=11" # max 11 words
+    url = server() + "akara.twc.xml?html=yes&max=11" # max 11 words
 
     req = urllib2.Request(url)
     req.add_header('Content-Type', 'application/xml')
