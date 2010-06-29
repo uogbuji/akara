@@ -37,7 +37,7 @@ def test_index_search():
 # atomtools.py
 def test_atom_json():
     import simplejson
-    url = server() + "akara.atom.json?url=http://zepheira.com/feeds/news.atom"
+    url = server() + "akara.atom.json?url=http://zepheira.com/feed/atom/"
     response = urlopen(url)
     results = simplejson.load(response)
     items = results["items"]
