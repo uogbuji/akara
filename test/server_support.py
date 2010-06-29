@@ -73,8 +73,10 @@ class atomtools:
 <title>Feed me!</title><id>http://example.com/myfeed</id></feed>'''
 
 class static:
-  resource = %(resource_dir)r
-  static = %(resource_dir)r + '/static'
+  paths = {
+      "resource": %(resource_dir)r,
+      "static": %(resource_dir)r + '/static',
+      }
 
 
 # Let the XSLT test reach directly into the filesystem
