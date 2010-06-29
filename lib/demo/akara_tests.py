@@ -59,7 +59,7 @@ except ValueError, err:
 @simple_service("GET", "http://example.com/test")
 def test_environment():
     # 
-    assert akara.config is not None
+    assert akara.raw_config is not None
     assert akara.module_config("Akara") is not None
     assert akara.module_config("Akara")["Listen"] is not None
     assert (akara.module_config("Akara").get("Listen") ==
