@@ -71,11 +71,8 @@ def test_environment():
         raise AssertionError
     except Exception, err:
         assert "SHRDLU" in str(err)
-    try:
-        akara.module_config("XYZAkara")
-        raise AssertionError
-    except KeyError:
-        pass
+    assert not akara.module_config("XYZAkara")  # should return False
+    assert akara.module_config("Akara") # should return True
     
 
     # simple services can access the WSGI environ this way
