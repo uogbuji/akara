@@ -129,7 +129,7 @@ def text_to_moin(text):
     u' a !AxBxCx   b\\r\\n!MoreCamelCase foo'
     '''
     text = CAMELCASE_PAT.subn(lambda m: m.group(1) + u'!' + m.group(2) + m.groups()[-1], text)[0]
-    return u'\n'.join([line.strip() for line in text.splitlines() ])
+    return u'\n'.join([line.rstrip() for line in text.splitlines() ])
 
 def cleanup_text_blocks(text):
     return u'\n'.join([line.strip() for line in text.splitlines() ])
