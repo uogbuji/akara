@@ -278,6 +278,27 @@ def wiki_uri(original_base, wrapped_base, link, relative_to=None, raw=False):
     return rest_uri, abs_link
 
 
+#
+def unwrap_uri(original_base, wrapped_base, rest_uri):
+    '''
+    Constructs an absolute URL to the original Moin page
+    
+    original_base - The base URI of the actual Moin instance
+    wrapped_base - The base URI of the REST-wrapped proxy of the Moin instance
+    rest_uri - moinrest-wrapped URI
+
+    Returns a tuple unwrapped_link
+    
+    >>> from akara.util.moin import unwrap_uri
+    >>> unwrap_uri('http://example.com/mywiki/', 'http://localhost:8880/moin/w/', 'http://localhost:8880/moin/w/spam')
+    'http://example.com/mywiki/spam'
+    >>> unwrap_uri('http://example.com/', 'http://localhost:8880/moin/w/', 'http://localhost:8880/moin/w/spam')
+    'http://example.com/spam'
+    '''
+    rel = relativize(rest_uri, wrapped_base.rstrip('/')+'/')
+    return absolutize(rel, original_base.rstrip('/')+'/')
+
+
 RE_XML_WIKISPLIT = re.compile(u'\s+')
 
 def wiki_normalize(s):
