@@ -71,15 +71,21 @@ class Formatter(FormatterBase):
         return ''
 
     def rawHTML(self, markup):
-        output = htmlparse(markup).html.body.xml_encode() if markup else ''
-        #print "rawHTML", repr(output)
-        return output.decode(config.charset)
+        #output = htmlparse(markup).html.body.xml_encode() if markup else ''
+        if markup:
+            for child in htmlparse(markup).html.body.xml_children:
+                self._curr.xml_append(child)
+        #self._curr.xml_append(tree.text(output.decode(config.charset)))
+        #print "rawHTML", htmlparse(markup).xml_encode()
+        return ''
 
     def pagelink(self, on, pagename='', page=None, **kw):
         FormatterBase.pagelink(self, on, pagename, page, **kw)
         if page is None:
             page = Page(self.request, pagename, formatter=self)
-        return page.link_to(self.request, on=on, **kw)
+        link_text = page.link_to(self.request, on=on, **kw)
+        self._curr.xml_append(tree.text(link_text.decode(config.charset)))
+        return ''
 
     def interwikilink(self, on, interwiki='', pagename='', **kw):
         self._elem(u'interwiki', on)
@@ -112,6 +118,35 @@ class Formatter(FormatterBase):
         self._curr.xml_attributes[None, u'href'] = url.decode(config.charset)
         self._curr.xml_append(tree.text(text.decode(config.charset)))
         self._elem(u'attachmentimage', off)
+        return ''
+
+    def attachment_inlined(self, url, text, **kw):
+        from MoinMoin.action import AttachFile
+        import os
+        _ = self.request.getText
+        pagename, filename = AttachFile.absoluteName(url, self.page.page_name)
+        fname = wikiutil.taintfilename(filename)
+        fpath = AttachFile.getFilename(self.request, pagename, fname)
+        ext = os.path.splitext(filename)[1]
+        Parser = wikiutil.getParserForExtension(self.request.cfg, ext)
+        if Parser is not None:
+            try:
+                content = file(fpath, 'r').read()
+                # Try to decode text. It might return junk, but we don't
+                # have enough information with attachments.
+                content = wikiutil.decodeUnknownInput(content)
+                colorizer = Parser(content, self.request, filename=filename)
+                colorizer.format(self)
+            except IOError:
+                pass
+
+        self.attachment_link(1, url)
+        self.text(text)
+        self.attachment_link(0)
+        return ''
+
+    def smiley(self, text):
+        self._curr.xml_append(tree.text(text.decode(config.charset)))
         return ''
 
     def text(self, text, **kw):
