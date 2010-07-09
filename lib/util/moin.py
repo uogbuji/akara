@@ -116,7 +116,7 @@ MOIN_DOCBOOK_MODEL = examplotron_model(MOIN_DOCBOOK_MODEL_XML)
 AKARA_NS = u'http://purl.org/dc/org/xml3k/akara'
 CMS_BASE = AKARA_NS + u'/cms'
 
-CAMELCASE_PAT = re.compile(u'(\s+)(([A-Z]\w*)([A-Z]\w*)+)(\s+)')
+CAMELCASE_PAT = re.compile(u'(\s+)(([A-Z]+)([a-z]+)([A-Z]+)(\w+))(\s+)')
 
 def text_to_moin(text):
     '''
@@ -126,7 +126,9 @@ def text_to_moin(text):
     
     >>> from akara.util.moin import text_to_moin
     >>> text_to_moin(u' a AxBxCx   b\\r\\nMoreCamelCase foo') #Beware double-escaped chars for doctest
-    u' a !AxBxCx   b\\r\\n!MoreCamelCase foo'
+    u' a !AxBxCx   b\\n!MoreCamelCase foo'
+    >>> text_to_moin(u' a ABC   b\\r\\nmoreCamelCase foo') #Beware double-escaped chars for doctest
+    u' a ABC   b\\nmoreCamelCase foo'
     '''
     text = CAMELCASE_PAT.subn(lambda m: m.group(1) + u'!' + m.group(2) + m.groups()[-1], text)[0]
     return u'\n'.join([line.rstrip() for line in text.splitlines() ])
