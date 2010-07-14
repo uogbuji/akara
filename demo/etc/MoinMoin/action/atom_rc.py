@@ -51,6 +51,11 @@ def execute(pagename, request):
         ddiffs = int(request.values.get('ddiffs', 0))
     except ValueError:
         ddiffs = 0
+    try:
+        urlfilter = request.values.get('filter')
+        urlfilter = re.compile(urlfilter)
+    except ValueError:
+        urlfilter = None
 
     # get data
     log = editlog.EditLog(request)
@@ -59,6 +64,8 @@ def execute(pagename, request):
     pages = {}
     lastmod = 0
     for line in log.reverse():
+        if urlfilter and not(urlfilter.match(line.pagename)):
+            continue
         if not request.user.may.read(line.pagename):
             continue
         if (not line.action.startswith('SAVE') or
