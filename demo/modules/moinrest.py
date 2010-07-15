@@ -98,7 +98,7 @@ from itertools import dropwhile
 import amara
 from amara import bindery
 from amara.lib.util import first_item
-from amara.lib.iri import absolutize, relativize
+from amara.lib.iri import absolutize, relativize, join
 from amara.writers.struct import structencoder, E, NS, ROOT, RAW
 from amara.bindery.html import parse as htmlparse
 from amara.bindery.model import examplotron_model, generate_metadata
@@ -333,7 +333,8 @@ def target(environ):
     full_incoming_request = request_uri(environ)
     if wiki_id not in TARGET_WIKIS:
         raise BadTargetError(fronturl=request_uri(environ), target=wiki_id)
-    original_page = join(environ['PATH_INFO'], TARGET_WIKIS[wiki_id])
+    original_page = join(TARGET_WIKIS[wiki_id].rstrip('/')+'/', environ['PATH_INFO'].lstrip('/'))
+    logger.debug('GRIPPO ' + repr(TARGET_WIKIS[wiki_id].rstrip('/')+'/', (environ['PATH_INFO'].lstrip('/'))))
     #relative_to_wrapped = relativize(, full_incoming_request)
     wrapped_wiki_base = full_incoming_request[:-len(environ['PATH_INFO'])]
     return wiki_id, TARGET_WIKIS[wiki_id], TARGET_WIKI_OPENERS.get(wiki_id), original_page, wrapped_wiki_base
