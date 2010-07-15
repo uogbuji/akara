@@ -51,10 +51,11 @@ def execute(pagename, request):
         ddiffs = int(request.values.get('ddiffs', 0))
     except ValueError:
         ddiffs = 0
-    try:
-        urlfilter = request.values.get('filter')
+
+    urlfilter = request.values.get('filter')
+    if urlfilter:
         urlfilter = re.compile(urlfilter)
-    except ValueError:
+    else:
         urlfilter = None
 
     # get data
