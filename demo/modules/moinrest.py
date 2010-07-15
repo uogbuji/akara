@@ -334,7 +334,7 @@ def target(environ):
     if wiki_id not in TARGET_WIKIS:
         raise BadTargetError(fronturl=request_uri(environ), target=wiki_id)
     original_page = join(TARGET_WIKIS[wiki_id].rstrip('/')+'/', environ['PATH_INFO'].lstrip('/'))
-    logger.debug('GRIPPO ' + repr(TARGET_WIKIS[wiki_id].rstrip('/')+'/', (environ['PATH_INFO'].lstrip('/'))))
+    logger.debug('GRIPPO ' + repr((TARGET_WIKIS[wiki_id].rstrip('/')+'/', (environ['PATH_INFO'].lstrip('/')))))
     #relative_to_wrapped = relativize(, full_incoming_request)
     wrapped_wiki_base = full_incoming_request[:-len(environ['PATH_INFO'])]
     return wiki_id, TARGET_WIKIS[wiki_id], TARGET_WIKI_OPENERS.get(wiki_id), original_page, wrapped_wiki_base
