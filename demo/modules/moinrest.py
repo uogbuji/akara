@@ -98,7 +98,7 @@ from itertools import dropwhile
 import amara
 from amara import bindery
 from amara.lib.util import first_item
-from amara.lib.iri import absolutize, relativize
+from amara.lib.iri import absolutize, relativize, join
 from amara.writers.struct import structencoder, E, NS, ROOT, RAW
 from amara.bindery.html import parse as htmlparse
 from amara.bindery.model import examplotron_model, generate_metadata
