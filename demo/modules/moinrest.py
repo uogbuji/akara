@@ -14,7 +14,7 @@ Project home, documentation, distributions: http://wiki.xml3k.org/Akara
 
 http://purl.org/akara/services/demo/collection (moin)
   - Under there top mount point is oen or more lower points depending on config,
-    each of which handles HEAD, GET, POST, PUT
+    each of which handles HEAD, GET, POST, PUT, DELETE
 
 = Configuration =
 
@@ -69,6 +69,7 @@ Some sample queries:
     curl -H "Accept: application/x-moin-attachments+xml" http://localhost:8880/moin/xml3k/FrontPage
     curl --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: text/plain" "http://localhost:8880/moin/xml3k/FooTest"
     curl --request POST --data-binary "@wikicontent.txt" --header "Content-Type: text/plain" "http://localhost:8880/moin/xml3k/FooTest;attachment=wikicontent.txt"
+    curl --request DELETE http://localhost:8880/moin/xml3k/FrontPage
 
     curl -u me:passwd -p --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: text/plain" "http://localhost:8880/moin/xml3k/FooTest"
 
@@ -247,6 +248,7 @@ def moin_error_wrapper(wsgiapp):
         # Try to run the supplied WSGI handler
         try:
             body = wsgiapp(environ, local_start_response)
+
             # If control reaches here, no errors.  Proceed with normal WSGI response
             start_response(status_info['status'],status_info['headers'])
             return body
@@ -457,6 +459,29 @@ def fill_attachment_form(page, attachment, wiki_id, base, opener):
     return form_vars
 
 
+def fill_page_delete_form(page, wiki_id, base, opener):
+    url = absolutize(page, base)
+    request = urllib2.Request(url+"?action=DeletePage")
+    try:
+        with closing(opener.open(request)) as resp:
+            x = resp.read(); resp = x
+            doc = htmlparse(resp)
+            raise_embedded_error(doc)
+
+    except urllib2.URLError,e:
+        if e.code == 403:
+            raise MoinMustAuthenticateError(url=request.get_full_url(),target=wiki_id)
+        else:
+            raise UnexpectedResponseError(url=request.get_full_url(),code=e.code,error=str(e))
+
+    form = doc.html.body.xml_select(u'.//form[@method="POST"]')[0]
+    form_vars = {}
+    form_vars["action"] = unicode(form.xml_select(u'string(*/*[@name="action"]/@value)'))
+    form_vars["ticket"] = unicode(form.xml_select(u'string(*/*[@name="ticket"]/@value)'))
+    form_vars["delete"] = unicode(form.xml_select(u'string(//input[@type="submit" and @name="delete"]/@value)'))
+    return form_vars
+
+
 def scrape_page_history(page, base, opener):
     url = absolutize(page, base)
     request = urllib2.Request(url+"?action=info")
@@ -496,7 +521,8 @@ def scrape_page_history(page, base, opener):
     return info
 
 # Extract any error embedded in an HTML response (returned by Moin in 2xx responses),
-# and raise it as an HTTP error
+# and raise it as an HTTP error.  Would be nice to handle this generically in
+# moin_error_wrapper, but don't want to incur HTML parse cost
 def raise_embedded_error(doc):
     error_div = doc.xml_select('//div[@class="error"]')
     if error_div :
@@ -506,7 +532,7 @@ def raise_embedded_error(doc):
 #                       HTTP Method Handlers
 # ----------------------------------------------------------------------
 # The following functions implement versions of the various HTTP methods 
-# (GET, HEAD, POST, PUT).  Each method is actually implemented as a
+# (GET, HEAD, POST, PUT, DELETE).  Each method is actually implemented as a
 # a pair of functions.  One is a private implementation (e.g., _get_page).  
 # The other function is a wrapper that encloses each handler with the error 
 # handling function above (moin_error_handler).   Again, this is to avoid
@@ -679,6 +705,7 @@ def post_page(environ, start_response):
     #ctype = environ.get('CONTENT_TYPE', 'application/unknown')
 
     wiki_id, base, opener, original_page, wrapped_wiki_base = target(environ)
+    logger.debug("wiki_id,base,opener,original_age,wrapped_wiki_base="+repr((wiki_id,base,opener,original_page,wrapped_wiki_base)))
     check_auth(environ, start_response, base, opener)
 
     page = environ['PATH_INFO'].lstrip('/')
@@ -690,6 +717,7 @@ def post_page(environ, start_response):
     temp_fpath = read_http_body_to_temp(environ, start_response)
     form_vars = fill_attachment_form(page, attachment, wiki_id, base, opener)
     form_vars["file"] = open(temp_fpath, "rb")
+    logger.debug("form_vars = " + repr(form_vars))
 
     url = absolutize(page, base)
     #print >> sys.stderr, url, temp_fpath
@@ -716,3 +744,38 @@ def post_page(environ, start_response):
     start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url), (moin.ORIG_BASE_HEADER, base)])
     return msg
 
+# DELETE handler
+@dispatcher.method("DELETE")
+def _delete_page(environ, start_response):
+    '''
+    Deletes a Wiki page, returning 200 if successful.  Does not yet support
+    the deletion of attachments.
+
+    The Moin form asks that this be in multipart-form format, but the multipart handler
+    fallsback to url-encoding unless you pass it a file.  Luckily, the equivalent
+    url-encoded request works... for now.
+    '''
+    wiki_id, base, opener, original_page, wrapped_wiki_base = target(environ)
+    page = environ['PATH_INFO'].lstrip('/')
+    check_auth(environ, start_response, base, opener)
+
+    form_vars = fill_page_delete_form(page, wiki_id, base, opener)
+
+    url = absolutize(page, base)
+
+    request = urllib2.Request(url, form_vars)
+    try:
+        with closing(opener.open(request)) as resp:
+            doc = htmlparse(resp)
+            raise_embedded_error(doc)
+    except urllib2.URLError,e:
+        
+        if e.code == 404:
+            # Moin returns 404 on a succcessful DeletePage POST; recast as a 200
+            pass
+        else:
+            raise UnexpectedResponseError(url=url,code=e.code,error=str(e))
+
+    msg = 'Page deleted OK: ' + url
+    start_response(status_response(httplib.OK),[("Content-Type","text/plain")])
+    return msg
