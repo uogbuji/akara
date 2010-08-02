@@ -245,6 +245,57 @@ def read_http_body_to_temp(environ, start_response):
     os.close(temp[0])
     return temp[1]
 
+#Convert WSGI environ headers to a plain header list (e.g. for forwarding request headers)
+#Copied from webob.
+_key2header = {
+    'CONTENT_TYPE': 'Content-Type',
+    'CONTENT_LENGTH': 'Content-Length',
+    'HTTP_CONTENT_TYPE': 'Content_Type',
+    'HTTP_CONTENT_LENGTH': 'Content_Length',
+}
+
+#Skipping User-Agent is actually Moin-specific, since Moin seems to react to different UAs, and e.g. gives 403 errors in response to Curl's UA
+_skip_headers = [
+    'HTTP_HOST',
+    'HTTP_ACCEPT',
+    'HTTP_USER_AGENT',
+]
+
+def _trans_key(key):
+    if not isinstance(key, basestring):
+        return None
+    elif key in _key2header:
+        #Do NOT copy these special headers (change from Webob)
+        return None
+        #return _key2header[key]
+    elif key in _skip_headers:
+        return None
+    elif key.startswith('HTTP_'):
+        return key[5:].replace('_', '-').title()
+    else:
+        return None
+
+
+def copy_headers(environ):
+    header_list = []
+    for k, v in environ.iteritems():
+        pure_header = _trans_key(k)
+        if pure_header:
+            #FIXME: does this account for dupe headers in the inbound WSGI?
+            header_list.append((pure_header, v))
+    return header_list
+
+
+def copy_headers_to_dict(environ):
+    headers = {}
+    for k, v in environ.iteritems():
+        pure_header = _trans_key(k)
+        if pure_header:
+            #FIXME: does this account for dupe headers in the inbound WSGI?
+            headers[pure_header] = v
+    return headers
+
+
 #
 # ======================================================================
 #                       Exceptions
