@@ -14,7 +14,13 @@ from MoinMoin.Page import Page
 from amara import tree
 from amara.writers.struct import structwriter, E, NS, ROOT, RAW
 from amara.bindery.html import parse as htmlparse
+from amara.lib import U
 
+#This check ensures it's OK to just use Amara's U function directly
+if config.charset != 'utf-8':
+    #Note: we should never get here unless the user has messed up their config
+    raise RuntimeError('Only UTF-8 encoding supported by Moin, and thus by us')
+    
 
 class Formatter(FormatterBase):
     """
@@ -42,14 +48,14 @@ class Formatter(FormatterBase):
 
     def startDocument(self, pagename):
         self._curr = tree.element(None, u's1')
-        self._curr.xml_attributes[None, u'title'] = pagename.decode(config.charset)
+        self._curr.xml_attributes[None, u'title'] = U(pagename)
         self._doc.xml_append(self._curr)
         return ''
 
     def endDocument(self):
         #Yuck! But Moin seems to insist on Unicode object result (see MoinMoin.parser.text_moin_wiki.Parser.scan)
         #print "endDocument", repr(self._doc.xml_encode(encoding=config.charset).decode(config.charset))
-        return self._doc.xml_encode(encoding=config.charset).decode(config.charset)
+        return U(self._doc.xml_encode(encoding=config.charset))
 
     def _elem(self, name, on, **kw):
         if on:
@@ -63,7 +69,7 @@ class Formatter(FormatterBase):
     def lang(self, on, lang_name):
         self._elem(u'div', on)
         if on:
-            self._curr.xml_attributes[None, u'lang'] = lang_name.decode(config.charset)
+            self._curr.xml_attributes[None, u'lang'] = U(lang_name)
         return ''
 
     def sysmsg(self, on, **kw):
@@ -84,39 +90,39 @@ class Formatter(FormatterBase):
         if page is None:
             page = Page(self.request, pagename, formatter=self)
         link_text = page.link_to(self.request, on=on, **kw)
-        self._curr.xml_append(tree.text(link_text.decode(config.charset)))
+        self._curr.xml_append(tree.text(U(link_text)))
         return ''
 
     def interwikilink(self, on, interwiki='', pagename='', **kw):
         self._elem(u'interwiki', on)
         if on:
-            self._curr.xml_attributes[None, u'wiki'] = interwiki.decode(config.charset)
-            self._curr.xml_attributes[None, u'pagename'] = pagename.decode(config.charset)
+            self._curr.xml_attributes[None, u'wiki'] = U(interwiki)
+            self._curr.xml_attributes[None, u'pagename'] = U(pagename)
         return ''
 
     def url(self, on, url='', css=None, **kw):
         self._elem(u'jump', on)
-        self._curr.xml_attributes[None, u'url'] = url.decode(config.charset)
+        self._curr.xml_attributes[None, u'url'] = U(url)
         if css:
-            self._curr.xml_attributes[None, u'class'] = css.decode(config.charset)
+            self._curr.xml_attributes[None, u'class'] = U(css)
         return ''
 
     def attachment_link(self, on, url=None, **kw):
         self._elem(u'attachment', on)
         if on:
-            self._curr.xml_attributes[None, u'href'] = url.decode(config.charset)
+            self._curr.xml_attributes[None, u'href'] = U(url)
         return ''
 
     def attachment_image(self, url, **kw):
         self._elem(u'attachmentimage', on)
         if on:
-            self._curr.xml_attributes[None, u'href'] = url.decode(config.charset)
+            self._curr.xml_attributes[None, u'href'] = U(url)
         return ''
 
     def attachment_drawing(self, url, text, **kw):
         self._elem(u'attachmentimage', on)
-        self._curr.xml_attributes[None, u'href'] = url.decode(config.charset)
-        self._curr.xml_append(tree.text(text.decode(config.charset)))
+        self._curr.xml_attributes[None, u'href'] = U(url)
+        self._curr.xml_append(tree.text(U(text)))
         self._elem(u'attachmentimage', off)
         return ''
 
@@ -146,7 +152,7 @@ class Formatter(FormatterBase):
         return ''
 
     def smiley(self, text):
-        self._curr.xml_append(tree.text(text.decode(config.charset)))
+        self._curr.xml_append(tree.text(U(text)))
         return ''
 
     def text(self, text, **kw):
@@ -159,9 +165,9 @@ class Formatter(FormatterBase):
         self._curr.xml_append(e)
         return ''
 
-    def icon(self, type):
+    def icon(self, type_):
         self._elem(u'icon', on)
-        self._curr.xml_attributes[None, u'type'] = type.decode(config.charset)
+        self._curr.xml_attributes[None, u'type'] = U(type_)
         self._elem(u'icon', off)
         return ''
 
@@ -245,7 +251,7 @@ class Formatter(FormatterBase):
             #print name, found
             self._curr = found[0]
             e = tree.element(None, name)
-            id = id.decode(config.charset) if id else u''
+            id = U(id) if id else u''
             e.xml_attributes[None, u'title'] = id
             e.xml_attributes[None, u'id'] = id
             self._curr.xml_append(e)
@@ -275,7 +281,7 @@ class Formatter(FormatterBase):
     def anchordef(self, id):
         e = tree.element(None, u'anchor')
         self._curr.xml_append(e)
-        self._curr.xml_attributes[None, u'id'] = id.decode(config.charset)
+        self._curr.xml_attributes[None, u'id'] = U(id)
         return ''
 
     def anchorlink(self, on, name='', **kw):
@@ -283,8 +289,8 @@ class Formatter(FormatterBase):
         if on:
             id = kw.get('id', None)
             if id:
-                self._curr.xml_attributes[None, u'id'] = id.decode(config.charset)
-            self._curr.xml_attributes[None, u'anchor'] = name.decode(config.charset)
+                self._curr.xml_attributes[None, u'id'] = U(id)
+            self._curr.xml_attributes[None, u'anchor'] = U(name)
         return ''
 
     def underline(self, on, **kw):
@@ -309,7 +315,7 @@ class Formatter(FormatterBase):
         kw.update({'src': src})
         for key, value in kw.items():
             if key in valid_attrs:
-                self._curr.xml_attributes[None, key.decode(config.charset)] = value.decode(config.charset)
+                self._curr.xml_attributes[None, U(key)] = U(value)
         return ''
 
     def transclusion(self, on, **kw):
@@ -323,7 +329,7 @@ class Formatter(FormatterBase):
     def code_area(self, on, code_id, code_type='code', show=0, start=-1, step=-1, msg=None):
         self._elem(u'codearea', on)
         if on:
-            self._curr.xml_attributes[None, u'id'] = code_id.decode(config.charset)
+            self._curr.xml_attributes[None, u'id'] = U(code_id)
         return ''
 
     def code_line(self, on):
@@ -333,5 +339,5 @@ class Formatter(FormatterBase):
     def code_token(self, on, tok_type):
         self._elem(u'codetoken', on)
         if on:
-            self._curr.xml_attributes[None, u'type'] = tok_type.decode(config.charset)
+            self._curr.xml_attributes[None, u'type'] = U(tok_type)
         return ''
