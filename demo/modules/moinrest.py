@@ -128,6 +128,12 @@ DEFAULT_OPENER = urllib2.build_opener(
     urllib2.HTTPCookieProcessor(),
     multipart_post_handler.MultipartPostHandler)
 
+# Specifies the default max-age of Moin pages
+CACHE_MAX_AGE = AKARA.module_config.get('cache-max-age')
+
+# Specifies a Wiki path (currently only one, FIXME) under which no caching will occur
+NO_CACHE_PATH = AKARA.module_config.get('no-cache-path')
+
 # Look at each Wiki URL and build an appropriate opener object for retrieving
 # pages.   If the URL includes HTTP authentication information such as
 # http://user:pass@somedomain.com/mywiki, the opener is built with
@@ -563,6 +569,10 @@ def get_page(environ, start_response):
     imt = first_item(dropwhile(lambda x: '*' in x, accepted_imts))
     #logger.debug('imt: ' + repr(imt))
     params_for_moin = {}
+    cache_max_age = CACHE_MAX_AGE # max-age of this response. If set to None, it will not be used
+    if NO_CACHE_PATH in page:
+        cache_max_age = None
+
     if 'rev' in params:
         #XXX: Not compatible with search
         #params_for_moin = {'rev' : params['rev'][0], 'action': 'recall'}
@@ -574,6 +584,7 @@ def get_page(environ, start_response):
         url = absolutize('?'+query, base)
         request = urllib2.Request(url, None, req_headers)
         ctype = moin.RDF_IMT
+        cache_max_age = None
     #elif 'action' in params and params['action'][0] == 'recall':
     elif moin.HTML_IMT in environ.get('HTTP_ACCEPT', ''):
         params = urllib.urlencode(params_for_moin)
@@ -621,7 +632,7 @@ def get_page(environ, start_response):
             return rbody, dict(resp.info())['content-type']
     #
     elif ';history' in page:
-        ctype = moin.XML_IMT
+        cache_max_age = None
         page, discard = page.split(';history', 1)
         def upstream_handler():
             revs = scrape_page_history(page, base, opener, req_headers)
@@ -655,7 +666,12 @@ def get_page(environ, start_response):
         #headers = {moin.ORIG_BASE_HEADER: base}
         #moin_base = absolutize(wiki_id, base)
         moin_base_info = base + ' ' + wrapped_wiki_base + ' ' + original_page
-        start_response(status_response(status), [("Content-Type", ctype), (moin.ORIG_BASE_HEADER, moin_base_info)])
+        response_headers = [("Content-Type", ctype),
+                            (moin.ORIG_BASE_HEADER, moin_base_info)]
+        if cache_max_age:
+            response_headers.append(("Cache-Control","max-age="+cache_max_age))
+
+        start_response(status_response(status), response_headers)
         return rbody
     except urllib2.URLError, e:
         if e.code == 401:
