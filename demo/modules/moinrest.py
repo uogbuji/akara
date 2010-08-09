@@ -570,7 +570,7 @@ def get_page(environ, start_response):
     #logger.debug('imt: ' + repr(imt))
     params_for_moin = {}
     cache_max_age = CACHE_MAX_AGE # max-age of this response. If set to None, it will not be used
-    if NO_CACHE_PATH in page:
+    if NO_CACHE_PATH and NO_CACHE_PATH in page:
         cache_max_age = None
 
     if 'rev' in params:
