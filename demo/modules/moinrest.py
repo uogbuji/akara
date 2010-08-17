@@ -634,6 +634,7 @@ def get_page(environ, start_response):
     elif ';history' in page:
         cache_max_age = None
         page, discard = page.split(';history', 1)
+        ctype = moin.XML_IMT
         def upstream_handler():
             revs = scrape_page_history(page, base, opener, req_headers)
             output = structencoder(indent=u"yes")
