@@ -5,6 +5,7 @@ import urllib, urllib2
 import base64
 from functools import wraps
 from string import Template
+from wsgiref.util import request_uri
 
 from amara.lib.iri import *
 
