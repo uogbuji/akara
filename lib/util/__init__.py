@@ -83,6 +83,28 @@ def geturl(environ, relative=''):
     return url
 
 
+def guess_self_uri(environ):
+    return absolutize(environ['SCRIPT_NAME'].rstrip('/'), request_uri(environ, include_query=False))
+
+
+def find_peer_service(environ, peer_id):
+    '''
+    Find a peer service endpoint, by ID, mounted on this same Akara instance
+    
+    Must be caled from a running akara service, and it is highly recommended to call
+    at the top of service functions, or at least before the request environ has been manipulated
+    '''
+    from amara.lib.iri import absolutize, join
+    from akara import request
+    from akara.registry import _current_registry
+    serverbase = guess_self_uri(environ)
+    for (path, s) in _current_registry._registered_services.iteritems():
+        if s.ident == peer_id:
+            return join(serverbase, '..', path)
+    return None
+
+
+
 def http_method_handler(method):
     '''
     A decorator maker to flag a function as suitable for a given HTTP method

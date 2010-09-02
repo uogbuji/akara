@@ -715,7 +715,8 @@ def _put_page(environ, start_response):
 
     msg = 'Page updated OK: ' + url
     #response.add_header("Content-Length", str(len(msg)))
-    start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url), (moin.ORIG_BASE_HEADER, base)])
+    moin_base_info = base + ' ' + wrapped_wiki_base + ' ' + original_page
+    start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url), (moin.ORIG_BASE_HEADER, moin_base_info)])
     return [msg]
 
 
@@ -766,7 +767,8 @@ def post_page(environ, start_response):
     msg = 'Attachment updated OK: %s\n'%(url)
 
     #response.add_header("Content-Length", str(len(msg)))
-    start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url), (moin.ORIG_BASE_HEADER, base)])
+    moin_base_info = base + ' ' + wrapped_wiki_base + ' ' + original_page
+    start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url), (moin.ORIG_BASE_HEADER, moin_base_info)])
     return msg
 
 # DELETE handler

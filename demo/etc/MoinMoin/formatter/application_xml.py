@@ -13,7 +13,8 @@ from MoinMoin.Page import Page
 
 from amara import tree
 from amara.writers.struct import structwriter, E, NS, ROOT, RAW
-from amara.bindery.html import parse as htmlparse
+from amara.bindery.html import markup_fragment
+from amara.lib import inputsource
 from amara.lib import U
 
 #This check ensures it's OK to just use Amara's U function directly
@@ -41,7 +42,7 @@ class Formatter(FormatterBase):
         output = FormatterBase.macro(self, macro_obj, name, args, markup=markup)
         #response is Unicode
         if output:
-            output_body = htmlparse(output.encode(config.charset)).html.body
+            output_body = markup_fragment(inputsource.text(output.encode(config.charset)))
             #print "macro 2", repr(output)
             self._curr.xml_append(output_body)
         return ''
@@ -79,7 +80,8 @@ class Formatter(FormatterBase):
     def rawHTML(self, markup):
         #output = htmlparse(markup).html.body.xml_encode() if markup else ''
         if markup:
-            for child in htmlparse(markup).html.body.xml_children:
+            body = markup_fragment(inputsource.text(markup))
+            for child in body.xml_children:
                 self._curr.xml_append(child)
         #self._curr.xml_append(tree.text(output.decode(config.charset)))
         #print "rawHTML", htmlparse(markup).xml_encode()
