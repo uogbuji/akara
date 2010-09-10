@@ -89,8 +89,10 @@ def renamed_packages():
 
 setuptools_extras["packages"] = renamed_packages()
 
+execfile('lib/version.py')
+
 setup(name = "Akara",
-      version = "2.0a1",
+      version=__version__,
       description='Web components for Amara 2.x',
       author='Uche Ogbuji and others',
       author_email='amara-dev@googlegroups.com',
