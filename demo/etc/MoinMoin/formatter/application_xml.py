@@ -163,7 +163,7 @@ class Formatter(FormatterBase):
 
     def rule(self, size=0, **kw):
         e = tree.element(None, u'br') # <hr/> not supported in stylebook
-        e.xml_append(tree.text((u"-" * 78, )))
+        e.xml_append(tree.text((u"-" * 78)))
         self._curr.xml_append(e)
         return ''
 
