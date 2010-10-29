@@ -5,6 +5,7 @@ import urllib, urllib2
 import base64
 from functools import wraps
 from string import Template
+from wsgiref.util import request_uri
 
 from amara.lib.iri import *
 
@@ -81,6 +82,28 @@ def geturl(environ, relative=''):
     url += urllib.quote(environ.get('SCRIPT_NAME', '').rstrip('/')) + '/'
     if relative: url = Uri.Absolutize(relative, url)
     return url
+
+
+def guess_self_uri(environ):
+    return absolutize(environ['SCRIPT_NAME'].rstrip('/'), request_uri(environ, include_query=False))
+
+
+def find_peer_service(environ, peer_id):
+    '''
+    Find a peer service endpoint, by ID, mounted on this same Akara instance
+    
+    Must be caled from a running akara service, and it is highly recommended to call
+    at the top of service functions, or at least before the request environ has been manipulated
+    '''
+    from amara.lib.iri import absolutize, join
+    from akara import request
+    from akara.registry import _current_registry
+    serverbase = guess_self_uri(environ)
+    for (path, s) in _current_registry._registered_services.iteritems():
+        if s.ident == peer_id:
+            return join(serverbase, '..', path)
+    return None
+
 
 
 def http_method_handler(method):
@@ -245,6 +268,57 @@ def read_http_body_to_temp(environ, start_response):
     os.close(temp[0])
     return temp[1]
 
+#Convert WSGI environ headers to a plain header list (e.g. for forwarding request headers)
+#Copied from webob.
+_key2header = {
+    'CONTENT_TYPE': 'Content-Type',
+    'CONTENT_LENGTH': 'Content-Length',
+    'HTTP_CONTENT_TYPE': 'Content_Type',
+    'HTTP_CONTENT_LENGTH': 'Content_Length',
+}
+
+#Skipping User-Agent is actually Moin-specific, since Moin seems to react to different UAs, and e.g. gives 403 errors in response to Curl's UA
+_skip_headers = [
+    'HTTP_HOST',
+    'HTTP_ACCEPT',
+    'HTTP_USER_AGENT',
+]
+
+def _trans_key(key):
+    if not isinstance(key, basestring):
+        return None
+    elif key in _key2header:
+        #Do NOT copy these special headers (change from Webob)
+        return None
+        #return _key2header[key]
+    elif key in _skip_headers:
+        return None
+    elif key.startswith('HTTP_'):
+        return key[5:].replace('_', '-').title()
+    else:
+        return None
+
+
+def copy_headers(environ):
+    header_list = []
+    for k, v in environ.iteritems():
+        pure_header = _trans_key(k)
+        if pure_header:
+            #FIXME: does this account for dupe headers in the inbound WSGI?
+            header_list.append((pure_header, v))
+    return header_list
+
+
+def copy_headers_to_dict(environ):
+    headers = {}
+    for k, v in environ.iteritems():
+        pure_header = _trans_key(k)
+        if pure_header:
+            #FIXME: does this account for dupe headers in the inbound WSGI?
+            headers[pure_header] = v
+    return headers
+
+
 #
 # ======================================================================
 #                       Exceptions
@@ -270,4 +344,4 @@ class UnexpectedResponseError(HttpError): pass
 class MoinMustAuthenticateError(HttpError): pass
 class MoinNotFoundError(HttpError): pass
 class ContentLengthRequiredError(HttpError): pass
-
+class GenericClientError(HttpError): pass

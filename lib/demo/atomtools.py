@@ -23,6 +23,7 @@ from itertools import dropwhile
 import amara
 from amara import bindery
 from amara.tools import atomtools
+from amara.thirdparty import httplib2
 from amara.lib.util import first_item
 from amara.thirdparty import json
 
@@ -39,7 +40,6 @@ FEED_ENVELOPE = module_config().warn("feed_envelope",
 '''<feed xmlns="http://www.w3.org/2005/Atom">
 <title>This is my feed</title><id>http://example.com/my_feed</id>
 </feed>''', "XML envelope around the Atom entries")
-
 
 
 #text/uri-list from RFC 2483

@@ -116,6 +116,10 @@ MODULES = ["akara.demo.akara_tests",
 
     os.mkdir(os.path.join(server_root, "logs"))
 
+#FIXME: add back config for:
+#[collection]
+#folder=/tmp/collection
+
 # Remove the temporary server configuration directory,
 # if I created it
 def remove_server_dir():

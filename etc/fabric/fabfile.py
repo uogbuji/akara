@@ -13,6 +13,8 @@ env.requirements = env.get("requirements", "requirements.txt")
 env.virtualenv = env.get("virtualenv", "production")
 env.service_port=env.get("service_port", "8880")
 env.owner=env.get("owner", None)
+env.module=env.get("module", None)
+env.target_module=env.get("target_module", env.module)
 
 env.virtualenv_exe=env.get("virtualenv_exe", "/usr/local/bin/virtualenv")
 
@@ -22,8 +24,9 @@ def _pip_install(package, virtualenv=env.virtualenv, base_path=env.base_path,
         exe = posixpath.join(base_path, virtualenv, "bin/pip")
     else:
         exe = "pip"
+    log = posixpath.join(base_path, virtualenv, "pip-log.txt")
 
-    sudo("%s install -U --quiet %s"%(exe, package), user=owner)
+    sudo("%s install -U --log=%s --quiet %s"%(exe,log, package), user=owner)
 
 
 def adduser(username, home=None):
@@ -229,6 +232,7 @@ def restart(virtualenv=env.virtualenv, base_path=env.base_path):
     _akara("restart", virtualenv, base_path)
 
 
+
 def print_config(virtualenv=env.virtualenv, base_path=env.base_path):
     """
     Prints the owner and port of an akara instance
@@ -239,4 +243,31 @@ def print_config(virtualenv=env.virtualenv, base_path=env.base_path):
 
     """
     run("cat %s"%posixpath.join(base_path, virtualenv, ".fabricrc"))
+
+
+def register_module(module=env.module, target_module=env.target_module,
+                    virtualenv=env.virtualenv,
+                    base_path=env.base_path):
+    """
+    Registers a module with akara.  The akara service should be stopped before
+    calling this.
+
+    Arguments:
+        virtualenv -- a virtualenv containing an akara installation
+        module -- a module on the PYTHONPATH to be registered
+        target_module -- The module to use in registration.  defaults to the
+        module value.
+    """
+    if not module:
+        abort("Module required")
+    if not target_module:
+        target_module = module
+    _read_remote_config(virtualenv, base_path)
+    path = posixpath.join(base_path, virtualenv, "modules",
+                          "%s.py"%target_module)
+
+    script = """import imp
+
+(f, pathname, description) = imp.find_module('%s')
+exec f.read() in globals()"""%module
 

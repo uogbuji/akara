@@ -37,7 +37,7 @@ from amara.writers.struct import *
 from amara.bindery.html import parse as htmlparse
 from amara.lib import U
 from amara.lib.date import timezone, UTC
-from amara.lib.iri import split_fragment, relativize, absolutize
+from amara.lib.iri import split_uri_ref, split_fragment, relativize, absolutize, IriError, join, is_absolute
 from amara.bindery.model import examplotron_model, generate_metadata, metadata_dict
 from amara.bindery.util import dispatcher, node_handler, property_sequence_getter
 
@@ -115,6 +115,23 @@ MOIN_DOCBOOK_MODEL = examplotron_model(MOIN_DOCBOOK_MODEL_XML)
 
 AKARA_NS = u'http://purl.org/dc/org/xml3k/akara'
 CMS_BASE = AKARA_NS + u'/cms'
+
+CAMELCASE_PAT = re.compile(u'(\s+)(([A-Z]+)([a-z]+)([A-Z]+)(\w+))(\s+)')
+
+def text_to_moin(text):
+    '''
+    Convert text into a form where it appears as one would expect in Moin:
+    * Normalize line endings
+    * Escape CamelCase
+    
+    >>> from akara.util.moin import text_to_moin
+    >>> text_to_moin(u' a AxBxCx   b\\r\\nMoreCamelCase foo') #Beware double-escaped chars for doctest
+    u' a !AxBxCx   b\\n!MoreCamelCase foo'
+    >>> text_to_moin(u' a ABC   b\\r\\nmoreCamelCase foo') #Beware double-escaped chars for doctest
+    u' a ABC   b\\nmoreCamelCase foo'
+    '''
+    text = CAMELCASE_PAT.subn(lambda m: m.group(1) + u'!' + m.group(2) + m.groups()[-1], text)[0]
+    return u'\n'.join([line.rstrip() for line in text.splitlines() ])
 
 def cleanup_text_blocks(text):
     return u'\n'.join([line.strip() for line in text.splitlines() ])
@@ -219,7 +236,7 @@ def register_node_type(type_id, nclass):
     node.NODES[type_id] = nclass
 
 
-def wiki_uri(original_base, wrapped_base, link, relative_to=None):
+def wiki_uri(original_base, wrapped_base, link, relative_to=None, raw=False):
     '''
     Constructs absolute URLs to the original and REST-wrapper for a page, given a link from another page
     
@@ -227,6 +244,7 @@ def wiki_uri(original_base, wrapped_base, link, relative_to=None):
     wrapped_base - The base URI of the REST-wrapped proxy of the Moin instance
     link - the relative link, generally from one wiki page to another
     relative_to - the REST-wrapped version of the page from which the relative link came, defaults to same as wrapped_base
+    raw - the link is a full hierarchical path, rather than relative to the wiki base
 
     Returns a tuple (wrapped_uri, abs_link)
     
@@ -234,13 +252,24 @@ def wiki_uri(original_base, wrapped_base, link, relative_to=None):
     abs_link - the full, original wiki URL
     
     >>> from akara.util.moin import wiki_uri
-    >>> wiki_uri('http://example.com/mywiki/', 'http://localhost:8880/moin/w/', '/mywiki/spam')
+    >>> wiki_uri('http://example.com/mywiki/', 'http://localhost:8880/moin/w/', '/spam')
     ('http://localhost:8880/moin/w/spam', 'http://example.com/mywiki/spam')
+    >>> wiki_uri('http://example.com/mywiki/', 'http://localhost:8880/moin/w/', 'http://google.com/spam')
+    (None, None)
+    >>> wiki_uri('http://example.com/mywiki/', 'http://localhost:8880/moin/w/', 'http://google.com/spam', raw=True)
+    (None, None)
+    >>> wiki_uri('http://example.com/mywiki/', 'http://localhost:8880/moin/w/', '/mywiki/spam', raw=True)
+    ('http://localhost:8880/moin/w/spam', 'http://example.com/mywiki/spam')
+    >>> wiki_uri('http://example.com/mywiki/', 'http://localhost:8880/moin/w/', '/mywiki/spam')
+    ('http://localhost:8880/moin/w/mywiki/spam', 'http://example.com/mywiki/mywiki/spam')
     '''
     #rel_link = relativize(abs_link, original_wiki_base)
     #e.g. original wiki base is http://myhost:8080/mywiki/ and link is /a/b
     #abs_link is http://myhost:8080/mywiki/a/b note the need to strip the leading / to get that
     #from akara import logger; logger.debug('wiki_uri' + repr((original_base, wrapped_base, link, relative_to, absolutize(link, original_base.rstrip('/')+'/'))))
+    if raw and not is_absolute(link):
+        (scheme, authority, path, query, fragment) = split_uri_ref(original_base)
+        link = link[len(path):]
     link = link.lstrip('/')
     abs_link = absolutize(link, original_base.rstrip('/')+'/')
     rel_to_wikibase = relativize(abs_link, original_base.rstrip('/')+'/')
@@ -249,4 +278,47 @@ def wiki_uri(original_base, wrapped_base, link, relative_to=None):
         return None, None
     rest_uri = absolutize(rel_to_wikibase, wrapped_base.rstrip('/')+'/')
     return rest_uri, abs_link
+
+
+#
+def unwrap_uri(original_base, wrapped_base, rest_uri):
+    '''
+    Constructs an absolute URL to the original Moin page
+    
+    original_base - The base URI of the actual Moin instance
+    wrapped_base - The base URI of the REST-wrapped proxy of the Moin instance
+    rest_uri - moinrest-wrapped URI
+
+    Returns a tuple unwrapped_link
+    
+    >>> from akara.util.moin import unwrap_uri
+    >>> unwrap_uri('http://example.com/mywiki/', 'http://localhost:8880/moin/w/', 'http://localhost:8880/moin/w/spam')
+    'http://example.com/mywiki/spam'
+    >>> unwrap_uri('http://example.com/', 'http://localhost:8880/moin/w/', 'http://localhost:8880/moin/w/spam')
+    'http://example.com/spam'
+    '''
+    rel = relativize(rest_uri, wrapped_base.rstrip('/')+'/')
+    return absolutize(rel, original_base.rstrip('/')+'/')
+
+
+RE_XML_WIKISPLIT = re.compile(u'\s+')
+
+def wiki_normalize(s):
+    '''
+    A smarter variety of string normalization.  Multiple runs of whitespace are replaced
+    with a space, except that " \n" goes unchanged, and runs of whitespace at the beginning
+    of a line go unchanged
+    
+    >>> from akara.util.moin import wiki_normalize
+    >>> wiki_normalize(u'= A =\\n * spam \\n  * eggs\\n\\n') #Beware double-escaped chars for doctest
+    
+    '''
+    #First of all normalize line endings
+    s = '\n'.join(s.splitlines())
+    def repl(m):
+        if '\n' in m.group(0):
+            return m.group(0)
+        else:
+            return ' '
+    return RE_XML_WIKISPLIT.subn(repl, s)[0]
 

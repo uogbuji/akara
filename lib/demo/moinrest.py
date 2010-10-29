@@ -14,7 +14,7 @@ Project home, documentation, distributions: http://wiki.xml3k.org/Akara
 
 http://purl.org/akara/services/demo/collection (moin)
   - Under there top mount point is oen or more lower points depending on config,
-    each of which handles HEAD, GET, POST, PUT
+    each of which handles HEAD, GET, POST, PUT, DELETE
 
 = Configuration =
 
@@ -72,6 +72,7 @@ Some sample queries:
     curl -H "Accept: application/x-moin-attachments+xml" http://localhost:8880/moin/xml3k/FrontPage
     curl --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: text/plain" "http://localhost:8880/moin/xml3k/FooTest"
     curl --request POST --data-binary "@wikicontent.txt" --header "Content-Type: text/plain" "http://localhost:8880/moin/xml3k/FooTest;attachment=wikicontent.txt"
+    curl --request DELETE http://localhost:8880/moin/xml3k/FrontPage
 
     curl -u me:passwd -p --request PUT --data-binary "@wikicontent.txt" --header "Content-Type: text/plain" "http://localhost:8880/moin/xml3k/FooTest"
 
@@ -101,7 +102,7 @@ from itertools import dropwhile
 import amara
 from amara import bindery
 from amara.lib.util import first_item
-from amara.lib.iri import absolutize, relativize
+from amara.lib.iri import absolutize, relativize, join
 from amara.writers.struct import structencoder, E, NS, ROOT, RAW
 from amara.bindery.html import parse as htmlparse
 from amara.bindery.model import examplotron_model, generate_metadata
@@ -111,10 +112,10 @@ from amara.lib.iri import split_uri_ref, unsplit_uri_ref, split_authority, absol
 
 # Akara Imports
 from akara import module_config, logger, response
-from akara.util import multipart_post_handler, wsgibase, http_method_handler
+from akara.util import multipart_post_handler, wsgibase, http_method_handler, copy_headers_to_dict
 from akara.services import method_dispatcher
 from akara.util import status_response, read_http_body_to_temp
-from akara.util import BadTargetError, HTTPAuthorizationError, MoinAuthorizationError, UnexpectedResponseError, MoinMustAuthenticateError, MoinNotFoundError, ContentLengthRequiredError
+from akara.util import BadTargetError, HTTPAuthorizationError, MoinAuthorizationError, UnexpectedResponseError, MoinMustAuthenticateError, MoinNotFoundError, ContentLengthRequiredError, GenericClientError
 import akara.util.moin as moin
 
 # ======================================================================
@@ -126,6 +127,12 @@ TARGET_WIKI_OPENERS = {}
 DEFAULT_OPENER = urllib2.build_opener(
     urllib2.HTTPCookieProcessor(),
     multipart_post_handler.MultipartPostHandler)
+
+# Specifies the default max-age of Moin pages
+CACHE_MAX_AGE = AKARA.module_config.get('cache-max-age')
+
+# Specifies a Wiki path (currently only one, FIXME) under which no caching will occur
+NO_CACHE_PATH = AKARA.module_config.get('no-cache-path')
 
 # Look at each Wiki URL and build an appropriate opener object for retrieving
 # pages.   If the URL includes HTTP authentication information such as
@@ -247,6 +254,7 @@ def moin_error_wrapper(wsgiapp):
         # Try to run the supplied WSGI handler
         try:
             body = wsgiapp(environ, local_start_response)
+
             # If control reaches here, no errors.  Proceed with normal WSGI response
             start_response(status_info['status'],status_info['headers'])
             return body
@@ -306,6 +314,14 @@ def moin_error_wrapper(wsgiapp):
                     ])
             return error_contentlengthrequired.safe_substitute(e.parms)
 
+        # Used for Moin errors indicated in 2xx HTML responses.  No
+        # need for canned text since the error text is in the HTML
+        except GenericClientError,e:
+            start_response(status_response(httplib.BAD_REQUEST), [
+                    ('Content-Type','text/plain')
+                    ])
+            return e.parms.get('error')
+
     return handler
 
 
@@ -323,20 +339,23 @@ def status_response(code):
 def target(environ):
     wiki_id = shift_path_info(environ)
     full_incoming_request = request_uri(environ)
-    original_page = absolutize(environ['PATH_INFO'], TARGET_WIKIS[wiki_id])
-    #relative_to_wrapped = relativize(, full_incoming_request)
-    wrapped_wiki_base = full_incoming_request[:-len(environ['PATH_INFO'])]
     if wiki_id not in TARGET_WIKIS:
         raise BadTargetError(fronturl=request_uri(environ), target=wiki_id)
+    original_page = join(TARGET_WIKIS[wiki_id].rstrip('/')+'/', environ['PATH_INFO'].lstrip('/'))
+    #relative_to_wrapped = relativize(, full_incoming_request)
+    wrapped_wiki_base = full_incoming_request[:-len(environ['PATH_INFO'])]
     return wiki_id, TARGET_WIKIS[wiki_id], TARGET_WIKI_OPENERS.get(wiki_id), original_page, wrapped_wiki_base
 
 
 # Check authentication of the user on the MoinMoin wiki
-def check_auth(environ, start_response, base, opener):
+def check_auth(environ, start_response, base, opener, headers=None):
     '''
     Warning: mutates environ in place
+    
+    If HTTP auth succeeds will also attach a cookie to the opener object in place
     '''
     auth = environ.get('HTTP_AUTHORIZATION')
+    #logger.debug('GRIPPO ' + repr((headers)))
     if not auth: 
         return False
 
@@ -345,7 +364,7 @@ def check_auth(environ, start_response, base, opener):
         raise RuntimeError('Unsupported HTTP auth scheme: %s'%scheme)
     username, password = data.decode('base64').split(':', 1)
     url = absolutize('?action=login&name=%s&password=%s&login=login'%(username, password), base)
-    request = urllib2.Request(url)
+    request = urllib2.Request(url, None, headers)
     try:
         with closing(opener.open(request)) as resp:
             #Don't need to do anything with the response.  The cookies will be captured automatically
@@ -364,13 +383,15 @@ def check_auth(environ, start_response, base, opener):
     return True
 
 
-def fill_page_edit_form(page, wiki_id, base, opener):
+def fill_page_edit_form(page, wiki_id, base, opener, headers=None):
     url = absolutize(page, base)
-    request = urllib2.Request(url+"?action=edit&editor=text")
+    request = urllib2.Request(url+"?action=edit&editor=text", None, headers)
+    #logger.debug('GRIPPO ' + repr((headers)))
     try:
         with closing(opener.open(request)) as resp:
             x = resp.read(); resp = x
             doc = htmlparse(resp)
+            raise_embedded_error(doc)
 
     except urllib2.URLError,e:
         # Comment concerning the behavior of MoinMoin.  If an attempt is made to edit a page 
@@ -378,6 +399,8 @@ def fill_page_edit_form(page, wiki_id, base, opener):
         # on whether or not the page being edited exists or not.   If it doesn't exist, 
         # MoinMoin sends back a 404 which is misleading.   We raise MoinMustAuthenticateError
         # to signal the error wrapper to issue a 401 back to the client
+        
+        #Note: Moin for somereason seems to give 403 errors on some URLs in response to Curl's UA
         if e.code == 403 or e.code == 404:
             raise MoinMustAuthenticateError(url=request.get_full_url(),target=wiki_id)
         else:
@@ -412,12 +435,13 @@ def fill_page_edit_form(page, wiki_id, base, opener):
     return form_vars
 
 
-def fill_attachment_form(page, attachment, wiki_id, base, opener):
+def fill_attachment_form(page, attachment, wiki_id, base, opener, headers=None):
     url = absolutize(page, base)
-    request = urllib2.Request(url + '?action=AttachFile')
+    request = urllib2.Request(url + '?action=AttachFile', None, headers)
     try:
         with closing(opener.open(request)) as resp:
             doc = htmlparse(resp)
+            raise_embedded_error(doc)
 
     except urllib2.URLError,e:
         # Comment concerning the behavior of MoinMoin.  If an attempt is made to post to a page 
@@ -433,22 +457,49 @@ def fill_attachment_form(page, attachment, wiki_id, base, opener):
     form = doc.html.body.xml_select(u'.//*[@id="content"]/form')[0]
     form_vars = {}
     #form / dl / ... dd
+    #Was called rename in 1.8.x, target in 1.9.x
     form_vars["rename"] = unicode(attachment)
+    form_vars["target"] = unicode(attachment)
     #FIXME: parameterize
     form_vars["overwrite"] = u'1'
     form_vars["action"] = unicode(form.xml_select(u'string(*/*[@name="action"]/@value)'))
     form_vars["do"] = unicode(form.xml_select(u'string(*/*[@name="do"]/@value)'))
+    form_vars["ticket"] = unicode(form.xml_select(u'string(*/*[@name="ticket"]/@value)'))
     form_vars["submit"] = unicode(form.xml_select(u'string(*/*[@type="submit"]/@value)'))
     #pprint.pprint(form_vars)
     return form_vars
 
 
-def scrape_page_history(page, base, opener):
+def fill_page_delete_form(page, wiki_id, base, opener, headers=None):
     url = absolutize(page, base)
-    request = urllib2.Request(url+"?action=info")
+    request = urllib2.Request(url+"?action=DeletePage", None, headers)
+    try:
+        with closing(opener.open(request)) as resp:
+            x = resp.read(); resp = x
+            doc = htmlparse(resp)
+            raise_embedded_error(doc)
+
+    except urllib2.URLError,e:
+        if e.code == 403:
+            raise MoinMustAuthenticateError(url=request.get_full_url(),target=wiki_id)
+        else:
+            raise UnexpectedResponseError(url=request.get_full_url(),code=e.code,error=str(e))
+
+    form = doc.html.body.xml_select(u'.//form[@method="POST"]')[0]
+    form_vars = {}
+    form_vars["action"] = unicode(form.xml_select(u'string(*/*[@name="action"]/@value)'))
+    form_vars["ticket"] = unicode(form.xml_select(u'string(*/*[@name="ticket"]/@value)'))
+    form_vars["delete"] = unicode(form.xml_select(u'string(//input[@type="submit" and @name="delete"]/@value)'))
+    return form_vars
+
+
+def scrape_page_history(page, base, opener, headers=None):
+    url = absolutize(page, base)
+    request = urllib2.Request(url+"?action=info", None, headers)
     try:
         with closing(opener.open(request)) as resp:
             doc = htmlparse(resp)
+            raise_embedded_error(doc)
 
     except urllib2.URLError,e:
         # Comment concerning the behavior of MoinMoin.  If an attempt is made to post to a page 
@@ -480,12 +531,23 @@ def scrape_page_history(page, base, opener):
     ]
     return info
 
+# Extract any error embedded in an HTML response (returned by Moin in 2xx responses),
+# and raise it as an HTTP error.  Would be nice to handle this generically in
+# moin_error_wrapper, but don't want to incur HTML parse cost
+def raise_embedded_error(doc):
+    try:
+        error_div = doc.xml_select('//div[@class="error"]')
+    except:
+        return
+
+    if error_div:
+        raise GenericClientError(error=error_div.asString())
 
 # ----------------------------------------------------------------------
 #                       HTTP Method Handlers
 # ----------------------------------------------------------------------
 # The following functions implement versions of the various HTTP methods 
-# (GET, HEAD, POST, PUT).  Each method is actually implemented as a
+# (GET, HEAD, POST, PUT, DELETE).  Each method is actually implemented as a
 # a pair of functions.  One is a private implementation (e.g., _get_page).  
 # The other function is a wrapper that encloses each handler with the error 
 # handling function above (moin_error_handler).   Again, this is to avoid
@@ -498,9 +560,10 @@ def dispatcher():
 
 @dispatcher.method("GET")
 def get_page(environ, start_response):
+    req_headers = copy_headers_to_dict(environ)
     wiki_id, base, opener, original_page, wrapped_wiki_base = target(environ)
     page = environ['PATH_INFO'].lstrip('/')
-    check_auth(environ, start_response, base, opener)
+    check_auth(environ, start_response, base, opener, req_headers)
     upstream_handler = None
     status = httplib.OK
     params = cgi.parse_qs(environ['QUERY_STRING'])
@@ -510,6 +573,10 @@ def get_page(environ, start_response):
     imt = first_item(dropwhile(lambda x: '*' in x, accepted_imts))
     #logger.debug('imt: ' + repr(imt))
     params_for_moin = {}
+    cache_max_age = CACHE_MAX_AGE # max-age of this response. If set to None, it will not be used
+    if NO_CACHE_PATH and NO_CACHE_PATH in page:
+        cache_max_age = None
+
     if 'rev' in params:
         #XXX: Not compatible with search
         #params_for_moin = {'rev' : params['rev'][0], 'action': 'recall'}
@@ -519,30 +586,32 @@ def get_page(environ, start_response):
         query = urllib.urlencode({'value' : searchq, 'action': 'fullsearch', 'context': '180', 'fullsearch': 'Text'})
         #?action=fullsearch&context=180&value=foo&=Text
         url = absolutize('?'+query, base)
-        request = urllib2.Request(url)
+        request = urllib2.Request(url, None, req_headers)
         ctype = moin.RDF_IMT
+        cache_max_age = None
     #elif 'action' in params and params['action'][0] == 'recall':
     elif moin.HTML_IMT in environ.get('HTTP_ACCEPT', ''):
         params = urllib.urlencode(params_for_moin)
         url = absolutize(page+'?'+params, base)
-        request = urllib2.Request(url)
+        request = urllib2.Request(url, None, req_headers)
         ctype = moin.HTML_IMT
     elif moin.RDF_IMT in environ.get('HTTP_ACCEPT', ''):
         #FIXME: Make unique flag optional
         #url = base + '/RecentChanges?action=rss_rc&unique=1&ddiffs=1'
         url = absolutize('RecentChanges?action=rss_rc&unique=1&ddiffs=1', base)
         #print >> sys.stderr, (url, base, '/RecentChanges?action=rss_rc&unique=1&ddiffs=1', )
-        request = urllib2.Request(url)
+        request = urllib2.Request(url, None, req_headers)
         ctype = moin.RDF_IMT
     elif moin.ATTACHMENTS_IMT in environ.get('HTTP_ACCEPT', ''):
         url = absolutize(page + '?action=AttachFile', base)
-        request = urllib2.Request(url)
+        request = urllib2.Request(url, None, req_headers)
         ctype = moin.ATTACHMENTS_IMT
         def upstream_handler():
             #Sigh.  Sometimes you have to break some Tag soup eggs to make a RESTful omlette
             with closing(opener.open(request)) as resp:
                 rbody = resp.read()
             doc = htmlparse(rbody)
+            raise_embedded_error(doc)
             attachment_nodes = doc.xml_select(u'//*[contains(@href, "action=AttachFile") and contains(@href, "do=view")]')
             targets = []
             for node in attachment_nodes:
@@ -560,17 +629,18 @@ def get_page(environ, start_response):
     elif ';attachment=' in page:
         page, attachment = page.split(';attachment=', 1)
         url = absolutize(page + '?action=AttachFile&do=get&target=' + attachment, base)
-        request = urllib2.Request(url)
+        request = urllib2.Request(url, None, req_headers)
         def upstream_handler():
             with closing(opener.open(request)) as resp:
                 rbody = resp.read()
             return rbody, dict(resp.info())['content-type']
     #
     elif ';history' in page:
-        ctype = moin.XML_IMT
+        cache_max_age = None
         page, discard = page.split(';history', 1)
+        ctype = moin.XML_IMT
         def upstream_handler():
-            revs = scrape_page_history(page, base, opener)
+            revs = scrape_page_history(page, base, opener, req_headers)
             output = structencoder(indent=u"yes")
             output.feed(
             ROOT(
@@ -583,13 +653,13 @@ def get_page(environ, start_response):
         params_for_moin.update({'mimetype': imt})
         params = urllib.urlencode(params_for_moin)
         url = absolutize(page, base) + '?' + params
-        request = urllib2.Request(url)
+        request = urllib2.Request(url, None, req_headers)
         ctype = moin.DOCBOOK_IMT
     else:
         params_for_moin.update({'action': 'raw'})
         params = urllib.urlencode(params_for_moin)
         url = absolutize(page, base) + '?' + params
-        request = urllib2.Request(url)
+        request = urllib2.Request(url, None, req_headers)
         ctype = moin.WIKITEXT_IMT
     try:
         if upstream_handler:
@@ -601,7 +671,13 @@ def get_page(environ, start_response):
         #headers = {moin.ORIG_BASE_HEADER: base}
         #moin_base = absolutize(wiki_id, base)
         moin_base_info = base + ' ' + wrapped_wiki_base + ' ' + original_page
-        start_response(status_response(status), [("Content-Type", ctype), (moin.ORIG_BASE_HEADER, moin_base_info)])
+        response_headers = [("Content-Type", ctype),
+                            ("Vary", "Accept"),
+                            (moin.ORIG_BASE_HEADER, moin_base_info)]
+        if cache_max_age:
+            response_headers.append(("Cache-Control","max-age="+cache_max_age))
+
+        start_response(status_response(status), response_headers)
         return rbody
     except urllib2.URLError, e:
         if e.code == 401:
@@ -619,31 +695,35 @@ def get_page(environ, start_response):
 def _put_page(environ, start_response):
     '''
     '''
+    req_headers = copy_headers_to_dict(environ)
     wiki_id, base, opener, original_page, wrapped_wiki_base = target(environ)
     page = environ['PATH_INFO'].lstrip('/')
-    check_auth(environ, start_response, base, opener)
+    check_auth(environ, start_response, base, opener, req_headers)
 
     ctype = environ.get('CONTENT_TYPE', 'application/unknown')
     temp_fpath = read_http_body_to_temp(environ, start_response)
-    form_vars = fill_page_edit_form(page, wiki_id, base, opener)
+    form_vars = fill_page_edit_form(page, wiki_id, base, opener, req_headers)
     form_vars["savetext"] = open(temp_fpath, "r").read()
 
     url = absolutize(page, base)
     data = urllib.urlencode(form_vars)
-    request = urllib2.Request(url, data)
+    request = urllib2.Request(url, data, req_headers)
     try:
         logger.debug('Prior to urllib2.opener')
         with closing(opener.open(request)) as resp:
             logger.debug('Return from urllib2.opener')
             doc = htmlparse(resp)
+            raise_embedded_error(doc)
             logger.debug('HTML parse complete post urllib2.opener')
     except urllib2.URLError,e:
         raise UnexpectedResponseError(url=url,code=e.code,error=str(e))
 
     msg = 'Page updated OK: ' + url
     #response.add_header("Content-Length", str(len(msg)))
-    start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url), (moin.ORIG_BASE_HEADER, base)])
+    moin_base_info = base + ' ' + wrapped_wiki_base + ' ' + original_page
+    start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url), (moin.ORIG_BASE_HEADER, moin_base_info)])
     return [msg]
+
 
 # POST handler
 @dispatcher.method("POST")
@@ -654,8 +734,10 @@ def post_page(environ, start_response):
     '''
     #ctype = environ.get('CONTENT_TYPE', 'application/unknown')
 
+    req_headers = copy_headers_to_dict(environ)
     wiki_id, base, opener, original_page, wrapped_wiki_base = target(environ)
-    check_auth(environ, start_response, base, opener)
+    logger.debug("wiki_id,base,opener,original_age,wrapped_wiki_base="+repr((wiki_id,base,opener,original_page,wrapped_wiki_base)))
+    check_auth(environ, start_response, base, opener, req_headers)
 
     page = environ['PATH_INFO'].lstrip('/')
     page, chaff, attachment = page.partition(';attachment=')
@@ -664,17 +746,19 @@ def post_page(environ, start_response):
     #Unfortunately because urllib2's data dicts don't give an option for limiting read length, must read into memory and wrap
     #content = StringIO(environ['wsgi.input'].read(clen))
     temp_fpath = read_http_body_to_temp(environ, start_response)
-    form_vars = fill_attachment_form(page, attachment, wiki_id, base, opener)
+    form_vars = fill_attachment_form(page, attachment, wiki_id, base, opener, req_headers)
     form_vars["file"] = open(temp_fpath, "rb")
 
     url = absolutize(page, base)
     #print >> sys.stderr, url, temp_fpath
     #data = urllib.urlencode(form_vars)
-    request = urllib2.Request(url, form_vars)
+    request = urllib2.Request(url, form_vars, req_headers)
     try:
         with closing(opener.open(request)) as resp:
             doc = htmlparse(resp)
-            #amara.xml_write(doc, stream=sys.stderr, indent=True)
+            raise_embedded_error(doc)
+            #logger.debug('POST for attachment page response... ' + doc.xml_encode())
+
     except urllib2.URLError,e:
         if e.code == 404:
             raise MoinNotFoundError(fronturl=request_uri(environ), backurl=url)
@@ -687,6 +771,44 @@ def post_page(environ, start_response):
     msg = 'Attachment updated OK: %s\n'%(url)
 
     #response.add_header("Content-Length", str(len(msg)))
-    start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url), (moin.ORIG_BASE_HEADER, base)])
+    moin_base_info = base + ' ' + wrapped_wiki_base + ' ' + original_page
+    start_response(status_response(httplib.CREATED), [("Content-Type", "text/plain"), ("Content-Location", url), (moin.ORIG_BASE_HEADER, moin_base_info)])
     return msg
 
+# DELETE handler
+@dispatcher.method("DELETE")
+def _delete_page(environ, start_response):
+    '''
+    Deletes a Wiki page, returning 200 if successful.  Does not yet support
+    the deletion of attachments.
+
+    '''
+    #The Moin form asks that this be in multipart-form format, but the multipart handler
+    #fallsback to url-encoding unless you pass it a file.  Luckily, the equivalent
+    #url-encoded request works... for now.
+    
+    req_headers = copy_headers_to_dict(environ)
+    wiki_id, base, opener, original_page, wrapped_wiki_base = target(environ)
+    page = environ['PATH_INFO'].lstrip('/')
+    check_auth(environ, start_response, base, opener, req_headers)
+
+    form_vars = fill_page_delete_form(page, wiki_id, base, opener, req_headers)
+
+    url = absolutize(page, base)
+
+    request = urllib2.Request(url, form_vars, req_headers)
+    try:
+        with closing(opener.open(request)) as resp:
+            doc = htmlparse(resp)
+            raise_embedded_error(doc)
+    except urllib2.URLError,e:
+        
+        if e.code == 404:
+            # Moin returns 404 on a succcessful DeletePage POST; recast as a 200
+            pass
+        else:
+            raise UnexpectedResponseError(url=url,code=e.code,error=str(e))
+
+    msg = 'Page deleted OK: ' + url
+    start_response(status_response(httplib.OK),[("Content-Type","text/plain")])
+    return msg

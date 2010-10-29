@@ -37,7 +37,6 @@ import sys
 # Initializes logging and make the logger public
 from akara.logger_config import _logger as logger
 
-
 # The contents of the "akara.conf" module, as a global namespace dict
 raw_config = None
 
@@ -171,3 +170,4 @@ class NoModuleConfig(object):
 
         return default
 
+from version import __version__

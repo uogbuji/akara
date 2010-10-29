@@ -46,7 +46,7 @@ from amara.lib.date import timezone, UTC
 from amara.bindery.util import dispatcher, node_handler, property_sequence_getter
 
 from akara.util import copy_auth
-from akara.util.moin import node, ORIG_BASE_HEADER, DOCBOOK_IMT, RDF_IMT, HTML_IMT
+from akara.util.moin import node, ORIG_BASE_HEADER, DOCBOOK_IMT, RDF_IMT, HTML_IMT, CMS_BASE, register_node_type
 from akara.services import simple_service
 
 
@@ -593,8 +593,8 @@ node.NODES[page.AKARA_TYPE] = page
 #AKARA_TYPES = [page, folder]
 #print >> sys.stderr, 'Writing to ', POST_TO
 
-SELF = AKARA_MODULE_CONFIG.get('self', 'http://localhost:8880/')
-REST_WIKI_BASE = AKARA_MODULE_CONFIG.get('rest_wiki_base', 'http://localhost:8880/moin/loc/')
+SELF = AKARA.module_config.get('self', 'http://localhost:8880/')
+REST_WIKI_BASE = AKARA.module_config.get('rest_wiki_base', 'http://localhost:8880/moin/loc/')
 
 
 def wrapped_uri(original_wiki_base, link):
@@ -609,7 +609,7 @@ def wrapped_uri(original_wiki_base, link):
 WIKI_REQUIRED = _("The 'wiki' query parameter is mandatory.")
 PATTERN_REQUIRED = _("The 'pattern' query parameter is mandatory.")
 
-DEFAULT_TRANSFORM = AKARA_MODULE_CONFIG.get('default_transform')
+DEFAULT_TRANSFORM = AKARA.module_config.get('default_transform')
 #print DEFAULT_TRANSFORM
 
 SERVICE_ID = 'http://purl.org/akara/services/demo/moincms.execute'

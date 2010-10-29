@@ -262,35 +262,28 @@ class cache(object):
         return f
 
 
+#
+# Method that makes the cache directory if it doesn't yet exist
+def make_named_cache(name):
+    #serv = registry.get_a_service_by_id(ident)
+    #if not serv:
+    #    raise KeyError("Nothing known about service %s" % ident)
+    # Make sure the cache directory exists
+    if not os.path.exists(global_config.module_cache):
+        try:
+            os.mkdir(global_config.module_cache)
+        except OSError:
+            pass    # Might be a race condition in creating.  Ignore errors, but follow up with an assert
+        assert os.path.exists(global_config.module_cache),"%s directory can't be created" % (global_config.module_cache)
 
-
-
-                
-                
-                
-            
-
-        
-
-
-        
-
-
-
-        
-
-        
-        
-
-        
-        
-        
-        
-
-
-
-
-        
-
+    cachedir = os.path.join(global_config.module_cache, name)
+    if not os.path.exists(cachedir):
+        try:
+            os.mkdir(cachedir)
+        except OSError:
+            # This exception handler is here to avoid a possible race-condition in startup.
+            # Multiple server instances might enter here at the same time and try to create directory
+            pass
+        assert os.path.exists(cachedir), "Failed to make module cache directory %s" % cachedir
 
 
