@@ -129,10 +129,10 @@ DEFAULT_OPENER = urllib2.build_opener(
     multipart_post_handler.MultipartPostHandler)
 
 # Specifies the default max-age of Moin pages
-CACHE_MAX_AGE = AKARA.module_config.get('cache-max-age')
+CACHE_MAX_AGE = module_config().get("CACHE_MAX_AGE", None)
 
 # Specifies a Wiki path (currently only one, FIXME) under which no caching will occur
-NO_CACHE_PATH = AKARA.module_config.get('no-cache-path')
+NO_CACHE_PATH = module_config().get("NO_CACHE_PATH", None)
 
 # Look at each Wiki URL and build an appropriate opener object for retrieving
 # pages.   If the URL includes HTTP authentication information such as
