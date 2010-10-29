@@ -535,8 +535,12 @@ def scrape_page_history(page, base, opener, headers=None):
 # and raise it as an HTTP error.  Would be nice to handle this generically in
 # moin_error_wrapper, but don't want to incur HTML parse cost
 def raise_embedded_error(doc):
-    error_div = doc.xml_select('//div[@class="error"]')
-    if error_div :
+    try:
+        error_div = doc.xml_select('//div[@class="error"]')
+    except:
+        return
+
+    if error_div:
         raise GenericClientError(error=error_div.asString())
 
 # ----------------------------------------------------------------------
@@ -668,6 +672,7 @@ def get_page(environ, start_response):
         #moin_base = absolutize(wiki_id, base)
         moin_base_info = base + ' ' + wrapped_wiki_base + ' ' + original_page
         response_headers = [("Content-Type", ctype),
+                            ("Vary", "Accept"),
                             (moin.ORIG_BASE_HEADER, moin_base_info)]
         if cache_max_age:
             response_headers.append(("Cache-Control","max-age="+cache_max_age))
@@ -743,7 +748,6 @@ def post_page(environ, start_response):
     temp_fpath = read_http_body_to_temp(environ, start_response)
     form_vars = fill_attachment_form(page, attachment, wiki_id, base, opener, req_headers)
     form_vars["file"] = open(temp_fpath, "rb")
-    logger.debug("form_vars = " + repr(form_vars))
 
     url = absolutize(page, base)
     #print >> sys.stderr, url, temp_fpath
