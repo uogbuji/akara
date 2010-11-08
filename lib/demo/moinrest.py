@@ -560,7 +560,7 @@ def dispatcher():
 
 @dispatcher.method("GET")
 def get_page(environ, start_response):
-    req_headers = copy_headers_to_dict(environ)
+    req_headers = copy_headers_to_dict(environ,exclude=['HTTP_ACCEPT_ENCODING'])
     wiki_id, base, opener, original_page, wrapped_wiki_base = target(environ)
     page = environ['PATH_INFO'].lstrip('/')
     check_auth(environ, start_response, base, opener, req_headers)
@@ -695,7 +695,7 @@ def get_page(environ, start_response):
 def _put_page(environ, start_response):
     '''
     '''
-    req_headers = copy_headers_to_dict(environ)
+    req_headers = copy_headers_to_dict(environ,exclude=['HTTP_ACCEPT_ENCODING'])
     wiki_id, base, opener, original_page, wrapped_wiki_base = target(environ)
     page = environ['PATH_INFO'].lstrip('/')
     check_auth(environ, start_response, base, opener, req_headers)
@@ -734,7 +734,7 @@ def post_page(environ, start_response):
     '''
     #ctype = environ.get('CONTENT_TYPE', 'application/unknown')
 
-    req_headers = copy_headers_to_dict(environ)
+    req_headers = copy_headers_to_dict(environ,exclude=['HTTP_ACCEPT_ENCODING'])
     wiki_id, base, opener, original_page, wrapped_wiki_base = target(environ)
     logger.debug("wiki_id,base,opener,original_age,wrapped_wiki_base="+repr((wiki_id,base,opener,original_page,wrapped_wiki_base)))
     check_auth(environ, start_response, base, opener, req_headers)
@@ -787,7 +787,7 @@ def _delete_page(environ, start_response):
     #fallsback to url-encoding unless you pass it a file.  Luckily, the equivalent
     #url-encoded request works... for now.
     
-    req_headers = copy_headers_to_dict(environ)
+    req_headers = copy_headers_to_dict(environ,exclude=['HTTP_ACCEPT_ENCODING'])
     wiki_id, base, opener, original_page, wrapped_wiki_base = target(environ)
     page = environ['PATH_INFO'].lstrip('/')
     check_auth(environ, start_response, base, opener, req_headers)

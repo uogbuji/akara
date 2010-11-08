@@ -284,14 +284,14 @@ _skip_headers = [
     'HTTP_USER_AGENT',
 ]
 
-def _trans_key(key):
+def _trans_key(key, exclude=[]):
     if not isinstance(key, basestring):
         return None
     elif key in _key2header:
         #Do NOT copy these special headers (change from Webob)
         return None
         #return _key2header[key]
-    elif key in _skip_headers:
+    elif key in _skip_headers or key in exclude:
         return None
     elif key.startswith('HTTP_'):
         return key[5:].replace('_', '-').title()
@@ -299,20 +299,20 @@ def _trans_key(key):
         return None
 
 
-def copy_headers(environ):
+def copy_headers(environ,exclude=[]):
     header_list = []
     for k, v in environ.iteritems():
-        pure_header = _trans_key(k)
+        pure_header = _trans_key(k,exclude)
         if pure_header:
             #FIXME: does this account for dupe headers in the inbound WSGI?
             header_list.append((pure_header, v))
     return header_list
 
 
-def copy_headers_to_dict(environ):
+def copy_headers_to_dict(environ, exclude=[]):
     headers = {}
     for k, v in environ.iteritems():
-        pure_header = _trans_key(k)
+        pure_header = _trans_key(k,exclude)
         if pure_header:
             #FIXME: does this account for dupe headers in the inbound WSGI?
             headers[pure_header] = v
