@@ -239,7 +239,7 @@ def _parse_netloc(netloc, xnetloc):
         raise TypeError("Port template parameter %r is not an integer (%r)" %
                         (tlname, value))
     yield convert_port
-            
+
 # Handle the text fields which are escaped via URL-encoded UTF-8
 def _parse_template(template):
     for m in template_pat.finditer(template):
@@ -328,10 +328,11 @@ class Template(object):
         self.template = template
         self.terms = terms
     def substitute(self, **kwargs):
-        """Use the kwargs to fill in the template fields.
+        """Use kwargs to fill in the template fields.
 
-        Unknown kwargs are ignored.
+        Keywords unknown to the template ignored.
         """
+        #XXX: this used to use kwargs, but that's not a good idea because not all 
         results = []
         for term in self.terms:
             if isinstance(term, basestring):
@@ -357,6 +358,11 @@ def apply_template(template, **kwargs):
     >>> apply_template('http://{userid}.example.com/status', userid='anonymous')
     'http://anonymous.example.com/status'
     >>>
+
+    Note: it's very common for URI components to be invalid as Python IDs.
+    In that case you have to invoke as follows:
+    
+    apply_template(tpl, **{'a-b': 'cd'})
     """
     t = make_template(template)
     return t.substitute(**kwargs)

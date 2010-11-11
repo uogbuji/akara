@@ -34,7 +34,7 @@ Public submodules are:
 
 import sys
 
-# Initializes logging and make the logger public
+# Initializes logging and makes the logger public
 from akara.logger_config import _logger as logger
 
 # The contents of the "akara.conf" module, as a global namespace dict

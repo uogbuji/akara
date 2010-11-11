@@ -306,6 +306,9 @@ def simple_service(method, service_id, path=None,
       service_id - a string which identifies this service; should be a URL
       path - the local URL path to the resource (must not at present
            contain a '/') If None, use the function's name as the path.
+      query_template - An Akara URL service template (based on OpenSource; see akara.opensource)
+           Can be used to help consumers compose resources withing this service.  The same
+           template is used for all HTTP methods
 
     These control how to turn the return value into an HTTP response
       content_type - the response content-type. If not specified, and if
@@ -503,7 +506,7 @@ class service_method_dispatcher(object):
 # def method_func(): pass --> returns a method_wrapper which calls method_func
 
 # This is the top-level decorator
-def method_dispatcher(service_id, path=None, wsgi_wrapper=None):
+def method_dispatcher(service_id, path=None, wsgi_wrapper=None, query_template=None):
     """Add an Akara resource which dispatches to other functions based on the HTTP method
     
     Used for resources which handle, say, both GET and POST requests.
@@ -512,6 +515,9 @@ def method_dispatcher(service_id, path=None, wsgi_wrapper=None):
       path - the local URL path to the resource (must not at present
            contain a '/') If None, use the function's name as the path.
       wsgi_wrapper - An outer WSGI component to be wrapped around the methods
+      query_template - An Akara URL service template (based on OpenSource; see akara.opensource)
+           Can be used to help consumers compose resources withing this service.  The same
+           template is used for all HTTP methods
 
     Example of use:
 
