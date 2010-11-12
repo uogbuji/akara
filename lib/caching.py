@@ -285,5 +285,5 @@ def make_named_cache(name):
             # Multiple server instances might enter here at the same time and try to create directory
             pass
         assert os.path.exists(cachedir), "Failed to make module cache directory %s" % cachedir
-
+    return cachedir
 
